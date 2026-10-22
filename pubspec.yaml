@@ -59,6 +59,9 @@ flutter:
 
   assets:
     - assets/images/path_logo.png
+    - assets/images/covers/
+    - assets/images/illustrations/
+    - assets/icons/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

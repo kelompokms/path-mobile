@@ -1,5 +1,6 @@
+import 'features/home/beranda/beranda_page.dart';
 import 'package:flutter/material.dart';
-import 'features/auth/welcome/welcome_page.dart';
+// import 'features/auth/welcome/welcome_page.dart';
 
 class PathApp extends StatelessWidget {
   const PathApp({super.key});
@@ -15,7 +16,7 @@ class PathApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const WelcomePage(),
+      home: const BerandaPage(),  // sementara, nanti kembalikan ke WelcomePage()
     );
   }
 }
