@@ -2,10 +2,18 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_assets.dart';
 
 class EmptyClassView extends StatelessWidget {
+  final String message;
+  final String? hint;
   final VoidCallback? onJoinClass;
   final VoidCallback? onAddClass;
 
-  const EmptyClassView({super.key, this.onJoinClass, this.onAddClass});
+  const EmptyClassView({
+    super.key,
+    required this.message,
+    this.hint,
+    this.onJoinClass,
+    this.onAddClass,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -35,21 +43,23 @@ class EmptyClassView extends StatelessWidget {
                         width: double.infinity,
                         fit: BoxFit.cover,
                       ),
-                    ),  
+                    ),
                     const SizedBox(height: 16),
                     Text(
-                      'Anda belum memiliki kelas atau bergabung ke kelas manapun',
+                      message,
                       textAlign: TextAlign.center,
                       style: textTheme.bodySmall,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Gabung Kelas atau Tambah Kelas',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
+                    if (hint != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        hint!,
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -62,14 +72,16 @@ class EmptyClassView extends StatelessWidget {
                 child: const Text('Gabung Kelas'),
               ),
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: 220,
-              child: OutlinedButton(
-                onPressed: onAddClass,
-                child: const Text('Tambah Kelas'),
+            if (onAddClass != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: 220,
+                child: OutlinedButton(
+                  onPressed: onAddClass,
+                  child: const Text('Tambah Kelas'),
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
