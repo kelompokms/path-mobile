@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:path_mobile/data/kelas/kelas_model.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
@@ -12,9 +13,10 @@ class KelasScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const PageFrame(
-      breadcrumb: ['Kelas'],
+    return PageFrame(
+      breadcrumb: const ['Kelas'],
       child: RegisteredClassesSection(
+        controller: controller,
         breadcrumbRoot: 'Kelas',
         emptyMessage: 'Anda belum bergabung kelas manapun',
       ),
@@ -23,6 +25,7 @@ class KelasScreen extends StatelessWidget {
 }
 
 class RegisteredClassesSection extends StatefulWidget {
+  final KelasController? controller;
   final String breadcrumbRoot;
   final String emptyMessage;
   final String? emptyHint;
@@ -31,6 +34,7 @@ class RegisteredClassesSection extends StatefulWidget {
 
   const RegisteredClassesSection({
     super.key,
+    this.controller,
     required this.breadcrumbRoot,
     required this.emptyMessage,
     this.emptyHint,
@@ -45,22 +49,33 @@ class RegisteredClassesSection extends StatefulWidget {
 
 class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
   bool _isJoining = false;
-  final List<ClassItem> _classes = [
-    const ClassItem(
-      title: 'Pemrograman Mobile',
-      grade: 'Kelas XI',
-      teacher: 'Joko Sutoyo',
-      coverIndex: 0,
-      code: 'MOB101',
-    ),
-  ];
+  final List<ClassItem> _fallbackClasses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller?.getListKelas();
+  }
+
+  List<ClassItem> get _classes {
+    final ctrl = widget.controller;
+    if (ctrl == null) return _fallbackClasses;
+    return [
+      for (var i = 0; i < ctrl.listKelas.length; i++)
+        ctrl.listKelas[i].toClassItem(coverIndex: i),
+    ];
+  }
 
   void _openClass(ClassItem data) {
     final trail = [widget.breadcrumbRoot, data.title];
     openPage(
       context,
       breadcrumb: trail,
-      page: ClassDetailScreen(classData: data, breadcrumb: trail),
+      page: ClassDetailScreen(
+        classData: data,
+        breadcrumb: trail,
+        controller: widget.controller,
+      ),
     );
   }
 
@@ -70,39 +85,92 @@ class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
       title: 'Batalkan Pendaftaran',
       message: 'Apakah anda yakin ingin membatalkan pendaftaran',
     );
-    if (yes && mounted) {
-      setState(() => _classes.remove(data));
+    if (!yes || !mounted) return;
+
+    final ctrl = widget.controller;
+    if (ctrl != null) {
+      final err = await ctrl.leaveKelas(data.code);
+      if (!mounted) return;
+      if (err != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(err)));
+      } else {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(content: Text('Berhasil keluar dari kelas')),
+          );
+      }
+    } else {
+      setState(() => _fallbackClasses.remove(data));
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Future<void> _handleJoinClass(String code) async {
+    final ctrl = widget.controller;
+    if (ctrl != null) {
+      final err = await ctrl.joinKelas(code);
+      if (!mounted) return;
+      if (err != null) {
+        await showInfoDialog(
+          context,
+          title: 'Terjadi error',
+          message: err,
+        );
+        return;
+      }
+      setState(() => _isJoining = false);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Berhasil bergabung ke dalam kelas')),
+        );
+    } else {
+      setState(() {
+        _fallbackClasses.add(
+          ClassItem(
+            title: 'Kelas $code',
+            grade: 'Kelas X',
+            teacher: 'Pengajar',
+            coverIndex: _fallbackClasses.length,
+            code: code,
+          ),
+        );
+        _isJoining = false;
+      });
+    }
+  }
+
+  Widget _buildBody(BuildContext context) {
+    final ctrl = widget.controller;
+
     if (_isJoining) {
       return JoinClassForm(
         onCancel: () => setState(() => _isJoining = false),
-        onJoined: (code) {
-          setState(() {
-            _classes.add(
-              ClassItem(
-                title: 'Kelas $code',
-                grade: 'Kelas X',
-                teacher: 'Pengajar',
-                coverIndex: _classes.length,
-                code: code,
-              ),
-            );
-            _isJoining = false;
-          });
-        },
+        onJoined: _handleJoinClass,
       );
     }
 
-    if (_classes.isEmpty) {
-      return EmptyClassView(
-        message: widget.emptyMessage,
-        hint: widget.emptyHint,
-        onJoinClass: () => setState(() => _isJoining = true),
-        onAddClass: widget.onAddClass,
+    if (ctrl != null && ctrl.isLoading && ctrl.listKelas.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final classes = _classes;
+
+    if (classes.isEmpty) {
+      return Column(
+        children: [
+          if (widget.listTopBar != null) widget.listTopBar!,
+          Expanded(
+            child: EmptyClassView(
+              message: widget.emptyMessage,
+              hint: widget.emptyHint,
+              onJoinClass: () => setState(() => _isJoining = true),
+              onAddClass: widget.onAddClass,
+            ),
+          ),
+        ],
       );
     }
 
@@ -133,29 +201,45 @@ class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
               ),
             ),
         Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              mainAxisExtent: 152,
-            ),
-            itemCount: _classes.length,
-            itemBuilder: (context, index) => ClassCard(
-              data: _classes[index],
-              onTap: () => _openClass(_classes[index]),
-              menuLabel: 'Batalkan Pendaftaran',
-              onMenuSelected: () => _confirmLeave(_classes[index]),
+          child: RefreshIndicator(
+            onRefresh: () async => widget.controller?.getListKelas(),
+            child: GridView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                mainAxisExtent: 152,
+              ),
+              itemCount: classes.length,
+              itemBuilder: (context, index) => ClassCard(
+                data: classes[index],
+                onTap: () => _openClass(classes[index]),
+                menuLabel: 'Batalkan Pendaftaran',
+                onMenuSelected: () => _confirmLeave(classes[index]),
+              ),
             ),
           ),
         ),
       ],
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final ctrl = widget.controller;
+    if (ctrl == null) {
+      return _buildBody(context);
+    }
+    return ListenableBuilder(
+      listenable: ctrl,
+      builder: (context, _) => _buildBody(context),
+    );
+  }
 }
 
 class _MateriData {
+  final int? id;
   final String title;
   final String author;
   final DateTime postedAt;
@@ -163,15 +247,28 @@ class _MateriData {
   final List<LampiranItem> lampiran;
 
   const _MateriData({
+    this.id,
     required this.title,
     required this.author,
     required this.postedAt,
     required this.description,
     this.lampiran = const [],
   });
+
+  factory _MateriData.fromModel(PostinganModel model, {String? author}) {
+    return _MateriData(
+      id: model.id,
+      title: model.judul,
+      author: author ?? 'Pengajar',
+      postedAt: model.dibuat,
+      description: model.deskripsi,
+      lampiran: model.lampiranItems,
+    );
+  }
 }
 
 class _TugasData {
+  final int? id;
   final String title;
   final String author;
   final DateTime postedAt;
@@ -182,6 +279,7 @@ class _TugasData {
   final List<LampiranItem> lampiran;
 
   _TugasData({
+    this.id,
     required this.title,
     required this.author,
     required this.postedAt,
@@ -189,16 +287,30 @@ class _TugasData {
     required this.description,
     List<LampiranItem>? lampiran,
   }) : lampiran = lampiran ?? [];
+
+  factory _TugasData.fromModel(PostinganModel model, {String? author}) {
+    return _TugasData(
+      id: model.id,
+      title: model.judul,
+      author: author ?? 'Pengajar',
+      postedAt: model.dibuat,
+      dueDate: model.dibuat.add(const Duration(days: 7)),
+      description: model.deskripsi,
+      lampiran: List<LampiranItem>.from(model.lampiranItems),
+    );
+  }
 }
 
 class ClassDetailScreen extends StatefulWidget {
   final ClassItem classData;
   final List<String> breadcrumb;
+  final KelasController? controller;
 
   const ClassDetailScreen({
     super.key,
     required this.classData,
     required this.breadcrumb,
+    this.controller,
   });
 
   @override
@@ -206,28 +318,47 @@ class ClassDetailScreen extends StatefulWidget {
 }
 
 class _ClassDetailScreenState extends State<ClassDetailScreen> {
-  late final List<_MateriData> _materiList = [
-    _MateriData(
-      title: 'Pengenalan Flutter & Widget',
-      author: widget.classData.teacher ?? 'Pengajar',
-      postedAt: DateTime.now(),
-      description:
-          'Materi dasar pembuatan antarmuka aplikasi menggunakan StatelessWidget dan StatefulWidget.',
-      lampiran: const [
-        LampiranItem(name: 'Modul_Flutter_Dasar.pdf', detail: 'PDF'),
-      ],
-    ),
-  ];
+  bool _isLoading = false;
+  List<_MateriData> _materiList = [];
+  List<_TugasData> _tugasList = [];
 
-  late final List<_TugasData> _tugasList = [
-    _TugasData(
-      title: 'Praktikum Layout UI',
-      author: widget.classData.teacher ?? 'Pengajar',
-      postedAt: DateTime.now(),
-      dueDate: DateTime.now().add(const Duration(days: 7)),
-      description: 'Buatlah tampilan halaman profil sesuai desain pada modul.',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadPosts();
+  }
+
+  Future<void> _loadPosts() async {
+    final ctrl = widget.controller;
+    if (ctrl == null) return;
+
+    setState(() => _isLoading = true);
+
+    final results = await Future.wait([
+      ctrl.getListMateri(widget.classData.code),
+      ctrl.getListTugas(widget.classData.code),
+    ]);
+
+    if (!mounted) return;
+
+    final (materiModels, _) = results[0];
+    final (tugasModels, _) = results[1];
+    final author = widget.classData.teacher ?? 'Pengajar';
+
+    setState(() {
+      _isLoading = false;
+      if (materiModels != null) {
+        _materiList = materiModels
+            .map((m) => _MateriData.fromModel(m, author: author))
+            .toList();
+      }
+      if (tugasModels != null) {
+        _tugasList = tugasModels
+            .map((t) => _TugasData.fromModel(t, author: author))
+            .toList();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -253,12 +384,14 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             ],
           ),
           Expanded(
-            child: TabBarView(
-              children: [
-                _buildMateriTab(),
-                _buildTugasTab(),
-              ],
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
+                    children: [
+                      _buildMateriTab(),
+                      _buildTugasTab(),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -274,24 +407,27 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         ),
       );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      itemCount: _materiList.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final m = _materiList[index];
-        return PostCard(
-          icon: Icons.menu_book_outlined,
-          label: 'Materi Baru:',
-          title: m.title,
-          date: m.postedAt,
-          onTap: () => openPage(
-            context,
-            breadcrumb: [...widget.breadcrumb, m.title],
-            page: _MateriDetailScreen(materi: m),
-          ),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: _loadPosts,
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        itemCount: _materiList.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final m = _materiList[index];
+          return PostCard(
+            icon: Icons.menu_book_outlined,
+            label: 'Materi Baru:',
+            title: m.title,
+            date: m.postedAt,
+            onTap: () => openPage(
+              context,
+              breadcrumb: [...widget.breadcrumb, m.title],
+              page: _MateriDetailScreen(materi: m),
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -304,33 +440,36 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
         ),
       );
     }
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-      children: [
-        const Text(
-          'Assigned',
-          style: TextStyle(
-            fontSize: 12,
-            decoration: TextDecoration.underline,
-            color: AppColors.text,
-          ),
-        ),
-        const SizedBox(height: 12),
-        for (final tugas in _tugasList) ...[
-          PostCard(
-            icon: Icons.list_alt_outlined,
-            label: 'Tugas Baru:',
-            title: tugas.title,
-            date: tugas.postedAt,
-            onTap: () => openPage(
-              context,
-              breadcrumb: [...widget.breadcrumb, tugas.title],
-              page: _TugasDetailScreen(tugas: tugas),
+    return RefreshIndicator(
+      onRefresh: _loadPosts,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        children: [
+          const Text(
+            'Assigned',
+            style: TextStyle(
+              fontSize: 12,
+              decoration: TextDecoration.underline,
+              color: AppColors.text,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+          for (final tugas in _tugasList) ...[
+            PostCard(
+              icon: Icons.list_alt_outlined,
+              label: 'Tugas Baru:',
+              title: tugas.title,
+              date: tugas.postedAt,
+              onTap: () => openPage(
+                context,
+                breadcrumb: [...widget.breadcrumb, tugas.title],
+                page: _TugasDetailScreen(tugas: tugas),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

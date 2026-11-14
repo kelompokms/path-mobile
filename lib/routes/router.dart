@@ -46,7 +46,10 @@ final router = GoRouter(
       routes: [
         GoRoute(
           path: '/beranda',
-          builder: (context, state) => const DashboardScreen(),
+          builder: (context, state) => DashboardScreen(
+            kelasController: KelasController(_kelasRepo),
+            pengajarController: PengajarController(_pengajarRepo),
+          ),
         ),
         GoRoute(
           path: '/pengajar',

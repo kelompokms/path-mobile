@@ -20,9 +20,11 @@ class _ProfilScreenState extends State<ProfilScreen> {
     color: Colors.black26,
   );
 
-  final String _name = 'Pengguna PATH';
-  String _email = 'user@pathclass.app';
-  String _phone = '-';
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.loadProfil();
+  }
 
   Future<void> _handleLogout() async {
     final yes = await showConfirmDialog(
@@ -31,6 +33,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       message: 'Apakah Anda yakin ingin keluar dari akun?',
     );
     if (!yes || !mounted) return;
+    widget.controller.logout();
     context.go('/login');
   }
 
@@ -38,111 +41,137 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Widget build(BuildContext context) {
     return PageFrame(
       breadcrumb: const ['Profil'],
-      child: Column(
-        children: [
-          _ProfilHeader(onLogout: _handleLogout),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 22,
-                        backgroundColor: AppColors.color1,
-                        child: Icon(
-                          Icons.person_outline,
-                          color: Colors.white,
-                          size: 22,
+      child: ListenableBuilder(
+        listenable: widget.controller,
+        builder: (context, _) {
+          final ctrl = widget.controller;
+          final profil = ctrl.profil;
+          final name = (profil?.username.isNotEmpty ?? false)
+              ? profil!.username
+              : 'Pengguna PATH';
+          final email = (profil?.email.isNotEmpty ?? false)
+              ? profil!.email
+              : '-';
+          final phone = (profil?.phone.isNotEmpty ?? false)
+              ? profil!.phone
+              : '-';
+
+          return Column(
+            children: [
+              _ProfilHeader(onLogout: _handleLogout),
+              Expanded(
+                child: ctrl.isLoading && profil == null
+                    ? const Center(child: CircularProgressIndicator())
+                    : RefreshIndicator(
+                        onRefresh: ctrl.loadProfil,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                children: [
+                                  CircleAvatar(
+                                    radius: 22,
+                                    backgroundColor: AppColors.color1,
+                                    child: Icon(
+                                      Icons.person_outline,
+                                      color: Colors.white,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Foto profil',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppColors.text,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            _divider,
+                            _InfoRow(
+                              icon: Icons.manage_accounts_outlined,
+                              label: 'Display name',
+                              value: name,
+                            ),
+                            _divider,
+                            _InfoRow(
+                              icon: Icons.mail_outline,
+                              label: 'Email',
+                              value: email,
+                            ),
+                            _divider,
+                            _InfoRow(
+                              icon: Icons.phone_outlined,
+                              label: 'Phone',
+                              value: phone,
+                            ),
+                            _divider,
+                            const SizedBox(height: 16),
+                            Row(
+                              children: [
+                                FilledButton(
+                                  onPressed: () => openPage(
+                                    context,
+                                    breadcrumb: const ['Profil', 'Edit Profil'],
+                                    page: _EditProfilScreen(
+                                      controller: ctrl,
+                                      initialEmail: email == '-' ? '' : email,
+                                      initialPhone: phone == '-' ? '' : phone,
+                                    ),
+                                  ),
+                                  style: FilledButton.styleFrom(
+                                    minimumSize: const Size(0, 36),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    textStyle: const TextStyle(fontSize: 12),
+                                  ),
+                                  child: const Text('Edit profil'),
+                                ),
+                                const SizedBox(width: 16),
+                                ElevatedButton(
+                                  onPressed: () => openPage(
+                                    context,
+                                    breadcrumb: const [
+                                      'Profil',
+                                      'Ganti Password',
+                                    ],
+                                    page: _GantiPasswordScreen(
+                                      controller: ctrl,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.card,
+                                    foregroundColor: AppColors.text,
+                                    elevation: 3,
+                                    minimumSize: const Size(0, 36),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    textStyle: const TextStyle(fontSize: 12),
+                                  ),
+                                  child: const Text('Ganti password'),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
-                      SizedBox(width: 12),
-                      Text(
-                        'Foto profil',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.text,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                _divider,
-                _InfoRow(
-                  icon: Icons.manage_accounts_outlined,
-                  label: 'Display name',
-                  value: _name,
-                ),
-                _divider,
-                _InfoRow(
-                  icon: Icons.mail_outline,
-                  label: 'Email',
-                  value: _email,
-                ),
-                _divider,
-                _InfoRow(
-                  icon: Icons.phone_outlined,
-                  label: 'Phone',
-                  value: _phone,
-                ),
-                _divider,
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    FilledButton(
-                      onPressed: () => openPage(
-                        context,
-                        breadcrumb: const ['Profil', 'Edit Profil'],
-                        page: _EditProfilScreen(
-                          initialEmail: _email,
-                          initialPhone: _phone == '-' ? '' : _phone,
-                          onSave: (email, phone) {
-                            setState(() {
-                              _email = email;
-                              _phone = phone.isEmpty ? '-' : phone;
-                            });
-                          },
-                        ),
-                      ),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 36),
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        textStyle: const TextStyle(fontSize: 12),
-                      ),
-                      child: const Text('Edit profil'),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: () => openPage(
-                        context,
-                        breadcrumb: const ['Profil', 'Ganti Password'],
-                        page: const _GantiPasswordScreen(),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.card,
-                        foregroundColor: AppColors.text,
-                        elevation: 3,
-                        minimumSize: const Size(0, 36),
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        textStyle: const TextStyle(fontSize: 12),
-                      ),
-                      child: const Text('Ganti password'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -251,14 +280,14 @@ class _InfoRow extends StatelessWidget {
 }
 
 class _EditProfilScreen extends StatefulWidget {
+  final ProfilController controller;
   final String initialEmail;
   final String initialPhone;
-  final void Function(String email, String phone) onSave;
 
   const _EditProfilScreen({
+    required this.controller,
     required this.initialEmail,
     required this.initialPhone,
-    required this.onSave,
   });
 
   @override
@@ -268,6 +297,7 @@ class _EditProfilScreen extends StatefulWidget {
 class _EditProfilScreenState extends State<_EditProfilScreen> {
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
+  bool _saving = false;
 
   bool get _hasChanges =>
       _emailController.text.trim() != widget.initialEmail ||
@@ -287,8 +317,22 @@ class _EditProfilScreenState extends State<_EditProfilScreen> {
     super.dispose();
   }
 
-  void _save() {
-    widget.onSave(_emailController.text.trim(), _phoneController.text.trim());
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final err = await widget.controller.updateProfil(
+      email: _emailController.text.trim(),
+      phone: _phoneController.text.trim(),
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    if (err != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -358,7 +402,7 @@ class _EditProfilScreenState extends State<_EditProfilScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton(
-                  onPressed: _hasChanges ? _save : null,
+                  onPressed: (_hasChanges && !_saving) ? _save : null,
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(0, 36),
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -367,7 +411,16 @@ class _EditProfilScreenState extends State<_EditProfilScreen> {
                     ),
                     textStyle: const TextStyle(fontSize: 12),
                   ),
-                  child: const Text('Simpan'),
+                  child: _saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Simpan'),
                 ),
               ),
             ],
@@ -427,7 +480,9 @@ class _EditProfilScreenState extends State<_EditProfilScreen> {
 }
 
 class _GantiPasswordScreen extends StatefulWidget {
-  const _GantiPasswordScreen();
+  final ProfilController controller;
+
+  const _GantiPasswordScreen({required this.controller});
 
   @override
   State<_GantiPasswordScreen> createState() => _GantiPasswordScreenState();
@@ -436,9 +491,12 @@ class _GantiPasswordScreen extends StatefulWidget {
 class _GantiPasswordScreenState extends State<_GantiPasswordScreen> {
   final _oldController = TextEditingController();
   final _newController = TextEditingController();
+  bool _saving = false;
 
   bool get _canSend =>
-      _oldController.text.length >= 8 && _newController.text.length >= 8;
+      _oldController.text.length >= 8 &&
+      _newController.text.length >= 8 &&
+      !_saving;
 
   @override
   void dispose() {
@@ -447,8 +505,25 @@ class _GantiPasswordScreenState extends State<_GantiPasswordScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     FocusScope.of(context).unfocus();
+    setState(() => _saving = true);
+
+    final err = await widget.controller.resetPassword(
+      _oldController.text,
+      _newController.text,
+    );
+
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    if (err != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -565,7 +640,16 @@ class _GantiPasswordScreenState extends State<_GantiPasswordScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    child: const Text('Simpan Password'),
+                    child: _saving
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('Simpan Password'),
                   ),
                 ),
               ],

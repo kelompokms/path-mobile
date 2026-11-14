@@ -1,21 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:path_mobile/data/kalender/kalender_model.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/kalender/kalender_controller.dart';
-
-class _AgendaItem {
-  final DateTime date;
-  final String heading;
-  final String title;
-  final String time;
-
-  const _AgendaItem({
-    required this.date,
-    required this.heading,
-    required this.title,
-    required this.time,
-  });
-}
 
 class KalenderScreen extends StatefulWidget {
   final KalenderController controller;
@@ -30,20 +17,11 @@ class _KalenderScreenState extends State<KalenderScreen> {
   late final DateTime _today = DateUtils.dateOnly(DateTime.now());
   late DateTime _shownMonth = DateTime(_today.year, _today.month);
 
-  late final List<_AgendaItem> _agendas = [
-    _AgendaItem(
-      date: _today,
-      heading: 'Tugas Kelas',
-      title: 'Praktikum Pemrograman',
-      time: '23.59',
-    ),
-    _AgendaItem(
-      date: _today.add(const Duration(days: 3)),
-      heading: 'Kalender Akademik',
-      title: 'Evaluasi Mingguan',
-      time: 'Seharian',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.loadAgendas();
+  }
 
   void _changeMonth(int delta) {
     setState(() {
@@ -51,9 +29,9 @@ class _KalenderScreenState extends State<KalenderScreen> {
     });
   }
 
-  List<MapEntry<DateTime, List<_AgendaItem>>> get _days {
-    final grouped = <DateTime, List<_AgendaItem>>{};
-    for (final item in _agendas) {
+  List<MapEntry<DateTime, List<AgendaItemModel>>> get _days {
+    final grouped = <DateTime, List<AgendaItemModel>>{};
+    for (final item in widget.controller.agendas) {
       if (item.date.year != _shownMonth.year ||
           item.date.month != _shownMonth.month) {
         continue;
@@ -66,66 +44,76 @@ class _KalenderScreenState extends State<KalenderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final days = _days;
-
     return PageFrame(
       breadcrumb: const ['Kalender'],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text(
-              'Kalender',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.text,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: _MonthCalendar(
-              month: _shownMonth,
-              today: _today,
-              onPrev: () => _changeMonth(-1),
-              onNext: () => _changeMonth(1),
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
-              'Agenda',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppColors.text,
-              ),
-            ),
-          ),
-          Expanded(
-            child: days.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Belum ada agenda',
-                      style: TextStyle(color: AppColors.secondaryText),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 0, 24),
-                    itemCount: days.length,
-                    itemBuilder: (context, i) {
-                      final day = days[i];
-                      return _AgendaRow(
-                        date: day.key,
-                        items: day.value,
-                        isToday: DateUtils.isSameDay(day.key, _today),
-                      );
-                    },
+      child: ListenableBuilder(
+        listenable: widget.controller,
+        builder: (context, _) {
+          final days = _days;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Text(
+                  'Kalender',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
                   ),
-          ),
-        ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _MonthCalendar(
+                  month: _shownMonth,
+                  today: _today,
+                  onPrev: () => _changeMonth(-1),
+                  onNext: () => _changeMonth(1),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
+                child: Text(
+                  'Agenda',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: widget.controller.isLoading && days.isEmpty
+                    ? const Center(child: CircularProgressIndicator())
+                    : days.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Belum ada agenda',
+                          style: TextStyle(color: AppColors.secondaryText),
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: widget.controller.loadAgendas,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 0, 24),
+                          itemCount: days.length,
+                          itemBuilder: (context, i) {
+                            final day = days[i];
+                            return _AgendaRow(
+                              date: day.key,
+                              items: day.value,
+                              isToday: DateUtils.isSameDay(day.key, _today),
+                            );
+                          },
+                        ),
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -272,7 +260,7 @@ class _MonthCalendar extends StatelessWidget {
 
 class _AgendaRow extends StatelessWidget {
   final DateTime date;
-  final List<_AgendaItem> items;
+  final List<AgendaItemModel> items;
   final bool isToday;
 
   const _AgendaRow({
@@ -341,7 +329,7 @@ class _AgendaRow extends StatelessWidget {
 }
 
 class _AgendaCard extends StatelessWidget {
-  final _AgendaItem item;
+  final AgendaItemModel item;
 
   const _AgendaCard({required this.item});
 

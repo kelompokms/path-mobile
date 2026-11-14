@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:path_mobile/data/login/login_model.dart';
 import 'package:path_mobile/utils/http_client.dart';
 
 class LoginRepository {
@@ -10,14 +11,14 @@ class LoginRepository {
 
   /// Returns an error message on failure, or `null` on success (like Go's `error`).
   Future<String?> login(String email, String password) async {
-    final body = {'email': email, 'password': password};
+    final req = LoginRequest(email: email, password: password);
 
     try {
       final response = await _client
           .post(
             _client.uri('/login'),
-            body: jsonEncode(body),
-            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode(req.toJson()),
+            headers: _client.JSON,
           )
           .timeout(const Duration(seconds: 10));
 
@@ -27,11 +28,11 @@ class LoginRepository {
         return data['message'] as String? ?? 'Login failed';
       }
 
-      final token = data['token'] as String?;
-      if (token == null || token.isEmpty) {
+      final authRes = AuthSuccessResponse.fromJson(data);
+      if (authRes.token.isEmpty) {
         return 'Token not found';
       }
-      _client.setToken(token);
+      _client.setToken(authRes.token);
       return null;
     } on TimeoutException {
       return 'Request timed out. Please try again.';

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_mobile/data/pengajar/pengajar_model.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
@@ -24,27 +25,34 @@ class PengajarScreen extends StatefulWidget {
 
 class _PengajarScreenState extends State<PengajarScreen> {
   bool _showForm = false;
-  final List<ClassItem> _classes = [
-    const ClassItem(
-      title: 'Pemrograman Web',
-      grade: 'Kelas XII',
-      coverIndex: 1,
-      code: 'WEB204',
-    ),
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.getListKelas();
+  }
+
+  List<ClassItem> get _classes => [
+    for (var i = 0; i < widget.controller.listKelas.length; i++)
+      widget.controller.listKelas[i].toClassItem(coverIndex: i),
   ];
 
-  void _createClass(String name, String grade) {
-    setState(() {
-      _classes.add(
-        ClassItem(
-          title: name,
-          grade: grade.isEmpty ? 'Kelas X' : 'Kelas $grade',
-          coverIndex: _classes.length,
-          code: 'KLS${100 + _classes.length}',
-        ),
-      );
-      _showForm = false;
-    });
+  Future<void> _createClass(String name, String grade) async {
+    final err = await widget.controller.createKelas(
+      nama: name,
+      gradeInput: grade,
+    );
+    if (!mounted) return;
+    if (err != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+    setState(() => _showForm = false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Kelas berhasil dibuat')));
   }
 
   @override
@@ -53,41 +61,52 @@ class _PengajarScreenState extends State<PengajarScreen> {
 
     return PageFrame(
       breadcrumb: const ['Pengajar'],
-      child: _showForm
-          ? _CreateClassForm(
+      child: ListenableBuilder(
+        listenable: widget.controller,
+        builder: (context, _) {
+          final classes = _classes;
+          if (_showForm) {
+            return _CreateClassForm(
               onCreate: _createClass,
               onCancel: () => setState(() => _showForm = false),
-            )
-          : _classes.isEmpty
-          ? EmptyClassView(
+            );
+          }
+          if (widget.controller.isLoading && classes.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (classes.isEmpty) {
+            return EmptyClassView(
               message: 'Anda belum membuat kelas',
               joinLabel: 'Buat Kelas',
               onJoinClass: () => setState(() => _showForm = true),
-            )
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Kelas',
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.text,
-                        ),
+            );
+          }
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Kelas',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
                       ),
-                      ElevatedButton.icon(
-                        style: AppTheme.softCompactButton,
-                        onPressed: () => setState(() => _showForm = true),
-                        icon: const Icon(Icons.add_box_outlined, size: 18),
-                        label: const Text('Buat Kelas'),
-                      ),
-                    ],
-                  ),
+                    ),
+                    ElevatedButton.icon(
+                      style: AppTheme.softCompactButton,
+                      onPressed: () => setState(() => _showForm = true),
+                      icon: const Icon(Icons.add_box_outlined, size: 18),
+                      label: const Text('Buat Kelas'),
+                    ),
+                  ],
                 ),
-                Expanded(
+              ),
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: widget.controller.getListKelas,
                   child: GridView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                     gridDelegate:
@@ -97,15 +116,18 @@ class _PengajarScreenState extends State<PengajarScreen> {
                           mainAxisSpacing: 12,
                           mainAxisExtent: 152,
                         ),
-                    itemCount: _classes.length,
+                    itemCount: classes.length,
                     itemBuilder: (context, i) {
-                      final item = _classes[i];
+                      final item = classes[i];
                       return ClassCard(
                         data: item,
                         onTap: () => openPage(
                           context,
                           breadcrumb: ['Pengajar', item.title],
-                          page: PengajarDetailScreen(classData: item),
+                          page: PengajarDetailScreen(
+                            classData: item,
+                            controller: widget.controller,
+                          ),
                           routeName: 'pengajar-detail',
                         ),
                         menuLabel: 'Salin link undangan kelas',
@@ -118,8 +140,11 @@ class _PengajarScreenState extends State<PengajarScreen> {
                     },
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -252,20 +277,33 @@ class _CreateClassFormState extends State<_CreateClassForm> {
 }
 
 class _MateriPengajar {
+  int? id;
   String title;
   String description;
   final DateTime postedAt;
   final List<LampiranItem> lampiran;
 
   _MateriPengajar({
+    this.id,
     required this.title,
     required this.description,
     required this.postedAt,
     List<LampiranItem>? lampiran,
   }) : lampiran = lampiran ?? [];
+
+  factory _MateriPengajar.fromModel(PostinganModel model) {
+    return _MateriPengajar(
+      id: model.id,
+      title: model.judul,
+      description: model.deskripsi,
+      postedAt: model.dibuat,
+      lampiran: List<LampiranItem>.from(model.lampiranItems),
+    );
+  }
 }
 
 class _TugasPengajar {
+  int? id;
   String title;
   String description;
   final DateTime postedAt;
@@ -276,6 +314,7 @@ class _TugasPengajar {
   final List<_PengumpulanItem> pengumpulan;
 
   _TugasPengajar({
+    this.id,
     required this.title,
     required this.description,
     required this.postedAt,
@@ -296,6 +335,17 @@ class _TugasPengajar {
                status: 'Ditugaskan',
              ),
            ];
+
+  factory _TugasPengajar.fromModel(PostinganModel model) {
+    return _TugasPengajar(
+      id: model.id,
+      title: model.judul,
+      description: model.deskripsi,
+      postedAt: model.dibuat,
+      dueDate: model.dibuat.add(const Duration(days: 7)),
+      lampiran: List<LampiranItem>.from(model.lampiranItems),
+    );
+  }
 }
 
 class _PengumpulanItem {
@@ -313,8 +363,13 @@ class _PengumpulanItem {
 
 class PengajarDetailScreen extends StatefulWidget {
   final ClassItem classData;
+  final PengajarController? controller;
 
-  const PengajarDetailScreen({super.key, required this.classData});
+  const PengajarDetailScreen({
+    super.key,
+    required this.classData,
+    this.controller,
+  });
 
   @override
   State<PengajarDetailScreen> createState() => _PengajarDetailScreenState();
@@ -323,25 +378,117 @@ class PengajarDetailScreen extends StatefulWidget {
 class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   ClassItem get _class => widget.classData;
 
-  late final List<_MateriPengajar> _materiList = [
-    _MateriPengajar(
-      title: 'Pengantar Arsitektur Web',
-      description: 'Materi pengenalan HTTP, REST API, dan arsitektur client-server.',
-      postedAt: DateTime.now(),
-      lampiran: const [
-        LampiranItem(name: 'Slide_Pertemuan_1.pdf', detail: 'PDF'),
-      ],
-    ),
-  ];
+  bool _isLoading = false;
+  List<_MateriPengajar> _materiList = [];
+  List<_TugasPengajar> _tugasList = [];
 
-  late final List<_TugasPengajar> _tugasList = [
-    _TugasPengajar(
-      title: 'Tugas 1: Buat Endpoint CRUD',
-      description: 'Implementasikan endpoint dasar dan dokumentasikan hasilnya.',
-      postedAt: DateTime.now(),
-      dueDate: DateTime.now().add(const Duration(days: 7)),
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadPosts();
+  }
+
+  Future<void> _loadPosts() async {
+    final ctrl = widget.controller;
+    if (ctrl == null) return;
+
+    setState(() => _isLoading = true);
+
+    final results = await Future.wait([
+      ctrl.getListMateri(_class.code),
+      ctrl.getListTugas(_class.code),
+    ]);
+
+    if (!mounted) return;
+
+    final (materiModels, _) = results[0];
+    final (tugasModels, _) = results[1];
+
+    setState(() {
+      _isLoading = false;
+      if (materiModels != null) {
+        _materiList = materiModels.map(_MateriPengajar.fromModel).toList();
+      }
+      if (tugasModels != null) {
+        _tugasList = tugasModels.map(_TugasPengajar.fromModel).toList();
+      }
+    });
+  }
+
+  Future<void> _handleMateriCreated(_MateriPengajar materi) async {
+    final ctrl = widget.controller;
+    if (ctrl != null) {
+      final (created, err) = await ctrl.createMateri(
+        _class.code,
+        judul: materi.title,
+        deskripsi: materi.description,
+        lampiran: materi.lampiran,
+      );
+      if (!mounted) return;
+      if (err != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(err)));
+        return;
+      }
+      if (created != null) {
+        setState(() {
+          _materiList.insert(0, _MateriPengajar.fromModel(created));
+        });
+        return;
+      }
+    }
+    setState(() {
+      _materiList.insert(0, materi);
+    });
+  }
+
+  Future<void> _handleTugasCreated(_TugasPengajar tugas) async {
+    final ctrl = widget.controller;
+    if (ctrl != null) {
+      final (created, err) = await ctrl.createTugas(
+        _class.code,
+        judul: tugas.title,
+        deskripsi: tugas.description,
+        lampiran: tugas.lampiran,
+      );
+      if (!mounted) return;
+      if (err != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(err)));
+        return;
+      }
+      if (created != null) {
+        tugas.id = created.id;
+      }
+    }
+    setState(() {
+      _tugasList.insert(0, tugas);
+    });
+  }
+
+  Future<void> _handleTugasEdited(_TugasPengajar tugas) async {
+    final ctrl = widget.controller;
+    if (ctrl != null && tugas.id != null) {
+      final (_, err) = await ctrl.editPostingan(
+        _class.code,
+        tugas.id!,
+        judul: tugas.title,
+        deskripsi: tugas.description,
+        lampiran: tugas.lampiran,
+        tipe: PostinganModel.tipeTugas,
+      );
+      if (!mounted) return;
+      if (err != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(err)));
+        return;
+      }
+    }
+    setState(() {});
+  }
 
   Future<void> _editMateri(_MateriPengajar m) async {
     final titleCtrl = TextEditingController(text: m.title);
@@ -441,9 +588,28 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
     );
 
     if (saved == true && mounted) {
+      final newTitle = titleCtrl.text.trim();
+      final newDesc = descCtrl.text.trim();
+      final ctrl = widget.controller;
+      if (ctrl != null && m.id != null) {
+        final (_, err) = await ctrl.editPostingan(
+          _class.code,
+          m.id!,
+          judul: newTitle,
+          deskripsi: newDesc,
+          tipe: PostinganModel.tipeMateri,
+        );
+        if (!mounted) return;
+        if (err != null) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(err)));
+          return;
+        }
+      }
       setState(() {
-        m.title = titleCtrl.text.trim();
-        m.description = descCtrl.text.trim();
+        m.title = newTitle;
+        m.description = newDesc;
       });
     }
   }
@@ -472,12 +638,14 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
             ],
           ),
           Expanded(
-            child: TabBarView(
-              children: [
-                _buildMateriTab(),
-                _buildTugasTab(),
-              ],
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
+                    children: [
+                      _buildMateriTab(),
+                      _buildTugasTab(),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -500,9 +668,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                   breadcrumb: ['Pengajar', _class.title, 'Buat Materi'],
                   page: _BuatMateriScreen(
                     classData: _class,
-                    onCreated: (materi) => setState(() {
-                      _materiList.insert(0, materi);
-                    }),
+                    onCreated: _handleMateriCreated,
                   ),
                 ),
                 icon: const Icon(Icons.add_box_outlined, size: 18),
@@ -519,26 +685,29 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                     style: TextStyle(color: AppColors.secondaryText),
                   ),
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  itemCount: _materiList.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, i) {
-                    final m = _materiList[i];
-                    return PostCard(
-                      icon: Icons.menu_book_outlined,
-                      label: 'Materi Baru:',
-                      title: m.title,
-                      date: m.postedAt,
-                      onTap: () => openPage(
-                        context,
-                        breadcrumb: ['Pengajar', _class.title, m.title],
-                        page: _PengajarMateriDetailScreen(materi: m),
-                      ),
-                      menuLabels: const ['Edit'],
-                      onMenuItemSelected: (_) => _editMateri(m),
-                    );
-                  },
+              : RefreshIndicator(
+                  onRefresh: _loadPosts,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemCount: _materiList.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, i) {
+                      final m = _materiList[i];
+                      return PostCard(
+                        icon: Icons.menu_book_outlined,
+                        label: 'Materi Baru:',
+                        title: m.title,
+                        date: m.postedAt,
+                        onTap: () => openPage(
+                          context,
+                          breadcrumb: ['Pengajar', _class.title, m.title],
+                          page: _PengajarMateriDetailScreen(materi: m),
+                        ),
+                        menuLabels: const ['Edit'],
+                        onMenuItemSelected: (_) => _editMateri(m),
+                      );
+                    },
+                  ),
                 ),
         ),
       ],
@@ -559,9 +728,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                 breadcrumb: ['Pengajar', _class.title, 'Tugas', 'Buat Tugas'],
                 page: _TugasFormScreen(
                   classData: _class,
-                  onSaved: (tugas) => setState(() {
-                    _tugasList.insert(0, tugas);
-                  }),
+                  onSaved: _handleTugasCreated,
                 ),
               ),
               icon: const Icon(Icons.add_box_outlined, size: 18),
@@ -577,42 +744,45 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                     style: TextStyle(color: AppColors.secondaryText),
                   ),
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  itemCount: _tugasList.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, i) {
-                    final t = _tugasList[i];
-                    return PostCard(
-                      icon: Icons.list_alt_outlined,
-                      label: 'Tugas Baru:',
-                      title: t.title,
-                      date: t.postedAt,
-                      onTap: () => openPage(
-                        context,
-                        breadcrumb: ['Pengajar', _class.title, t.title],
-                        page: _PengajarTugasDetailScreen(
-                          classData: _class,
-                          tugas: t,
+              : RefreshIndicator(
+                  onRefresh: _loadPosts,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    itemCount: _tugasList.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
+                    itemBuilder: (context, i) {
+                      final t = _tugasList[i];
+                      return PostCard(
+                        icon: Icons.list_alt_outlined,
+                        label: 'Tugas Baru:',
+                        title: t.title,
+                        date: t.postedAt,
+                        onTap: () => openPage(
+                          context,
+                          breadcrumb: ['Pengajar', _class.title, t.title],
+                          page: _PengajarTugasDetailScreen(
+                            classData: _class,
+                            tugas: t,
+                          ),
                         ),
-                      ),
-                      menuLabels: const ['Edit'],
-                      onMenuItemSelected: (_) => openPage(
-                        context,
-                        breadcrumb: [
-                          'Pengajar',
-                          _class.title,
-                          'Tugas',
-                          'Edit Tugas',
-                        ],
-                        page: _TugasFormScreen(
-                          classData: _class,
-                          existing: t,
-                          onSaved: (_) => setState(() {}),
+                        menuLabels: const ['Edit'],
+                        onMenuItemSelected: (_) => openPage(
+                          context,
+                          breadcrumb: [
+                            'Pengajar',
+                            _class.title,
+                            'Tugas',
+                            'Edit Tugas',
+                          ],
+                          page: _TugasFormScreen(
+                            classData: _class,
+                            existing: t,
+                            onSaved: _handleTugasEdited,
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
         ),
       ],

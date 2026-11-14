@@ -3,11 +3,20 @@ import 'package:go_router/go_router.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
+import 'package:path_mobile/ui/kelas/kelas_controller.dart';
 import 'package:path_mobile/ui/kelas/kelas_screen.dart';
+import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final KelasController? kelasController;
+  final PengajarController? pengajarController;
+
+  const DashboardScreen({
+    super.key,
+    this.kelasController,
+    this.pengajarController,
+  });
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -16,14 +25,20 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedTab = 0;
 
-  static const List<ClassItem> _teachingClasses = [
-    ClassItem(
-      title: 'Pemrograman Web',
-      grade: 'Kelas XII',
-      coverIndex: 1,
-      code: 'WEB204',
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    widget.pengajarController?.getListKelas();
+  }
+
+  List<ClassItem> get _teachingClasses {
+    final ctrl = widget.pengajarController;
+    if (ctrl == null) return const [];
+    return [
+      for (var i = 0; i < ctrl.listKelas.length; i++)
+        ctrl.listKelas[i].toClassItem(coverIndex: i),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +47,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: _selectedTab == 1
           ? _buildTeachingTab()
           : RegisteredClassesSection(
+              controller: widget.kelasController,
               breadcrumbRoot: 'Beranda',
               emptyMessage:
                   'Anda belum memiliki kelas atau bergabung ke kelas manapun',
@@ -43,41 +59,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildTeachingTab() {
-    return Column(
-      children: [
-        _buildHeader(),
-        Expanded(
-          child: _teachingClasses.isEmpty
-              ? const Center(
-                  child: Text(
-                    'Belum ada kelas yang Anda ajar',
-                    style: TextStyle(color: AppColors.secondaryText),
+    final ctrl = widget.pengajarController;
+
+    Widget buildContent() {
+      final classes = _teachingClasses;
+      return Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: (ctrl != null && ctrl.isLoading && classes.isEmpty)
+                ? const Center(child: CircularProgressIndicator())
+                : classes.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Belum ada kelas yang Anda ajar',
+                      style: TextStyle(color: AppColors.secondaryText),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: () async => ctrl?.getListKelas(),
+                    child: GridView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            mainAxisExtent: 152,
+                          ),
+                      itemCount: classes.length,
+                      itemBuilder: (context, i) {
+                        final item = classes[i];
+                        return ClassCard(
+                          data: item,
+                          onTap: () => openPage(
+                            context,
+                            breadcrumb: ['Beranda', item.title],
+                            page: PengajarDetailScreen(
+                              classData: item,
+                              controller: ctrl,
+                            ),
+                            routeName: 'pengajar-detail',
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                )
-              : GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    mainAxisExtent: 152,
-                  ),
-                  itemCount: _teachingClasses.length,
-                  itemBuilder: (context, i) {
-                    final item = _teachingClasses[i];
-                    return ClassCard(
-                      data: item,
-                      onTap: () => openPage(
-                        context,
-                        breadcrumb: ['Beranda', item.title],
-                        page: PengajarDetailScreen(classData: item),
-                        routeName: 'pengajar-detail',
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
+          ),
+        ],
+      );
+    }
+
+    if (ctrl == null) return buildContent();
+    return ListenableBuilder(
+      listenable: ctrl,
+      builder: (context, _) => buildContent(),
     );
   }
 
