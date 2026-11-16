@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:path_mobile/utils/http_client.dart';
+import 'package:path_mobile/utils/token_storage.dart';
 import 'package:path_mobile/routes/slide_transition.dart';
 import 'package:path_mobile/ui/auth/auth_screen.dart';
 import 'package:path_mobile/ui/auth/oauth_callback_screen.dart';
@@ -34,9 +35,12 @@ import 'package:path_mobile/data/profil/profil_repository.dart';
 import 'package:path_mobile/ui/profil/profil_controller.dart';
 import 'package:path_mobile/ui/profil/profil_screen.dart';
 
-final _httpClient = HttpClient();
+final appHttpClient = HttpClient(tokenStorage: const SecureTokenStorage());
 
-final router = createRouter(httpClient: _httpClient);
+Future<void> initializeAuth() => appHttpClient.restoreToken();
+
+GoRouter? _router;
+GoRouter get router => _router ??= createRouter(httpClient: appHttpClient);
 
 /// Creates the application [GoRouter] configured with auth protection for
 /// `ShellRoute` protected routes and `/` auth routes.
