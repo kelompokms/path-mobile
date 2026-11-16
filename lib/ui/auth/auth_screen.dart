@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_mobile/data/login/login_repository.dart';
 import 'package:path_mobile/ui/auth/oauth_buttons.dart';
@@ -6,6 +9,8 @@ import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/login/login_controller.dart';
 
 class AuthScreen extends StatefulWidget {
+  static const String logoAsset = 'assets/images/path.svg';
+
   final LoginRepository? loginRepository;
 
   const AuthScreen({super.key, this.loginRepository});
@@ -44,8 +49,26 @@ class _AuthScreenState extends State<AuthScreen> {
             final width = constraints.maxWidth;
             final height = constraints.maxHeight;
             final hPad = width < ResponsiveBreakpoints.narrow ? 16.0 : 24.0;
+            final vPad = height < 420 ? 16.0 : 24.0;
             final isWideOrShort =
                 width >= ResponsiveBreakpoints.compact || height < 520;
+            final logoSize = height < 520
+                ? 96.0
+                : width < ResponsiveBreakpoints.narrow
+                ? 144.0
+                : width < ResponsiveBreakpoints.compact
+                ? 176.0
+                : 184.0;
+
+            final logo = Center(
+              child: SvgPicture.asset(
+                AuthScreen.logoAsset,
+                width: logoSize,
+                height: logoSize,
+                fit: BoxFit.contain,
+                semanticsLabel: 'Logo PATH',
+              ),
+            );
 
             final actionsContent = ConstrainedBox(
               constraints: BoxConstraints(
@@ -105,20 +128,39 @@ class _AuthScreenState extends State<AuthScreen> {
                 child: SingleChildScrollView(
                   padding: EdgeInsets.symmetric(
                     horizontal: hPad,
-                    vertical: 24,
+                    vertical: vPad,
                   ),
-                  child: actionsContent,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      logo,
+                      SizedBox(height: height < 520 ? 12 : 24),
+                      actionsContent,
+                    ],
+                  ),
                 ),
               );
             }
 
-            return Align(
-              alignment: Alignment.bottomCenter,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(hPad, 24, hPad, 24),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: height * 0.45),
-                  child: Center(child: actionsContent),
+            return SingleChildScrollView(
+              padding: EdgeInsets.fromLTRB(hPad, vPad, hPad, vPad),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: math.max(0.0, height - vPad * 2),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: height * 0.35),
+                      child: logo,
+                    ),
+                    const SizedBox(height: 16),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: height * 0.45),
+                      child: Center(child: actionsContent),
+                    ),
+                  ],
                 ),
               ),
             );

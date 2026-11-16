@@ -63,6 +63,7 @@ flutter:
 
   assets:
     - assets/images/google.svg
+    - assets/images/path.svg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

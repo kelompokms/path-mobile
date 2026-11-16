@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -334,6 +335,7 @@ void main() {
       final client = _mockClient();
       for (final entry in [
         (size: const Size(320, 480), scale: 1.6),
+        (size: const Size(390, 844), scale: 1.0),
         (size: const Size(667, 375), scale: 1.0),
         (size: const Size(1024, 768), scale: 1.2),
       ]) {
@@ -346,6 +348,21 @@ void main() {
         expect(find.text('Sign In'), findsOneWidget);
         expect(find.text('Sign Up'), findsOneWidget);
         expect(find.text('Google'), findsOneWidget);
+
+        final logoFinder = find.byWidgetPredicate(
+          (widget) =>
+              widget is SvgPicture &&
+              widget.bytesLoader is SvgAssetLoader &&
+              (widget.bytesLoader as SvgAssetLoader).assetName ==
+                  AuthScreen.logoAsset,
+        );
+        expect(logoFinder, findsOneWidget);
+
+        final logoRect = tester.getRect(logoFinder);
+        final signInRect = tester.getRect(find.text('Sign In'));
+        expect((logoRect.center.dx - entry.size.width / 2).abs(), lessThan(1.0));
+        expect(logoRect.bottom, lessThan(signInRect.top));
+        expect(logoRect.top, lessThan(entry.size.height / 2));
       }
     });
 
