@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:path_mobile/data/login/login_repository.dart';
 import 'package:path_mobile/data/register/register_repository.dart';
+import 'package:path_mobile/ui/auth/oauth_controller_mixin.dart';
 
-class RegisterController extends ChangeNotifier {
+class RegisterController extends ChangeNotifier with OAuthControllerMixin {
   final RegisterRepository _repo;
+  final LoginRepository? _loginRepo;
 
-  RegisterController(this._repo);
+  RegisterController(this._repo, {LoginRepository? loginRepository})
+    : _loginRepo = loginRepository;
 
   final usernameController = TextEditingController();
   final emailController = TextEditingController();
@@ -13,19 +17,22 @@ class RegisterController extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  String? _errorMessage;
-  String? get errorMessage => _errorMessage;
+  @override
+  LoginRepository? get oauthRepository => _loginRepo;
+
+  @override
+  bool get isFormLoading => _isLoading;
 
   Future<bool> register() async {
     _isLoading = true;
-    _errorMessage = null;
+    setErrorMessage(null);
     notifyListeners();
 
     if (usernameController.text.isEmpty ||
         emailController.text.isEmpty ||
         passwordController.text.isEmpty) {
       _isLoading = false;
-      _errorMessage = 'username, email, atau password tidak boleh kosong';
+      setErrorMessage('username, email, atau password tidak boleh kosong');
       notifyListeners();
       return false;
     }
@@ -37,7 +44,7 @@ class RegisterController extends ChangeNotifier {
     );
 
     _isLoading = false;
-    _errorMessage = err;
+    setErrorMessage(err);
     notifyListeners();
 
     return err == null;

@@ -1,18 +1,34 @@
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-class HttpClient extends http.BaseClient {
-  final String baseUrl = 'https://api.pathclass.app';
+class HttpClient extends http.BaseClient with ChangeNotifier {
+  final String baseUrl = const String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://api.pathclass.app',
+  );
   final http.Client _inner;
   String? _token;
 
   HttpClient({http.Client? client, String? token})
     : _inner = client ?? http.Client(),
-      _token = token;
+      _token = _normalizeToken(token);
+
+  static String? _normalizeToken(String? token) {
+    if (token == null || token.trim().isEmpty) {
+      return null;
+    }
+    return token;
+  }
 
   String? get token => _token;
 
+  bool get isAuthenticated => _token != null;
+
   void setToken(String? token) {
-    _token = token;
+    final normalized = _normalizeToken(token);
+    if (_token == normalized) return;
+    _token = normalized;
+    notifyListeners();
   }
 
   Uri uri(String path) => Uri.parse('$baseUrl$path');

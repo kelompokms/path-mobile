@@ -62,22 +62,34 @@ class PostCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Text(
-                            label,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.text,
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: Wrap(
+                              alignment: WrapAlignment.spaceBetween,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              spacing: 8,
+                              runSpacing: 2,
+                              children: [
+                                Text(
+                                  label,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.text,
+                                  ),
+                                ),
+                                Text(
+                                  formatTanggal(date),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.secondaryText,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                        ),
-                        Text(
-                          formatTanggal(date),
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: AppColors.secondaryText,
                           ),
                         ),
                         if (_hasMenu) ...[
@@ -246,9 +258,7 @@ class LampiranEditor extends StatelessWidget {
       buttonLabel: 'Tambah file',
     );
     if (name == null || !context.mounted) return;
-    final ext = name.contains('.')
-        ? name.split('.').last.toUpperCase()
-        : 'PDF';
+    final ext = name.contains('.') ? name.split('.').last.toUpperCase() : 'PDF';
     onChanged([
       ...items,
       LampiranItem(name: name, detail: ext),

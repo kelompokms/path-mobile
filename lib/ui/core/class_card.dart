@@ -61,8 +61,8 @@ class ClassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final idx = (data.coverIndex ?? data.title.hashCode).abs() %
-        _coverThemes.length;
+    final idx =
+        (data.coverIndex ?? data.title.hashCode).abs() % _coverThemes.length;
     final cover = _coverThemes[idx];
 
     return Card(
@@ -325,8 +325,7 @@ class _JoinClassFormState extends State<JoinClassForm> {
       showInfoDialog(
         context,
         title: 'Terjadi error',
-        message:
-            'Tidak dapat bergabung ke kelas ini. Periksa kode dan akun, lalu coba lagi.',
+        message: 'Tidak dapat bergabung ke kelas ini. Periksa kode dan akun, lalu coba lagi.',
       );
       return;
     }
@@ -337,101 +336,115 @@ class _JoinClassFormState extends State<JoinClassForm> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 48),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Text(
-              'Gabung ke kelas',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppColors.text,
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Card(
-            elevation: 3,
-            color: AppColors.card,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Kode Kelas',
-                    style: textTheme.titleMedium?.copyWith(
-                      color: AppColors.text,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Mintalah kode kelas kepada pengajar, lalu masukkan kode di sini',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _codeController,
-                    onChanged: (_) => setState(() {}),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9]')),
-                      LengthLimitingTextInputFormatter(8),
-                    ],
-                    decoration: const InputDecoration(
-                      hintText: 'Kode Kelas',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Untuk login menggunakan kode kelas',
-            style: textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.text,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '1. Gunakan akun yang diberi otorisasi',
-            style: textTheme.bodySmall?.copyWith(
-              color: AppColors.secondaryText,
-            ),
-          ),
-          Text(
-            '2. Gunakan kode kelas yang terdiri dari 5-8 huruf atau angka, tanpa spasi atau simbol',
-            style: textTheme.bodySmall?.copyWith(
-              color: AppColors.secondaryText,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hPad = constraints.maxWidth < 360 ? 16.0 : 24.0;
+        return SingleChildScrollView(
+          padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextButton(
-                onPressed: widget.onCancel,
-                child: const Text('Batal'),
+              Center(
+                child: Text(
+                  'Gabung ke kelas',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
+                ),
               ),
-              const SizedBox(width: 16),
-              FilledButton(
-                onPressed: _codeController.text.isNotEmpty ? _submit : null,
-                child: const Text('Gabung Kelas'),
+              const SizedBox(height: 24),
+              Card(
+                elevation: 3,
+                color: AppColors.card,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Kode Kelas',
+                        style: textTheme.titleMedium?.copyWith(
+                          color: AppColors.text,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Mintalah kode kelas kepada pengajar, lalu masukkan kode di sini',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _codeController,
+                        onChanged: (_) => setState(() {}),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp(r'[a-zA-Z0-9]'),
+                          ),
+                          LengthLimitingTextInputFormatter(8),
+                        ],
+                        decoration: const InputDecoration(
+                          hintText: 'Kode Kelas',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Untuk login menggunakan kode kelas',
+                style: textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.text,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '1. Gunakan akun yang diberi otorisasi',
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
+              Text(
+                '2. Gunakan kode kelas yang terdiri dari 5-8 huruf atau angka, tanpa spasi atau simbol',
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.secondaryText,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: widget.onCancel,
+                      child: const Text('Batal'),
+                    ),
+                    FilledButton(
+                      onPressed: _codeController.text.isNotEmpty
+                          ? _submit
+                          : null,
+                      child: const Text('Gabung Kelas'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:path_mobile/ui/core/app_theme.dart';
+import 'package:path_mobile/ui/auth/oauth_buttons.dart';
+import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/login/login_controller.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -35,133 +36,110 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Align(
-        alignment: Alignment.bottomCenter,
-        child: Container(
-          width: double.infinity,
-          height: MediaQuery.of(context).size.height * 0.7,
-          decoration: BoxDecoration(
-            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 12)],
-            color: theme.cardColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(64)),
-            border: const Border.symmetric(
-              horizontal: BorderSide(color: AppColors.secondaryText, width: 1),
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 50),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              // Rebuilds this subtree whenever widget._controller calls notifyListeners()
-              child: ListenableBuilder(
-                listenable: widget._controller,
-                builder: (context, _) {
-                  final ctrl = widget._controller;
+      body: ResponsiveAuthSheet(
+        builder: (context, viewport, _) {
+          final isShort = viewport.maxHeight < 540;
+          final sectionSpacing = isShort ? 16.0 : 24.0;
+          final fieldSpacing = isShort ? 14.0 : 20.0;
 
-                  return Column(
-                    spacing: 32,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const BackButton(color: AppColors.text),
-                          const Expanded(
-                            child: Text(
-                              "Login",
-                              style: TextStyle(
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.text,
-                              ),
-                            ),
-                          ),
-                          CircleAvatar(
-                            backgroundColor: colorScheme.primary,
-                            foregroundColor: colorScheme.onPrimary,
-                            child: const Icon(Icons.person),
-                          ),
-                        ],
-                      ),
-                      Form(
-                        key: _formKey,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          spacing: 20,
-                          children: [
-                            TextFormField(
-                              controller: ctrl.emailController,
-                              enabled: !ctrl.isLoading,
-                              keyboardType: TextInputType.emailAddress,
-                              decoration: const InputDecoration(
-                                labelText: "Email",
-                              ),
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return 'Email tidak boleh kosong';
-                                }
-                                final emailRegex = RegExp(
-                                  r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                                );
-                                if (!emailRegex.hasMatch(value.trim())) {
-                                  return 'Format email tidak valid';
-                                }
-                                return null;
-                              },
-                            ),
-                            TextFormField(
-                              controller: ctrl.passwordController,
-                              enabled: !ctrl.isLoading,
-                              obscureText: true,
-                              decoration: const InputDecoration(
-                                labelText: "Password",
-                              ),
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Password tidak boleh kosong';
-                                }
+          return ListenableBuilder(
+            listenable: widget._controller,
+            builder: (context, _) {
+              final ctrl = widget._controller;
 
-                                if (value.length < 8) {
-                                  return 'Password terlalu singkat';
-                                }
-                                return null;
-                              },
-                            ),
-                            if (ctrl.errorMessage != null)
-                              Text(
-                                ctrl.errorMessage!,
-                                style: TextStyle(color: colorScheme.error),
-                              ),
-                          ],
+              return Column(
+                spacing: sectionSpacing,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AuthSheetHeader(
+                    title: 'Login',
+                    viewportWidth: viewport.maxWidth,
+                  ),
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      spacing: fieldSpacing,
+                      children: [
+                        TextFormField(
+                          controller: ctrl.emailController,
+                          enabled: !ctrl.isBusy,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Email tidak boleh kosong';
+                            }
+                            final emailRegex = RegExp(
+                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                            );
+                            if (!emailRegex.hasMatch(value.trim())) {
+                              return 'Format email tidak valid';
+                            }
+                            return null;
+                          },
                         ),
-                      ),
-                      ElevatedButton(
-                        onPressed: ctrl.isLoading ? null : _handleLogin,
-                        child: ctrl.isLoading
-                            ? SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: colorScheme.onPrimary,
-                                ),
-                              )
-                            : const Text('Login'),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
+                        TextFormField(
+                          controller: ctrl.passwordController,
+                          enabled: !ctrl.isBusy,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Password tidak boleh kosong';
+                            }
+
+                            if (value.length < 8) {
+                              return 'Password terlalu singkat';
+                            }
+                            return null;
+                          },
+                        ),
+                        if (ctrl.errorMessage != null)
+                          Text(
+                            ctrl.errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: colorScheme.error),
+                          ),
+                      ],
+                    ),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(46),
+                    ),
+                    onPressed: ctrl.isBusy ? null : _handleLogin,
+                    child: ctrl.isLoading
+                        ? SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.onPrimary,
+                            ),
+                          )
+                        : const Text('Login'),
+                  ),
+                  OAuthButtons(
+                    loadingProvider: ctrl.oauthLoadingProvider,
+                    disabled: ctrl.isLoading,
+                    onProviderTap: ctrl.loginWithOAuth,
+                  ),
+                ],
+              );
+            },
+          );
+        },
       ),
     );
   }

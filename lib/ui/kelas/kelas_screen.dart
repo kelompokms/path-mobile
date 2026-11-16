@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:path_mobile/data/kelas/kelas_model.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/post_card.dart';
+import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/kelas/kelas_controller.dart';
 
 class KelasScreen extends StatelessWidget {
@@ -146,9 +149,15 @@ class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
     final ctrl = widget.controller;
 
     if (_isJoining) {
-      return JoinClassForm(
-        onCancel: () => setState(() => _isJoining = false),
-        onJoined: _handleJoinClass,
+      return Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: JoinClassForm(
+            onCancel: () => setState(() => _isJoining = false),
+            onJoined: _handleJoinClass,
+          ),
+        ),
       );
     }
 
@@ -163,11 +172,16 @@ class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
         children: [
           if (widget.listTopBar != null) widget.listTopBar!,
           Expanded(
-            child: EmptyClassView(
-              message: widget.emptyMessage,
-              hint: widget.emptyHint,
-              onJoinClass: () => setState(() => _isJoining = true),
-              onAddClass: widget.onAddClass,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: EmptyClassView(
+                  message: widget.emptyMessage,
+                  hint: widget.emptyHint,
+                  onJoinClass: () => setState(() => _isJoining = true),
+                  onAddClass: widget.onAddClass,
+                ),
+              ),
             ),
           ),
         ],
@@ -176,52 +190,72 @@ class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
 
     final textTheme = Theme.of(context).textTheme;
 
-    return Column(
-      children: [
-        widget.listTopBar ??
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-              child: Row(
-                children: [
-                  Text(
-                    'Kelas Terdaftar',
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.text,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final h = responsiveHorizontalInset(
+          width,
+          maxWidth: ResponsiveBreakpoints.wide,
+        );
+
+        return Column(
+          children: [
+            widget.listTopBar ??
+                SizedBox(
+                  width: double.infinity,
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(h, 12, h, 12),
+                    child: Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        Text(
+                          'Kelas Terdaftar',
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.text,
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () => setState(() => _isJoining = true),
+                          icon: const Icon(Icons.add_box_outlined, size: 18),
+                          label: const Text('Gabung Kelas'),
+                          style: AppTheme.softCompactButton,
+                        ),
+                      ],
                     ),
                   ),
-                  const Spacer(),
-                  ElevatedButton.icon(
-                    onPressed: () => setState(() => _isJoining = true),
-                    icon: const Icon(Icons.add_box_outlined, size: 18),
-                    label: const Text('Gabung Kelas'),
-                    style: AppTheme.softCompactButton,
+                ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async => widget.controller?.getListKelas(),
+                child: GridView.builder(
+                  padding: responsiveListPadding(
+                    width,
+                    maxWidth: ResponsiveBreakpoints.wide,
+                    top: 0,
+                    bottom: 16,
                   ),
-                ],
+                  gridDelegate: responsiveClassGridDelegate(
+                    context,
+                    width,
+                    maxContentWidth: ResponsiveBreakpoints.wide,
+                  ),
+                  itemCount: classes.length,
+                  itemBuilder: (context, index) => ClassCard(
+                    data: classes[index],
+                    onTap: () => _openClass(classes[index]),
+                    menuLabel: 'Batalkan Pendaftaran',
+                    onMenuSelected: () => _confirmLeave(classes[index]),
+                  ),
+                ),
               ),
             ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: () async => widget.controller?.getListKelas(),
-            child: GridView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                mainAxisExtent: 152,
-              ),
-              itemCount: classes.length,
-              itemBuilder: (context, index) => ClassCard(
-                data: classes[index],
-                onTap: () => _openClass(classes[index]),
-                menuLabel: 'Batalkan Pendaftaran',
-                onMenuSelected: () => _confirmLeave(classes[index]),
-              ),
-            ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -364,53 +398,76 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
-      child: Column(
-        children: [
-          BackTitleRow(title: widget.classData.title),
-          const TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            indicatorSize: TabBarIndicatorSize.label,
-            indicatorColor: AppColors.text,
-            labelColor: AppColors.text,
-            unselectedLabelColor: AppColors.secondaryText,
-            labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            unselectedLabelStyle: TextStyle(fontSize: 13),
-            dividerColor: Colors.transparent,
-            padding: EdgeInsets.only(left: 8),
-            tabs: [
-              Tab(text: 'Materi'),
-              Tab(text: 'Tugas'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final h = responsiveHorizontalInset(
+            constraints.maxWidth,
+            maxWidth: 960,
+          );
+          return Column(
+            children: [
+              Padding(
+                padding: alignedBackTitlePadding(h),
+                child: BackTitleRow(title: widget.classData.title),
+              ),
+              TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                indicatorSize: TabBarIndicatorSize.label,
+                indicatorColor: AppColors.text,
+                labelColor: AppColors.text,
+                unselectedLabelColor: AppColors.secondaryText,
+                labelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                unselectedLabelStyle: const TextStyle(fontSize: 13),
+                dividerColor: Colors.transparent,
+                padding: EdgeInsets.only(left: math.max(8.0, h - 8)),
+                tabs: const [
+                  Tab(text: 'Materi'),
+                  Tab(text: 'Tugas'),
+                ],
+              ),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : TabBarView(
+                        children: [
+                          _buildMateriTab(h),
+                          _buildTugasTab(h),
+                        ],
+                      ),
+              ),
             ],
-          ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : TabBarView(
-                    children: [
-                      _buildMateriTab(),
-                      _buildTugasTab(),
-                    ],
-                  ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildMateriTab() {
+  Widget _buildMateriTab(double horizontalPadding) {
     if (_materiList.isEmpty) {
       return const Center(
-        child: Text(
-          'Belum ada materi',
-          style: TextStyle(color: AppColors.secondaryText),
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Belum ada materi',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.secondaryText),
+          ),
         ),
       );
     }
     return RefreshIndicator(
       onRefresh: _loadPosts,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          12,
+          horizontalPadding,
+          16,
+        ),
         itemCount: _materiList.length,
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
@@ -431,19 +488,28 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     );
   }
 
-  Widget _buildTugasTab() {
+  Widget _buildTugasTab(double horizontalPadding) {
     if (_tugasList.isEmpty) {
       return const Center(
-        child: Text(
-          'Belum ada tugas',
-          style: TextStyle(color: AppColors.secondaryText),
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Belum ada tugas',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.secondaryText),
+          ),
         ),
       );
     }
     return RefreshIndicator(
       onRefresh: _loadPosts,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          16,
+          horizontalPadding,
+          24,
+        ),
         children: [
           const Text(
             'Assigned',
@@ -539,74 +605,126 @@ class _MateriDetailScreenState extends State<_MateriDetailScreen> {
     final meta =
         '${materi.author} • ${formatTanggal(materi.postedAt)} • ${formatJam(materi.postedAt)}';
 
-    return Column(
-      children: [
-        BackTitleRow(title: materi.title),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  meta,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  materi.description,
-                  style: const TextStyle(fontSize: 12, color: AppColors.text),
-                ),
-                const SizedBox(height: 16),
-                for (final item in materi.lampiran) ...[
-                  FileCard.fromItem(item),
-                  const SizedBox(height: 10),
-                ],
-                const SizedBox(height: 6),
-                if (_showAi)
-                  _buildAiSection()
-                else
-                  ElevatedButton(
-                    onPressed: () => setState(() => _showAi = true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.color1,
-                      foregroundColor: Colors.white,
-                      elevation: 3,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.fromLTRB(22, 12, 14, 12),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('Bantuan AI', style: TextStyle(fontSize: 12)),
-                        SizedBox(width: 8),
-                        Icon(Icons.chevron_right, size: 20),
-                      ],
-                    ),
-                  ),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTwoColumn =
+            constraints.maxWidth >= ResponsiveBreakpoints.medium && _showAi;
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: isTwoColumn ? 1120 : 800,
+        );
+
+        final detailColumn = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              meta,
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.secondaryText,
+              ),
             ),
-          ),
-        ),
-      ],
+            const SizedBox(height: 12),
+            Text(
+              materi.description,
+              style: const TextStyle(fontSize: 12, color: AppColors.text),
+            ),
+            const SizedBox(height: 16),
+            for (final item in materi.lampiran) ...[
+              FileCard.fromItem(item),
+              const SizedBox(height: 10),
+            ],
+            if (!_showAi) ...[
+              const SizedBox(height: 6),
+              ElevatedButton(
+                onPressed: () => setState(() => _showAi = true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.color1,
+                  foregroundColor: Colors.white,
+                  elevation: 3,
+                  shape: const StadiumBorder(),
+                  padding: const EdgeInsets.fromLTRB(22, 12, 14, 12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text('Bantuan AI', style: TextStyle(fontSize: 12)),
+                    ),
+                    SizedBox(width: 8),
+                    Icon(Icons.chevron_right, size: 20),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: BackTitleRow(title: materi.title),
+            ),
+            Expanded(
+              child: isTwoColumn
+                  ? Padding(
+                      padding: EdgeInsets.fromLTRB(h, 4, h, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: detailColumn,
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            flex: 5,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: _buildAiSection(showDivider: false),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          detailColumn,
+                          if (_showAi) ...[
+                            const SizedBox(height: 6),
+                            _buildAiSection(),
+                          ],
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildAiSection() {
+  Widget _buildAiSection({bool showDivider = true}) {
     final canSend = _textController.text.trim().isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Divider(
-          height: 1,
-          thickness: 1,
-          color: AppColors.secondaryText.withValues(alpha: 0.3),
-        ),
-        const SizedBox(height: 20),
+        if (showDivider) ...[
+          Divider(
+            height: 1,
+            thickness: 1,
+            color: AppColors.secondaryText.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 20),
+        ],
         const Text(
           'Bantuan AI',
           style: TextStyle(
@@ -762,9 +880,7 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
       buttonLabel: 'Tambah file',
     );
     if (name == null || !mounted) return;
-    final ext = name.contains('.')
-        ? name.split('.').last.toUpperCase()
-        : 'PDF';
+    final ext = name.contains('.') ? name.split('.').last.toUpperCase() : 'PDF';
     setState(() => _drafts.add(LampiranItem(name: name, detail: ext)));
   }
 
@@ -790,85 +906,139 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
     final meta =
         '${_tugas.author} • ${formatTanggal(_tugas.postedAt)} • ${formatJam(_tugas.postedAt)}';
 
-    return Column(
-      children: [
-        BackTitleRow(title: _tugas.title),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  meta,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text(
-                      '${_tugas.points} poin',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      height: 10,
-                      margin: const EdgeInsets.symmetric(horizontal: 8),
-                      color: AppColors.secondaryText,
-                    ),
-                    Text(
-                      'Tenggat: ${formatTanggal(_tugas.dueDate)}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    const Text(
-                      'Nilai',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text,
-                      ),
-                    ),
-                    const SizedBox(width: 28),
-                    Text(
-                      '.../${_tugas.points}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.text,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _tugas.description,
-                  style: const TextStyle(fontSize: 12, color: AppColors.text),
-                ),
-                const SizedBox(height: 16),
-                PostCard(
-                  icon: Icons.list_alt_outlined,
-                  label: 'Tugas Baru:',
-                  title: _tugas.title,
-                  date: _tugas.postedAt,
-                ),
-                const SizedBox(height: 16),
-                _buildSubmissionCard(),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTwoColumn =
+            constraints.maxWidth >= ResponsiveBreakpoints.medium;
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: isTwoColumn ? 1120 : 760,
+        );
+
+        final details = _buildTaskDetails(meta);
+        final submission = _buildSubmissionCard();
+
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: BackTitleRow(title: _tugas.title),
             ),
+            Expanded(
+              child: isTwoColumn
+                  ? Padding(
+                      padding: EdgeInsets.fromLTRB(h, 4, h, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 6,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: details,
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            flex: 4,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: submission,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          details,
+                          const SizedBox(height: 16),
+                          submission,
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTaskDetails(String meta) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          meta,
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppColors.secondaryText,
           ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              '${_tugas.points} poin',
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.secondaryText,
+              ),
+            ),
+            Container(
+              width: 1,
+              height: 10,
+              color: AppColors.secondaryText,
+            ),
+            Text(
+              'Tenggat: ${formatTanggal(_tugas.dueDate)}',
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.secondaryText,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 24,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            const Text(
+              'Nilai',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.text,
+              ),
+            ),
+            Text(
+              '.../${_tugas.points}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.text,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          _tugas.description,
+          style: const TextStyle(fontSize: 12, color: AppColors.text),
+        ),
+        const SizedBox(height: 16),
+        PostCard(
+          icon: Icons.list_alt_outlined,
+          label: 'Tugas Baru:',
+          title: _tugas.title,
+          date: _tugas.postedAt,
         ),
       ],
     );
@@ -941,26 +1111,38 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
                 ),
                 const SizedBox(height: 10),
               ],
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _addFile,
-                      icon: const Icon(Icons.description_outlined, size: 18),
-                      label: const Text('File', style: TextStyle(fontSize: 12)),
-                      style: AppTheme.softCompactButton,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _addLink,
-                      icon: const Icon(Icons.link, size: 18),
-                      label: const Text('Link', style: TextStyle(fontSize: 12)),
-                      style: AppTheme.softCompactButton,
-                    ),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final fileButton = ElevatedButton.icon(
+                    onPressed: _addFile,
+                    icon: const Icon(Icons.description_outlined, size: 18),
+                    label: const Text('File', style: TextStyle(fontSize: 12)),
+                    style: AppTheme.softCompactButton,
+                  );
+                  final linkButton = ElevatedButton.icon(
+                    onPressed: _addLink,
+                    icon: const Icon(Icons.link, size: 18),
+                    label: const Text('Link', style: TextStyle(fontSize: 12)),
+                    style: AppTheme.softCompactButton,
+                  );
+                  if (constraints.maxWidth < 230) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        fileButton,
+                        const SizedBox(height: 8),
+                        linkButton,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: fileButton),
+                      const SizedBox(width: 12),
+                      Expanded(child: linkButton),
+                    ],
+                  );
+                },
               ),
               if (_drafts.isNotEmpty) ...[
                 const SizedBox(height: 10),

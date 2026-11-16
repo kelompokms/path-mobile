@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:path_mobile/data/login/login_repository.dart';
+import 'package:path_mobile/ui/auth/oauth_controller_mixin.dart';
 
-class LoginController extends ChangeNotifier {
+class LoginController extends ChangeNotifier with OAuthControllerMixin {
   final LoginRepository _repo;
 
   LoginController(this._repo);
@@ -12,17 +13,20 @@ class LoginController extends ChangeNotifier {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
-  String? _errorMessage;
-  String? get errorMessage => _errorMessage;
+  @override
+  LoginRepository get oauthRepository => _repo;
+
+  @override
+  bool get isFormLoading => _isLoading;
 
   Future<bool> login() async {
     _isLoading = true;
-    _errorMessage = null;
+    setErrorMessage(null);
     notifyListeners();
 
     if (emailController.text.isEmpty || passwordController.text.isEmpty) {
       _isLoading = false;
-      _errorMessage = 'email atau password tidak boleh kosong';
+      setErrorMessage('email atau password tidak boleh kosong');
       notifyListeners();
       return false;
     }
@@ -33,7 +37,7 @@ class LoginController extends ChangeNotifier {
     );
 
     _isLoading = false;
-    _errorMessage = err;
+    setErrorMessage(err);
     notifyListeners();
 
     return err == null;

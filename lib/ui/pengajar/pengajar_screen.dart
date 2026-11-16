@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_mobile/data/pengajar/pengajar_model.dart';
@@ -5,6 +7,7 @@ import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/post_card.dart';
+import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 
 void _copyText(BuildContext context, String text, String message) {
@@ -66,82 +69,111 @@ class _PengajarScreenState extends State<PengajarScreen> {
         builder: (context, _) {
           final classes = _classes;
           if (_showForm) {
-            return _CreateClassForm(
-              onCreate: _createClass,
-              onCancel: () => setState(() => _showForm = false),
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 500),
+                child: _CreateClassForm(
+                  onCreate: _createClass,
+                  onCancel: () => setState(() => _showForm = false),
+                ),
+              ),
             );
           }
           if (widget.controller.isLoading && classes.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
           if (classes.isEmpty) {
-            return EmptyClassView(
-              message: 'Anda belum membuat kelas',
-              joinLabel: 'Buat Kelas',
-              onJoinClass: () => setState(() => _showForm = true),
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 520),
+                child: EmptyClassView(
+                  message: 'Anda belum membuat kelas',
+                  joinLabel: 'Buat Kelas',
+                  onJoinClass: () => setState(() => _showForm = true),
+                ),
+              ),
             );
           }
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Kelas',
-                      style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final h = responsiveHorizontalInset(
+                width,
+                maxWidth: ResponsiveBreakpoints.wide,
+              );
+
+              return Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(h, 12, h, 12),
+                      child: Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          Text(
+                            'Kelas',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.text,
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            style: AppTheme.softCompactButton,
+                            onPressed: () => setState(() => _showForm = true),
+                            icon: const Icon(Icons.add_box_outlined, size: 18),
+                            label: const Text('Buat Kelas'),
+                          ),
+                        ],
                       ),
                     ),
-                    ElevatedButton.icon(
-                      style: AppTheme.softCompactButton,
-                      onPressed: () => setState(() => _showForm = true),
-                      icon: const Icon(Icons.add_box_outlined, size: 18),
-                      label: const Text('Buat Kelas'),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: widget.controller.getListKelas,
-                  child: GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          mainAxisExtent: 152,
-                        ),
-                    itemCount: classes.length,
-                    itemBuilder: (context, i) {
-                      final item = classes[i];
-                      return ClassCard(
-                        data: item,
-                        onTap: () => openPage(
-                          context,
-                          breadcrumb: ['Pengajar', item.title],
-                          page: PengajarDetailScreen(
-                            classData: item,
-                            controller: widget.controller,
-                          ),
-                          routeName: 'pengajar-detail',
-                        ),
-                        menuLabel: 'Salin link undangan kelas',
-                        onMenuSelected: () => _copyText(
-                          context,
-                          item.inviteLink,
-                          'Link undangan kelas disalin',
-                        ),
-                      );
-                    },
                   ),
-                ),
-              ),
-            ],
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: widget.controller.getListKelas,
+                      child: GridView.builder(
+                        padding: responsiveListPadding(
+                          width,
+                          maxWidth: ResponsiveBreakpoints.wide,
+                          top: 0,
+                          bottom: 16,
+                        ),
+                        gridDelegate: responsiveClassGridDelegate(
+                          context,
+                          width,
+                          maxContentWidth: ResponsiveBreakpoints.wide,
+                        ),
+                        itemCount: classes.length,
+                        itemBuilder: (context, i) {
+                          final item = classes[i];
+                          return ClassCard(
+                            data: item,
+                            onTap: () => openPage(
+                              context,
+                              breadcrumb: ['Pengajar', item.title],
+                              page: PengajarDetailScreen(
+                                classData: item,
+                                controller: widget.controller,
+                              ),
+                              routeName: 'pengajar-detail',
+                            ),
+                            menuLabel: 'Salin link undangan kelas',
+                            onMenuSelected: () => _copyText(
+                              context,
+                              item.inviteLink,
+                              'Link undangan kelas disalin',
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -176,102 +208,110 @@ class _CreateClassFormState extends State<_CreateClassForm> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Buat Kelas',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: AppColors.text,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Card(
-              elevation: 3,
-              color: AppColors.card,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final hPad = responsiveHorizontalPadding(constraints.maxWidth);
+        return Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Buat Kelas',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Card(
+                  elevation: 3,
+                  color: AppColors.card,
+                  surfaceTintColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.co_present,
-                          size: 28,
-                          color: AppColors.text,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _nameController,
-                            onChanged: (_) => setState(() {}),
-                            decoration: const InputDecoration(
-                              hintText: 'Nama Kelas',
-                              isDense: true,
-                              border: UnderlineInputBorder(),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.co_present,
+                              size: 28,
+                              color: AppColors.text,
                             ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextField(
+                                controller: _nameController,
+                                onChanged: (_) => setState(() {}),
+                                decoration: const InputDecoration(
+                                  hintText: 'Nama Kelas',
+                                  isDense: true,
+                                  border: UnderlineInputBorder(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (!_canCreate)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 4),
+                            child: Text(
+                              '*Wajib diisi',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.secondaryText,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _gradeController,
+                          decoration: const InputDecoration(
+                            hintText: 'Kelas',
+                            isDense: true,
+                            border: UnderlineInputBorder(),
                           ),
                         ),
                       ],
                     ),
-                    if (!_canCreate)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 4),
-                        child: Text(
-                          '*Wajib diisi',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AppColors.secondaryText,
-                          ),
-                        ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 16,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: widget.onCancel,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.text,
                       ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _gradeController,
-                      decoration: const InputDecoration(
-                        hintText: 'Kelas',
-                        isDense: true,
-                        border: UnderlineInputBorder(),
-                      ),
+                      child: const Text('Batal'),
+                    ),
+                    ElevatedButton(
+                      style: AppTheme.softCompactButton,
+                      onPressed: _canCreate
+                          ? () => widget.onCreate(
+                              _nameController.text.trim(),
+                              _gradeController.text.trim(),
+                            )
+                          : null,
+                      child: const Text('Buat'),
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: widget.onCancel,
-                  style: TextButton.styleFrom(foregroundColor: AppColors.text),
-                  child: const Text('Batal'),
-                ),
-                const SizedBox(width: 16),
-                ElevatedButton(
-                  style: AppTheme.softCompactButton,
-                  onPressed: _canCreate
-                      ? () => widget.onCreate(
-                          _nameController.text.trim(),
-                          _gradeController.text.trim(),
-                        )
-                      : null,
-                  child: const Text('Buat'),
-                ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -505,81 +545,94 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _class.title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.text,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Edit Judul',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                  TextField(
-                    controller: titleCtrl,
-                    onChanged: (_) => setDialogState(() {}),
-                    style: const TextStyle(fontSize: 16, color: AppColors.text),
-                    decoration: const InputDecoration(
-                      hintText: 'Edit judul materi disini',
-                      isDense: true,
-                      border: UnderlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Edit Deskripsi',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                  TextField(
-                    controller: descCtrl,
-                    minLines: 5,
-                    maxLines: null,
-                    keyboardType: TextInputType.multiline,
-                    style: const TextStyle(fontSize: 12, color: AppColors.text),
-                    decoration: const InputDecoration(
-                      hintText: 'Edit deskripsi materi disini',
-                      isDense: true,
-                      border: InputBorder.none,
-                    ),
-                  ),
-                  const Divider(color: AppColors.text, height: 1),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.text,
-                        ),
-                        child: const Text(
-                          'Batal',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _class.title,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
                       ),
-                      TextButton(
-                        onPressed: canSave
-                            ? () => Navigator.pop(ctx, true)
-                            : null,
-                        child: const Text('Simpan'),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Edit Judul',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.secondaryText,
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    TextField(
+                      controller: titleCtrl,
+                      onChanged: (_) => setDialogState(() {}),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppColors.text,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Edit judul materi disini',
+                        isDense: true,
+                        border: UnderlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Edit Deskripsi',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                    TextField(
+                      controller: descCtrl,
+                      minLines: 5,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.text,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Edit deskripsi materi disini',
+                        isDense: true,
+                        border: InputBorder.none,
+                      ),
+                    ),
+                    const Divider(color: AppColors.text, height: 1),
+                    SizedBox(
+                      width: double.infinity,
+                      child: Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: 8,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.text,
+                            ),
+                            child: const Text(
+                              'Batal',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: canSave
+                                ? () => Navigator.pop(ctx, true)
+                                : null,
+                            child: const Text('Simpan'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -618,77 +671,110 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
-      child: Column(
-        children: [
-          BackTitleRow(title: _class.title),
-          const TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            indicatorSize: TabBarIndicatorSize.label,
-            indicatorColor: AppColors.text,
-            labelColor: AppColors.text,
-            unselectedLabelColor: AppColors.secondaryText,
-            labelStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            unselectedLabelStyle: TextStyle(fontSize: 13),
-            dividerColor: Colors.transparent,
-            padding: EdgeInsets.only(left: 8),
-            tabs: [
-              Tab(text: 'Materi'),
-              Tab(text: 'Tugas'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final h = responsiveHorizontalInset(
+            constraints.maxWidth,
+            maxWidth: 960,
+          );
+          return Column(
+            children: [
+              Padding(
+                padding: alignedBackTitlePadding(h),
+                child: BackTitleRow(title: _class.title),
+              ),
+              TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                indicatorSize: TabBarIndicatorSize.label,
+                indicatorColor: AppColors.text,
+                labelColor: AppColors.text,
+                unselectedLabelColor: AppColors.secondaryText,
+                labelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                unselectedLabelStyle: const TextStyle(fontSize: 13),
+                dividerColor: Colors.transparent,
+                padding: EdgeInsets.only(left: math.max(8.0, h - 8)),
+                tabs: const [
+                  Tab(text: 'Materi'),
+                  Tab(text: 'Tugas'),
+                ],
+              ),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : TabBarView(
+                        children: [
+                          _buildMateriTab(h),
+                          _buildTugasTab(h),
+                        ],
+                      ),
+              ),
             ],
-          ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : TabBarView(
-                    children: [
-                      _buildMateriTab(),
-                      _buildTugasTab(),
-                    ],
-                  ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildMateriTab() {
+  Widget _buildMateriTab(double horizontalPadding) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Row(
-            children: [
-              _ClassCodeCard(classData: _class),
-              const SizedBox(width: 20),
-              ElevatedButton.icon(
-                style: AppTheme.softCompactButton,
-                onPressed: () => openPage(
-                  context,
-                  breadcrumb: ['Pengajar', _class.title, 'Buat Materi'],
-                  page: _BuatMateriScreen(
-                    classData: _class,
-                    onCreated: _handleMateriCreated,
+        SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              12,
+              horizontalPadding,
+              12,
+            ),
+            child: Wrap(
+              spacing: 16,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _ClassCodeCard(classData: _class),
+                ElevatedButton.icon(
+                  style: AppTheme.softCompactButton,
+                  onPressed: () => openPage(
+                    context,
+                    breadcrumb: ['Pengajar', _class.title, 'Buat Materi'],
+                    page: _BuatMateriScreen(
+                      classData: _class,
+                      onCreated: _handleMateriCreated,
+                    ),
                   ),
+                  icon: const Icon(Icons.add_box_outlined, size: 18),
+                  label: const Text('Buat Materi'),
                 ),
-                icon: const Icon(Icons.add_box_outlined, size: 18),
-                label: const Text('Buat Materi'),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         Expanded(
           child: _materiList.isEmpty
               ? const Center(
-                  child: Text(
-                    'Belum ada materi',
-                    style: TextStyle(color: AppColors.secondaryText),
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Belum ada materi',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.secondaryText),
+                    ),
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: _loadPosts,
                   child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      0,
+                      horizontalPadding,
+                      16,
+                    ),
                     itemCount: _materiList.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, i) {
@@ -714,11 +800,16 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
     );
   }
 
-  Widget _buildTugasTab() {
+  Widget _buildTugasTab(double horizontalPadding) {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            12,
+            horizontalPadding,
+            12,
+          ),
           child: Align(
             alignment: Alignment.centerLeft,
             child: ElevatedButton.icon(
@@ -739,15 +830,24 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         Expanded(
           child: _tugasList.isEmpty
               ? const Center(
-                  child: Text(
-                    'Belum ada tugas',
-                    style: TextStyle(color: AppColors.secondaryText),
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'Belum ada tugas',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.secondaryText),
+                    ),
                   ),
                 )
               : RefreshIndicator(
                   onRefresh: _loadPosts,
                   child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      0,
+                      horizontalPadding,
+                      16,
+                    ),
                     itemCount: _tugasList.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, i) {
@@ -802,48 +902,51 @@ class _ClassCodeCard extends StatelessWidget {
         backgroundColor: AppColors.background,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 8, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Kode kelas',
-                    style: TextStyle(fontSize: 13, color: AppColors.text),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close, color: AppColors.text),
-                  ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    classData.code,
-                    style: const TextStyle(
-                      fontSize: 72,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.text,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 8, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Kode kelas',
+                      style: TextStyle(fontSize: 13, color: AppColors.text),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close, color: AppColors.text),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      classData.code,
+                      style: const TextStyle(
+                        fontSize: 72,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.text,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                classData.title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.secondaryText,
+                const SizedBox(height: 8),
+                Text(
+                  classData.title,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.secondaryText,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -919,12 +1022,18 @@ class _ClassCodeCard extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  classData.code,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.text,
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      classData.code,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.text,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -955,39 +1064,53 @@ class _PengajarMateriDetailScreen extends StatelessWidget {
     final meta =
         'Pengajar • ${formatTanggal(materi.postedAt)} • ${formatJam(materi.postedAt)}';
 
-    return Column(
-      children: [
-        BackTitleRow(title: materi.title),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  meta,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-                if (materi.description.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    materi.description,
-                    style: const TextStyle(fontSize: 12, color: AppColors.text),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                for (final item in materi.lampiran) ...[
-                  FileCard.fromItem(item),
-                  const SizedBox(height: 12),
-                ],
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: 800,
+        );
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: BackTitleRow(title: materi.title),
             ),
-          ),
-        ),
-      ],
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      meta,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                    if (materi.description.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        materi.description,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.text,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    for (final item in materi.lampiran) ...[
+                      FileCard.fromItem(item),
+                      const SizedBox(height: 12),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1047,117 +1170,136 @@ class _BuatMateriScreenState extends State<_BuatMateriScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const BackTitleRow(title: 'Buat Materi'),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: _titleController,
-                  onChanged: (_) => setState(() {}),
-                  style: const TextStyle(fontSize: 16, color: AppColors.text),
-                  decoration: const InputDecoration(
-                    hintText: 'Ketikkan judul materi',
-                    hintStyle: TextStyle(
-                      fontSize: 16,
-                      color: AppColors.secondaryText,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: 760,
+        );
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: const BackTitleRow(title: 'Buat Materi'),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _titleController,
+                      onChanged: (_) => setState(() {}),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppColors.text,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Ketikkan judul materi',
+                        hintStyle: TextStyle(
+                          fontSize: 16,
+                          color: AppColors.secondaryText,
+                        ),
+                        isDense: true,
+                        border: UnderlineInputBorder(),
+                      ),
                     ),
-                    isDense: true,
-                    border: UnderlineInputBorder(),
-                  ),
-                ),
-                if (!_canSave)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Isian wajib diisi',
+                    if (!_canSave)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Isian wajib diisi',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _descController,
+                      minLines: 1,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.text,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Deskripsi materi (opsional)',
+                        hintStyle: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.secondaryText,
+                        ),
+                        isDense: true,
+                        border: UnderlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    LampiranEditor(
+                      items: _lampiran,
+                      onChanged: (v) => setState(() => _lampiran = v),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _canSave ? _save : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(44),
+                          shape: const StadiumBorder(),
+                        ),
+                        child: const Text('Simpan'),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Atau buat otomatis menggunakan AI',
                       style: TextStyle(
                         fontSize: 10,
                         color: AppColors.secondaryText,
                       ),
                     ),
-                  ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _descController,
-                  minLines: 1,
-                  maxLines: null,
-                  keyboardType: TextInputType.multiline,
-                  style: const TextStyle(fontSize: 12, color: AppColors.text),
-                  decoration: const InputDecoration(
-                    hintText: 'Deskripsi materi (opsional)',
-                    hintStyle: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.secondaryText,
-                    ),
-                    isDense: true,
-                    border: UnderlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                LampiranEditor(
-                  items: _lampiran,
-                  onChanged: (v) => setState(() => _lampiran = v),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _canSave ? _save : null,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                      shape: const StadiumBorder(),
-                    ),
-                    child: const Text('Simpan'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Atau buat otomatis menggunakan AI',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: () => openPage(
-                    context,
-                    breadcrumb: [
-                      'Pengajar',
-                      widget.classData.title,
-                      'Buat Materi',
-                    ],
-                    page: _BuatMateriAiScreen(
-                      classData: widget.classData,
-                      onCreated: widget.onCreated,
-                    ),
-                  ),
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Buat materi dengan AI',
-                        style: TextStyle(fontSize: 12),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: () => openPage(
+                        context,
+                        breadcrumb: [
+                          'Pengajar',
+                          widget.classData.title,
+                          'Buat Materi',
+                        ],
+                        page: _BuatMateriAiScreen(
+                          classData: widget.classData,
+                          onCreated: widget.onCreated,
+                        ),
                       ),
-                      SizedBox(width: 6),
-                      Icon(Icons.chevron_right, size: 18),
-                    ],
-                  ),
+                      style: FilledButton.styleFrom(
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              'Buat materi dengan AI',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          SizedBox(width: 6),
+                          Icon(Icons.chevron_right, size: 18),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1241,95 +1383,114 @@ class _BuatMateriAiScreenState extends State<_BuatMateriAiScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const BackTitleRow(title: 'Buat materi dengan AI'),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: _titleController,
-                  onChanged: (_) => setState(() {}),
-                  style: const TextStyle(fontSize: 16, color: AppColors.text),
-                  decoration: const InputDecoration(
-                    hintText: 'Ketikkan judul materi',
-                    hintStyle: TextStyle(
-                      fontSize: 16,
-                      color: AppColors.secondaryText,
-                    ),
-                    isDense: true,
-                    border: UnderlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _promptController,
-                  onChanged: (_) => setState(() {}),
-                  minLines: 1,
-                  maxLines: null,
-                  keyboardType: TextInputType.multiline,
-                  style: const TextStyle(fontSize: 12, color: AppColors.text),
-                  decoration: const InputDecoration(
-                    hintText: 'Apa materi yang ingin anda buat?',
-                    hintStyle: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.secondaryText,
-                    ),
-                    isDense: true,
-                    border: UnderlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Tambahkan elemen pendukung',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: 760,
+        );
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: const BackTitleRow(title: 'Buat materi dengan AI'),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final label in _modes)
-                      ElevatedButton(
-                        onPressed: () => _toggleMode(label),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _selectedModes.contains(label)
-                              ? AppColors.color1
-                              : AppColors.card,
-                          foregroundColor: _selectedModes.contains(label)
-                              ? Colors.white
-                              : AppColors.text,
-                          elevation: 3,
-                          shape: const StadiumBorder(),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          minimumSize: const Size(0, 32),
-                          textStyle: const TextStyle(fontSize: 11),
-                        ),
-                        child: Text(label),
+                    TextField(
+                      controller: _titleController,
+                      onChanged: (_) => setState(() {}),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppColors.text,
                       ),
+                      decoration: const InputDecoration(
+                        hintText: 'Ketikkan judul materi',
+                        hintStyle: TextStyle(
+                          fontSize: 16,
+                          color: AppColors.secondaryText,
+                        ),
+                        isDense: true,
+                        border: UnderlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _promptController,
+                      onChanged: (_) => setState(() {}),
+                      minLines: 1,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.text,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Apa materi yang ingin anda buat?',
+                        hintStyle: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.secondaryText,
+                        ),
+                        isDense: true,
+                        border: UnderlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Tambahkan elemen pendukung',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final label in _modes)
+                          ElevatedButton(
+                            onPressed: () => _toggleMode(label),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _selectedModes.contains(label)
+                                  ? AppColors.color1
+                                  : AppColors.card,
+                              foregroundColor: _selectedModes.contains(label)
+                                  ? Colors.white
+                                  : AppColors.text,
+                              elevation: 3,
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              minimumSize: const Size(0, 32),
+                              textStyle: const TextStyle(fontSize: 11),
+                            ),
+                            child: Text(label),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: _canCreate ? _generate : null,
+                      style: FilledButton.styleFrom(
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(horizontal: 28),
+                      ),
+                      child: const Text('Buat materi'),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: _canCreate ? _generate : null,
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(horizontal: 28),
-                  ),
-                  child: const Text('Buat materi'),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1347,78 +1508,97 @@ class _KonfirmasiMateriAiScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        BackTitleRow(title: materi.title),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  materi.description,
-                  style: const TextStyle(fontSize: 12, color: AppColors.text),
-                ),
-                const SizedBox(height: 16),
-                for (final item in materi.lampiran) ...[
-                  FileCard.fromItem(item),
-                  const SizedBox(height: 12),
-                ],
-                const SizedBox(height: 4),
-                const Text(
-                  'Apakah anda ingin menggunakan materi ini ?',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: 800,
+        );
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: BackTitleRow(title: materi.title),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    FilledButton(
-                      onPressed: () {
-                        onCreated(materi);
-                        Navigator.of(context).popUntil(
-                          ModalRoute.withName('pengajar-detail'),
-                        );
-                        ScaffoldMessenger.of(context)
-                          ..hideCurrentSnackBar()
-                          ..showSnackBar(
-                            const SnackBar(
-                              content: Text('Materi berhasil dibuat'),
-                            ),
-                          );
-                      },
-                      style: FilledButton.styleFrom(
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                    Text(
+                      materi.description,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.text,
                       ),
-                      child: const Text('Gunakan materi'),
                     ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      style: AppTheme.softCompactButton,
-                      onPressed: () => replacePage(
-                        context,
-                        breadcrumb: ['Pengajar', classData.title, 'Buat Materi'],
-                        page: _BuatMateriScreen(
-                          classData: classData,
-                          onCreated: onCreated,
-                          initialTitle: materi.title,
-                          initialDescription: materi.description,
-                          initialLampiran: materi.lampiran,
-                        ),
+                    const SizedBox(height: 16),
+                    for (final item in materi.lampiran) ...[
+                      FileCard.fromItem(item),
+                      const SizedBox(height: 12),
+                    ],
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Apakah anda ingin menggunakan materi ini ?',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.secondaryText,
                       ),
-                      child: const Text('Sesuaikan'),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 10,
+                      children: [
+                        FilledButton(
+                          onPressed: () {
+                            onCreated(materi);
+                            Navigator.of(context).popUntil(
+                              ModalRoute.withName('pengajar-detail'),
+                            );
+                            ScaffoldMessenger.of(context)
+                              ..hideCurrentSnackBar()
+                              ..showSnackBar(
+                                const SnackBar(
+                                  content: Text('Materi berhasil dibuat'),
+                                ),
+                              );
+                          },
+                          style: FilledButton.styleFrom(
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                          ),
+                          child: const Text('Gunakan materi'),
+                        ),
+                        ElevatedButton(
+                          style: AppTheme.softCompactButton,
+                          onPressed: () => replacePage(
+                            context,
+                            breadcrumb: [
+                              'Pengajar',
+                              classData.title,
+                              'Buat Materi',
+                            ],
+                            page: _BuatMateriScreen(
+                              classData: classData,
+                              onCreated: onCreated,
+                              initialTitle: materi.title,
+                              initialDescription: materi.description,
+                              initialLampiran: materi.lampiran,
+                            ),
+                          ),
+                          child: const Text('Sesuaikan'),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1437,91 +1617,107 @@ class _PengajarTugasDetailScreen extends StatelessWidget {
     final meta =
         'Pengajar • ${formatJam(tugas.postedAt)} • ${formatTanggal(tugas.postedAt)}';
 
-    return Column(
-      children: [
-        BackTitleRow(title: tugas.title),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  meta,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: 800,
+        );
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: BackTitleRow(title: tugas.title),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${tugas.points} poin',
+                      meta,
                       style: const TextStyle(
                         fontSize: 11,
                         color: AppColors.secondaryText,
                       ),
                     ),
-                    Container(
-                      width: 1,
-                      height: 10,
-                      margin: const EdgeInsets.symmetric(horizontal: 8),
-                      color: AppColors.secondaryText,
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          '${tugas.points} poin',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 10,
+                          color: AppColors.secondaryText,
+                        ),
+                        Text(
+                          tugas.dueDate == null
+                              ? 'Tanpa tenggat'
+                              : 'Tenggat: ${formatTanggal(tugas.dueDate!)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      tugas.dueDate == null
-                          ? 'Tanpa tenggat'
-                          : 'Tenggat: ${formatTanggal(tugas.dueDate!)}',
-                      style: const TextStyle(
-                        fontSize: 11,
+                    if (tugas.description.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      Text(
+                        tugas.description,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.text,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    for (final item in tugas.lampiran) ...[
+                      FileCard.fromItem(item),
+                      const SizedBox(height: 12),
+                    ],
+                    const SizedBox(height: 4),
+                    const Text(
+                      'AI bisa membantu guru dalam mengecek jawaban siswa',
+                      style: TextStyle(
+                        fontSize: 10,
                         color: AppColors.secondaryText,
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: () => openPage(
+                        context,
+                        breadcrumb: ['Pengajar', classData.title, tugas.title],
+                        page: _CekJawabanScreen(
+                          classData: classData,
+                          tugas: tugas,
+                        ),
+                        routeName: 'cek-jawaban',
+                      ),
+                      style: FilledButton.styleFrom(
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                      ),
+                      child: const Text('Cek jawaban'),
                     ),
                   ],
                 ),
-                if (tugas.description.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  Text(
-                    tugas.description,
-                    style: const TextStyle(fontSize: 12, color: AppColors.text),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                for (final item in tugas.lampiran) ...[
-                  FileCard.fromItem(item),
-                  const SizedBox(height: 12),
-                ],
-                const SizedBox(height: 4),
-                const Text(
-                  'AI bisa membantu guru dalam mengecek jawaban siswa',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: () => openPage(
-                    context,
-                    breadcrumb: ['Pengajar', classData.title, tugas.title],
-                    page: _CekJawabanScreen(
-                      classData: classData,
-                      tugas: tugas,
-                    ),
-                    routeName: 'cek-jawaban',
-                  ),
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                  ),
-                  child: const Text('Cek jawaban'),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1634,154 +1830,189 @@ class _TugasFormScreenState extends State<_TugasFormScreen> {
         ? hint
         : '${formatTanggal(_dueDate!)}, ${formatJam(_dueDate!)}';
 
-    return Column(
-      children: [
-        BackTitleRow(title: _isEdit ? 'Edit Tugas' : 'Tambah Tugas'),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_isEdit)
-                  const Text(
-                    'Edit Judul',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.secondaryText,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: 760,
+        );
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: BackTitleRow(
+                title: _isEdit ? 'Edit Tugas' : 'Tambah Tugas',
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_isEdit)
+                      const Text(
+                        'Edit Judul',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    TextField(
+                      controller: _titleController,
+                      onChanged: (_) => setState(() {}),
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: AppColors.text,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Ketikkan judul tugas',
+                        hintStyle: TextStyle(
+                          fontSize: 16,
+                          color: AppColors.secondaryText,
+                        ),
+                        isDense: true,
+                        border: UnderlineInputBorder(),
+                      ),
                     ),
-                  ),
-                TextField(
-                  controller: _titleController,
-                  onChanged: (_) => setState(() {}),
-                  style: const TextStyle(fontSize: 16, color: AppColors.text),
-                  decoration: const InputDecoration(
-                    hintText: 'Ketikkan judul tugas',
-                    hintStyle: TextStyle(
-                      fontSize: 16,
-                      color: AppColors.secondaryText,
+                    if (!_canSave)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Isian wajib diisi',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    if (_isEdit)
+                      const Text(
+                        'Edit Deskripsi',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    TextField(
+                      controller: _descController,
+                      minLines: 1,
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.text,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Deskripsi petunjuk (opsional)',
+                        hintStyle: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.secondaryText,
+                        ),
+                        isDense: true,
+                        border: UnderlineInputBorder(),
+                      ),
                     ),
-                    isDense: true,
-                    border: UnderlineInputBorder(),
-                  ),
-                ),
-                if (!_canSave)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Isian wajib diisi',
+                    if (_isEdit) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Switch(
+                            value: _accept,
+                            onChanged: (v) => setState(() => _accept = v),
+                          ),
+                          const SizedBox(width: 8),
+                          const Flexible(
+                            child: Text(
+                              'Menerima kiriman',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.text,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Tenggat waktu',
                       style: TextStyle(
                         fontSize: 10,
                         color: AppColors.secondaryText,
                       ),
                     ),
-                  ),
-                const SizedBox(height: 12),
-                if (_isEdit)
-                  const Text(
-                    'Edit Deskripsi',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                TextField(
-                  controller: _descController,
-                  minLines: 1,
-                  maxLines: null,
-                  keyboardType: TextInputType.multiline,
-                  style: const TextStyle(fontSize: 12, color: AppColors.text),
-                  decoration: const InputDecoration(
-                    hintText: 'Deskripsi petunjuk (opsional)',
-                    hintStyle: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.secondaryText,
-                    ),
-                    isDense: true,
-                    border: UnderlineInputBorder(),
-                  ),
-                ),
-                if (_isEdit) ...[
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Switch(
-                        value: _accept,
-                        onChanged: (v) => setState(() => _accept = v),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text(
-                        'Menerima kiriman',
-                        style: TextStyle(fontSize: 11, color: AppColors.text),
-                      ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 12),
-                const Text(
-                  'Tenggat waktu',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-                Row(
-                  children: [
-                    InkWell(
-                      onTap: _pickDueDate,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        decoration: const BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: AppColors.secondaryText),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              dueLabel,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.text,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: InkWell(
+                            onTap: _pickDueDate,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              decoration: const BoxDecoration(
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: AppColors.secondaryText,
+                                  ),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      dueLabel,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.text,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  const Icon(
+                                    Icons.keyboard_arrow_down,
+                                    size: 18,
+                                  ),
+                                ],
                               ),
                             ),
-                            const SizedBox(width: 24),
-                            const Icon(Icons.keyboard_arrow_down, size: 18),
-                          ],
+                          ),
                         ),
+                        if (_dueDate != null)
+                          IconButton(
+                            tooltip: 'Hapus tenggat',
+                            onPressed: () => setState(() => _dueDate = null),
+                            icon: const Icon(Icons.close, size: 16),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    LampiranEditor(
+                      items: _lampiran,
+                      onChanged: (v) => setState(() => _lampiran = v),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: _canSave ? _save : null,
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size.fromHeight(44),
+                          shape: const StadiumBorder(),
+                        ),
+                        child: const Text('Simpan'),
                       ),
                     ),
-                    if (_dueDate != null)
-                      IconButton(
-                        tooltip: 'Hapus tenggat',
-                        onPressed: () => setState(() => _dueDate = null),
-                        icon: const Icon(Icons.close, size: 16),
-                      ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                LampiranEditor(
-                  items: _lampiran,
-                  onChanged: (v) => setState(() => _lampiran = v),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: _canSave ? _save : null,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(44),
-                      shape: const StadiumBorder(),
-                    ),
-                    child: const Text('Simpan'),
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1844,139 +2075,207 @@ class _CekJawabanScreenState extends State<_CekJawabanScreen> {
   Widget build(BuildContext context) {
     final all = _tugas.pengumpulan;
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isTwoColumn =
+            constraints.maxWidth >= ResponsiveBreakpoints.medium;
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: isTwoColumn ? 1120 : 760,
+        );
+
+        final controls = _buildControls(all);
+        final statusCards = [
+          for (final status in _statuses)
+            if (_filter == 'Semua' || _filter == status)
+              ..._buildStatusCard(
+                status,
+                all.where((p) => p.status == status).toList(),
+              ),
+        ];
+
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: BackTitleRow(title: _tugas.title),
+            ),
+            Expanded(
+              child: isTwoColumn
+                  ? Padding(
+                      padding: EdgeInsets.fromLTRB(h, 4, h, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 4,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: controls,
+                            ),
+                          ),
+                          const SizedBox(width: 24),
+                          Expanded(
+                            flex: 6,
+                            child: ListView(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              children: statusCards,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView(
+                      padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                      children: [
+                        controls,
+                        const SizedBox(height: 12),
+                        ...statusCards,
+                      ],
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildControls(List<_PengumpulanItem> all) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        BackTitleRow(title: _tugas.title),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        IntrinsicHeight(
+          child: Row(
             children: [
-              IntrinsicHeight(
-                child: Row(
-                  children: [
-                    for (var i = 0; i < _statuses.length; i++) ...[
-                      if (i > 0)
-                        const VerticalDivider(
-                          width: 1,
-                          thickness: 1,
-                          color: AppColors.secondaryText,
-                        ),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            Text(
-                              '${all.where((p) => p.status == _statuses[i]).length}',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w500,
-                                color: AppColors.text,
-                              ),
-                            ),
-                            Text(
-                              _statuses[i],
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: AppColors.text,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Switch(
-                    value: _tugas.acceptSubmissions,
-                    onChanged: (v) =>
-                        setState(() => _tugas.acceptSubmissions = v),
+              for (var i = 0; i < _statuses.length; i++) ...[
+                if (i > 0)
+                  const VerticalDivider(
+                    width: 1,
+                    thickness: 1,
+                    color: AppColors.secondaryText,
                   ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Menerima kiriman',
-                    style: TextStyle(fontSize: 11, color: AppColors.text),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton(
-                  onPressed: () => openPage(
-                    context,
-                    breadcrumb: [
-                      'Pengajar',
-                      widget.classData.title,
-                      _tugas.title,
-                    ],
-                    page: _KoreksiAiScreen(
-                      classData: widget.classData,
-                      tugas: _tugas,
-                      onAccepted: (scores) {
-                        setState(() {
-                          for (final p in _tugas.pengumpulan) {
-                            final s = scores[p.studentName];
-                            if (s != null) {
-                              p.score = s;
-                              p.status = 'Dinilai';
-                              _controllerFor(p).text = '$s';
-                            }
-                          }
-                        });
-                      },
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Column(
+                      children: [
+                        Text(
+                          '${all.where((p) => p.status == _statuses[i]).length}',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.text,
+                          ),
+                        ),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _statuses[i],
+                            maxLines: 1,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.text,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Koreksi menggunakan AI',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      SizedBox(width: 6),
-                      Icon(Icons.chevron_right, size: 18),
-                    ],
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Switch(
+              value: _tugas.acceptSubmissions,
+              onChanged: (v) => setState(() => _tugas.acceptSubmissions = v),
+            ),
+            const SizedBox(width: 8),
+            const Flexible(
+              child: Text(
+                'Menerima kiriman',
+                style: TextStyle(fontSize: 11, color: AppColors.text),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton(
+            onPressed: () => openPage(
+              context,
+              breadcrumb: [
+                'Pengajar',
+                widget.classData.title,
+                _tugas.title,
+              ],
+              page: _KoreksiAiScreen(
+                classData: widget.classData,
+                tugas: _tugas,
+                onAccepted: (scores) {
+                  setState(() {
+                    for (final p in _tugas.pengumpulan) {
+                      final s = scores[p.studentName];
+                      if (s != null) {
+                        p.score = s;
+                        p.status = 'Dinilai';
+                        _controllerFor(p).text = '$s';
+                      }
+                    }
+                  });
+                },
+              ),
+            ),
+            style: FilledButton.styleFrom(
+              shape: const StadiumBorder(),
+              padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    'Koreksi menggunakan AI',
+                    style: TextStyle(fontSize: 12),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  DropdownButton<String>(
-                    value: _filter,
-                    isDense: true,
-                    style: const TextStyle(fontSize: 11, color: AppColors.text),
-                    items: [
-                      for (final f in _filters)
-                        DropdownMenuItem(value: f, child: Text(f)),
-                    ],
-                    onChanged: (v) => setState(() => _filter = v ?? 'Semua'),
-                  ),
-                  FilledButton(
-                    onPressed: _saveScores,
-                    style: FilledButton.styleFrom(
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                    ),
-                    child: const Text('Simpan'),
-                  ),
+                SizedBox(width: 6),
+                Icon(Icons.chevron_right, size: 18),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              DropdownButton<String>(
+                value: _filter,
+                isDense: true,
+                style: const TextStyle(fontSize: 11, color: AppColors.text),
+                items: [
+                  for (final f in _filters)
+                    DropdownMenuItem(value: f, child: Text(f)),
                 ],
+                onChanged: (v) => setState(() => _filter = v ?? 'Semua'),
               ),
-              const SizedBox(height: 12),
-              for (final status in _statuses)
-                if (_filter == 'Semua' || _filter == status)
-                  ..._buildStatusCard(
-                    status,
-                    all.where((p) => p.status == status).toList(),
-                  ),
+              FilledButton(
+                onPressed: _saveScores,
+                style: FilledButton.styleFrom(
+                  shape: const StadiumBorder(),
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                ),
+                child: const Text('Simpan'),
+              ),
             ],
           ),
         ),
@@ -1986,6 +2285,10 @@ class _CekJawabanScreenState extends State<_CekJawabanScreen> {
 
   List<Widget> _buildStatusCard(String status, List<_PengumpulanItem> rows) {
     if (rows.isEmpty) return const [];
+    final scoreBoxWidth = math.max(
+      40.0,
+      MediaQuery.textScalerOf(context).scale(11) * 3.8,
+    );
 
     return [
       Card(
@@ -2053,7 +2356,7 @@ class _CekJawabanScreenState extends State<_CekJawabanScreen> {
                         ),
                       ),
                       SizedBox(
-                        width: 40,
+                        width: scoreBoxWidth,
                         child: TextField(
                           controller: _controllerFor(rows[i]),
                           textAlign: TextAlign.right,
@@ -2140,194 +2443,231 @@ class _KoreksiAiScreenState extends State<_KoreksiAiScreen> {
       for (final name in _selected) name: 90,
     };
 
-    if (_confirmedStep) {
-      return Column(
-        children: [
-          const BackTitleRow(title: 'Koreksi Menggunakan AI'),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-              children: [
-                Text(
-                  tugas.title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                FileCard(
-                  fileName: 'Rekap koreksi AI_${tugas.title}',
-                  fileType: 'PDF',
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: FilledButton(
-                    onPressed: _selected.isEmpty
-                        ? null
-                        : () {
-                            widget.onAccepted(generatedScores);
-                            Navigator.of(context).popUntil(
-                              ModalRoute.withName('cek-jawaban'),
-                            );
-                            ScaffoldMessenger.of(context)
-                              ..hideCurrentSnackBar()
-                              ..showSnackBar(
-                                const SnackBar(
-                                  content: Text('Koreksi AI diterima'),
-                                ),
-                              );
-                          },
-                    style: FilledButton.styleFrom(
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                    ),
-                    child: const Text('Terima Koreksi'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                _PengumpulanChecklist(
-                  students: tugas.pengumpulan,
-                  selected: _selected,
-                  scores: generatedScores,
-                  maxScore: tugas.points,
-                  onChanged: (v) => setState(() => _selected = v),
-                ),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final h = responsiveHorizontalInset(
+          constraints.maxWidth,
+          maxWidth: 840,
+        );
 
-    return Column(
-      children: [
-        const BackTitleRow(title: 'Koreksi Menggunakan AI'),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        if (_confirmedStep) {
+          return Column(
             children: [
-              Text(
-                tugas.title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text,
-                ),
+              Padding(
+                padding: alignedBackTitlePadding(h),
+                child: const BackTitleRow(title: 'Koreksi Menggunakan AI'),
               ),
-              const SizedBox(height: 10),
-              const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.only(top: 1),
-                    child: Icon(Icons.info, size: 12, color: AppColors.text),
-                  ),
-                  SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'AI akan membantu mengoreksi pekerjaan siswa menggunakan '
-                      'lampiran file kunci jawaban yang sudah diunggah atau buat '
-                      'sendiri kunci jawaban menggunakan AI',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.secondaryText,
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                  children: [
+                    Text(
+                      tugas.title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              const Text(
-                'Kunci jawaban',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text,
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'File',
-                style: TextStyle(fontSize: 10, color: AppColors.secondaryText),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  ElevatedButton(
-                    style: AppTheme.softCompactButton,
-                    onPressed: _pickKeyFile,
-                    child: const Text('Upload file'),
-                  ),
-                  if (_keyFileName != null) ...[
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _keyFileName!,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.text,
+                    const SizedBox(height: 12),
+                    FileCard(
+                      fileName: 'Rekap koreksi AI_${tugas.title}',
+                      fileType: 'PDF',
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton(
+                        onPressed: _selected.isEmpty
+                            ? null
+                            : () {
+                                widget.onAccepted(generatedScores);
+                                Navigator.of(context).popUntil(
+                                  ModalRoute.withName('cek-jawaban'),
+                                );
+                                ScaffoldMessenger.of(context)
+                                  ..hideCurrentSnackBar()
+                                  ..showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Koreksi AI diterima'),
+                                    ),
+                                  );
+                              },
+                        style: FilledButton.styleFrom(
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child: const Text('Terima Koreksi'),
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => setState(() => _keyFileName = null),
-                      icon: const Icon(Icons.close, size: 16),
+                    const SizedBox(height: 12),
+                    _PengumpulanChecklist(
+                      students: tugas.pengumpulan,
+                      selected: _selected,
+                      scores: generatedScores,
+                      maxScore: tugas.points,
+                      onChanged: (v) => setState(() => _selected = v),
                     ),
                   ],
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Atau buat kunci jawaban menggunakan AI',
-                style: TextStyle(fontSize: 10, color: AppColors.secondaryText),
-              ),
-              TextField(
-                controller: _descController,
-                onChanged: (_) => setState(() {}),
-                minLines: 1,
-                maxLines: null,
-                keyboardType: TextInputType.multiline,
-                style: const TextStyle(fontSize: 11, color: AppColors.text),
-                decoration: const InputDecoration(
-                  hintText: 'Deskripsi kunci jawaban yang akan dibuat AI',
-                  hintStyle: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.secondaryText,
-                  ),
-                  isDense: true,
-                  border: UnderlineInputBorder(),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton(
-                  onPressed: _hasKey && _selected.isNotEmpty
-                      ? () => setState(() => _confirmedStep = true)
-                      : null,
-                  style: FilledButton.styleFrom(
-                    shape: const StadiumBorder(),
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                  ),
-                  child: const Text('Koreksi menggunakan AI'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _PengumpulanChecklist(
-                students: tugas.pengumpulan,
-                selected: _selected,
-                maxScore: tugas.points,
-                onChanged: (v) => setState(() => _selected = v),
               ),
             ],
-          ),
-        ),
-      ],
+          );
+        }
+
+        return Column(
+          children: [
+            Padding(
+              padding: alignedBackTitlePadding(h),
+              child: const BackTitleRow(title: 'Koreksi Menggunakan AI'),
+            ),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(h, 4, h, 24),
+                children: [
+                  Text(
+                    tugas.title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.only(top: 1),
+                        child: Icon(
+                          Icons.info,
+                          size: 12,
+                          color: AppColors.text,
+                        ),
+                      ),
+                      SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'AI akan membantu mengoreksi pekerjaan siswa menggunakan '
+                          'lampiran file kunci jawaban yang sudah diunggah atau buat '
+                          'sendiri kunci jawaban menggunakan AI',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Kunci jawaban',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'File',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ElevatedButton(
+                        style: AppTheme.softCompactButton,
+                        onPressed: _pickKeyFile,
+                        child: const Text('Upload file'),
+                      ),
+                      if (_keyFileName != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 240,
+                                ),
+                                child: Text(
+                                  _keyFileName!,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.text,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () =>
+                                  setState(() => _keyFileName = null),
+                              icon: const Icon(Icons.close, size: 16),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Atau buat kunci jawaban menggunakan AI',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                  TextField(
+                    controller: _descController,
+                    onChanged: (_) => setState(() {}),
+                    minLines: 1,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    style: const TextStyle(fontSize: 11, color: AppColors.text),
+                    decoration: const InputDecoration(
+                      hintText: 'Deskripsi kunci jawaban yang akan dibuat AI',
+                      hintStyle: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.secondaryText,
+                      ),
+                      isDense: true,
+                      border: UnderlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton(
+                      onPressed: _hasKey && _selected.isNotEmpty
+                          ? () => setState(() => _confirmedStep = true)
+                          : null,
+                      style: FilledButton.styleFrom(
+                        shape: const StadiumBorder(),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                      ),
+                      child: const Text('Koreksi menggunakan AI'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _PengumpulanChecklist(
+                    students: tugas.pengumpulan,
+                    selected: _selected,
+                    maxScore: tugas.points,
+                    onChanged: (v) => setState(() => _selected = v),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -2402,15 +2742,17 @@ class _PengumpulanChecklistState extends State<_PengumpulanChecklist> {
           children: [
             _box(_allSelected(visible), (v) => _setMany(visible, v)),
             const SizedBox(width: 8),
-            DropdownButton<String>(
-              value: _filter,
-              isDense: true,
-              style: const TextStyle(fontSize: 11, color: AppColors.text),
-              items: [
-                for (final f in _filters)
-                  DropdownMenuItem(value: f, child: Text(f)),
-              ],
-              onChanged: (v) => setState(() => _filter = v ?? 'Semua'),
+            Flexible(
+              child: DropdownButton<String>(
+                value: _filter,
+                isDense: true,
+                style: const TextStyle(fontSize: 11, color: AppColors.text),
+                items: [
+                  for (final f in _filters)
+                    DropdownMenuItem(value: f, child: Text(f)),
+                ],
+                onChanged: (v) => setState(() => _filter = v ?? 'Semua'),
+              ),
             ),
           ],
         ),

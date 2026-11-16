@@ -1,3 +1,12 @@
+enum OAuthProvider {
+  google('google', 'Google');
+
+  final String id;
+  final String label;
+
+  const OAuthProvider(this.id, this.label);
+}
+
 class LoginRequest {
   final String email;
   final String password;
