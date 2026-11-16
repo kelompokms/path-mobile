@@ -381,4 +381,109 @@ class KelasRepository {
       return (null, 'Network error: $e');
     }
   }
+
+  Future<(PengumpulanTugasModel?, String?)> getPengumpulanTugas(
+    String kodeKelas,
+    int postinganId,
+  ) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final response = await _client
+          .get(
+            _client.uri('/kelas/$encodedCode/postingan/$postinganId/pengumpulan'),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 404) {
+        return (
+          PengumpulanTugasModel(postinganId: postinganId, submitted: false),
+          null,
+        );
+      }
+
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal memuat pengumpulan tugas'),
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (PengumpulanTugasModel.fromJson(data), null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  Future<(PengumpulanTugasModel?, String?)> submitPengumpulanTugas(
+    String kodeKelas,
+    int postinganId,
+    List<String> lampiran,
+  ) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final response = await _client
+          .post(
+            _client.uri('/kelas/$encodedCode/postingan/$postinganId/pengumpulan'),
+            headers: _client.JSON,
+            body: jsonEncode({'lampiran': lampiran}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal mengumpulkan tugas'),
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (PengumpulanTugasModel.fromJson(data), null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  Future<(List<String>?, String?)> tarikPengumpulanTugas(
+    String kodeKelas,
+    int postinganId,
+  ) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final response = await _client
+          .delete(
+            _client.uri('/kelas/$encodedCode/postingan/$postinganId/pengumpulan'),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal menarik pengumpulan tugas'),
+        );
+      }
+
+      if (response.body.trim().isEmpty) {
+        return (const <String>[], null);
+      }
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final rawLampiran = decoded['lampiran'];
+        final list = rawLampiran is List
+            ? rawLampiran.map((e) => e.toString()).toList()
+            : const <String>[];
+        return (list, null);
+      }
+      return (const <String>[], null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
 }

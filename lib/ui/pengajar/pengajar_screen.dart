@@ -607,6 +607,12 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
     }
   }
 
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _handleMateriCreated(_MateriPengajar materi) async {
     if (!_isGuru) return;
     final ctrl = widget.controller;
@@ -619,9 +625,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
       );
       if (!mounted) return;
       if (err != null) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(err)));
+        _showSnackBar(err);
         return;
       }
       if (created != null) {
@@ -636,8 +640,8 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
     });
   }
 
-  Future<void> _handleTugasCreated(_TugasPengajar tugas) async {
-    if (!_isGuru) return;
+  Future<bool> _handleTugasCreated(_TugasPengajar tugas) async {
+    if (!_isGuru) return false;
     final ctrl = widget.controller;
     if (ctrl != null) {
       final (created, err) = await ctrl.createTugas(
@@ -646,181 +650,108 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         deskripsi: tugas.description,
         lampiran: tugas.lampiran,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
       if (err != null) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(err)));
-        return;
+        _showSnackBar(err);
+        return false;
       }
       if (created != null) {
-        tugas.id = created.id;
+        tugas
+          ..id = created.id
+          ..title = created.judul
+          ..description = created.deskripsi
+          ..lampiran = List<LampiranItem>.from(created.lampiranItems);
       }
     }
     setState(() {
       _tugasList.insert(0, tugas);
     });
+    return true;
   }
 
-  Future<void> _handleTugasEdited(_TugasPengajar tugas) async {
-    if (!_isGuru) return;
+  Future<bool> _handleTugasEdited(
+    _TugasPengajar target,
+    _TugasPengajar draft,
+  ) async {
+    if (!_isGuru) return false;
     final ctrl = widget.controller;
-    if (ctrl != null && tugas.id != null) {
-      final (_, err) = await ctrl.editPostingan(
+    PostinganModel? savedModel;
+    if (ctrl != null) {
+      if (target.id == null) {
+        _showSnackBar('ID postingan tidak ditemukan');
+        return false;
+      }
+      final (updated, err) = await ctrl.editPostingan(
         _class.code,
-        tugas.id!,
-        judul: tugas.title,
-        deskripsi: tugas.description,
-        lampiran: tugas.lampiran,
+        target.id!,
+        judul: draft.title,
+        deskripsi: draft.description,
+        lampiran: draft.lampiran,
         tipe: PostinganModel.tipeTugas,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
       if (err != null) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text(err)));
-        return;
+        _showSnackBar(err);
+        return false;
       }
+      savedModel = updated;
     }
-    setState(() {});
+    setState(() {
+      target
+        ..title = savedModel?.judul ?? draft.title
+        ..description = savedModel?.deskripsi ?? draft.description
+        ..dueDate = draft.dueDate
+        ..acceptSubmissions = draft.acceptSubmissions
+        ..lampiran = savedModel != null
+            ? List<LampiranItem>.from(savedModel.lampiranItems)
+            : List<LampiranItem>.from(draft.lampiran);
+    });
+    _showSnackBar('Tugas berhasil diperbarui');
+    return true;
   }
 
-  Future<void> _editMateri(_MateriPengajar m) async {
-    if (!_isGuru) return;
-    final titleCtrl = TextEditingController(text: m.title);
-    final descCtrl = TextEditingController(text: m.description);
-
-    final saved = await showDialog<bool>(
+  Future<bool> _editMateri(_MateriPengajar m) async {
+    if (!_isGuru) return false;
+    final result = await showDialog<({String title, String description})>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          final canSave = titleCtrl.text.trim().isNotEmpty;
-          return Dialog(
-            backgroundColor: AppColors.background,
-            surfaceTintColor: Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _class.title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Edit Judul',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                    TextField(
-                      controller: titleCtrl,
-                      onChanged: (_) => setDialogState(() {}),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: AppColors.text,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: 'Edit judul materi disini',
-                        isDense: true,
-                        border: UnderlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Edit Deskripsi',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                    TextField(
-                      controller: descCtrl,
-                      minLines: 5,
-                      maxLines: null,
-                      keyboardType: TextInputType.multiline,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.text,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: 'Edit deskripsi materi disini',
-                        isDense: true,
-                        border: InputBorder.none,
-                      ),
-                    ),
-                    const Divider(color: AppColors.text, height: 1),
-                    SizedBox(
-                      width: double.infinity,
-                      child: Wrap(
-                        alignment: WrapAlignment.end,
-                        spacing: 8,
-                        children: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.text,
-                            ),
-                            child: const Text(
-                              'Batal',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: canSave
-                                ? () => Navigator.pop(ctx, true)
-                                : null,
-                            child: const Text('Simpan'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+      builder: (_) => _EditPostinganDialog(
+        headerTitle: 'Edit Materi',
+        initialTitle: m.title,
+        initialDescription: m.description,
+        titleHint: 'Edit judul materi disini',
+        descHint: 'Edit deskripsi materi disini',
       ),
     );
+    if (result == null || !mounted) return false;
 
-    if (saved == true && mounted) {
-      final newTitle = titleCtrl.text.trim();
-      final newDesc = descCtrl.text.trim();
-      final ctrl = widget.controller;
-      if (ctrl != null && m.id != null) {
-        final (_, err) = await ctrl.editPostingan(
-          _class.code,
-          m.id!,
-          judul: newTitle,
-          deskripsi: newDesc,
-          tipe: PostinganModel.tipeMateri,
-        );
-        if (!mounted) return;
-        if (err != null) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(err)));
-          return;
-        }
+    final ctrl = widget.controller;
+    PostinganModel? savedModel;
+    if (ctrl != null) {
+      if (m.id == null) {
+        _showSnackBar('ID postingan tidak ditemukan');
+        return false;
       }
-      setState(() {
-        m.title = newTitle;
-        m.description = newDesc;
-      });
+      final (updated, err) = await ctrl.editPostingan(
+        _class.code,
+        m.id!,
+        judul: result.title,
+        deskripsi: result.description,
+        tipe: PostinganModel.tipeMateri,
+      );
+      if (!mounted) return false;
+      if (err != null) {
+        _showSnackBar(err);
+        return false;
+      }
+      savedModel = updated;
     }
+
+    setState(() {
+      m.title = savedModel?.judul ?? result.title;
+      m.description = savedModel?.deskripsi ?? result.description;
+    });
+    _showSnackBar('Materi berhasil diperbarui');
+    return true;
   }
 
   @override
@@ -1003,7 +934,9 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                           ],
                           page: _PengajarMateriDetailScreen(
                             materi: m,
+                            isGuru: _isGuru,
                             baseUrl: widget.controller?.baseUrl,
+                            onEdit: _isGuru ? () => _editMateri(m) : null,
                           ),
                         ),
                         menuLabels: _isGuru ? const ['Edit'] : null,
@@ -1046,6 +979,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                     classData: _class,
                     controller: widget.controller,
                     onSaved: _handleTugasCreated,
+                    onEditedCreated: _handleTugasEdited,
                   ),
                 ),
                 icon: const Icon(Icons.add_box_outlined, size: 18),
@@ -1094,7 +1028,11 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                             classData: _class,
                             tugas: t,
                             isGuru: _isGuru,
+                            controller: widget.controller,
                             baseUrl: widget.controller?.baseUrl,
+                            onEdited: _isGuru
+                                ? (draft) => _handleTugasEdited(t, draft)
+                                : null,
                           ),
                         ),
                         menuLabels: _isGuru ? const ['Edit'] : null,
@@ -1111,7 +1049,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                                   classData: _class,
                                   existing: t,
                                   controller: widget.controller,
-                                  onSaved: _handleTugasEdited,
+                                  onSaved: (draft) => _handleTugasEdited(t, draft),
                                 ),
                               )
                             : null,
@@ -1289,14 +1227,169 @@ class _ClassCodeCard extends StatelessWidget {
   }
 }
 
-class _PengajarMateriDetailScreen extends StatelessWidget {
-  final _MateriPengajar materi;
-  final String? baseUrl;
+class _EditPostinganDialog extends StatefulWidget {
+  final String headerTitle;
+  final String initialTitle;
+  final String initialDescription;
+  final String titleHint;
+  final String descHint;
 
-  const _PengajarMateriDetailScreen({required this.materi, this.baseUrl});
+  const _EditPostinganDialog({
+    required this.headerTitle,
+    required this.initialTitle,
+    required this.initialDescription,
+    required this.titleHint,
+    required this.descHint,
+  });
+
+  @override
+  State<_EditPostinganDialog> createState() => _EditPostinganDialogState();
+}
+
+class _EditPostinganDialogState extends State<_EditPostinganDialog> {
+  late final TextEditingController _titleCtrl;
+  late final TextEditingController _descCtrl;
+
+  bool get _canSave => _titleCtrl.text.trim().isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl = TextEditingController(text: widget.initialTitle);
+    _descCtrl = TextEditingController(text: widget.initialDescription);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.background,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.headerTitle,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.text,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Edit Judul',
+                style: TextStyle(fontSize: 10, color: AppColors.secondaryText),
+              ),
+              TextField(
+                controller: _titleCtrl,
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(fontSize: 16, color: AppColors.text),
+                decoration: InputDecoration(
+                  hintText: widget.titleHint,
+                  errorText: _canSave ? null : 'Judul wajib diisi',
+                  isDense: true,
+                  border: const UnderlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Edit Deskripsi',
+                style: TextStyle(fontSize: 10, color: AppColors.secondaryText),
+              ),
+              TextField(
+                controller: _descCtrl,
+                minLines: 5,
+                maxLines: null,
+                keyboardType: TextInputType.multiline,
+                style: const TextStyle(fontSize: 12, color: AppColors.text),
+                decoration: InputDecoration(
+                  hintText: widget.descHint,
+                  isDense: true,
+                  border: InputBorder.none,
+                ),
+              ),
+              const Divider(color: AppColors.text, height: 1),
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.text,
+                      ),
+                      child: const Text(
+                        'Batal',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _canSave
+                          ? () => Navigator.pop(context, (
+                              title: _titleCtrl.text.trim(),
+                              description: _descCtrl.text.trim(),
+                            ))
+                          : null,
+                      child: const Text('Simpan'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PengajarMateriDetailScreen extends StatefulWidget {
+  final _MateriPengajar materi;
+  final bool isGuru;
+  final String? baseUrl;
+  final Future<bool> Function()? onEdit;
+
+  const _PengajarMateriDetailScreen({
+    required this.materi,
+    this.isGuru = false,
+    this.baseUrl,
+    this.onEdit,
+  });
+
+  @override
+  State<_PengajarMateriDetailScreen> createState() =>
+      _PengajarMateriDetailScreenState();
+}
+
+class _PengajarMateriDetailScreenState
+    extends State<_PengajarMateriDetailScreen> {
+  Future<void> _handleEdit() async {
+    final onEdit = widget.onEdit;
+    if (onEdit == null) return;
+    final edited = await onEdit();
+    if (edited && mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final materi = widget.materi;
     final meta =
         'Pengajar • ${formatTanggal(materi.postedAt)} • ${formatJam(materi.postedAt)}';
 
@@ -1310,7 +1403,23 @@ class _PengajarMateriDetailScreen extends StatelessWidget {
           children: [
             Padding(
               padding: alignedBackTitlePadding(h),
-              child: BackTitleRow(title: materi.title),
+              child: Row(
+                children: [
+                  Expanded(child: BackTitleRow(title: materi.title)),
+                  if (widget.isGuru && widget.onEdit != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        tooltip: 'Edit materi',
+                        onPressed: _handleEdit,
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          color: AppColors.text,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -1337,7 +1446,7 @@ class _PengajarMateriDetailScreen extends StatelessWidget {
                     ],
                     const SizedBox(height: 16),
                     for (final item in materi.lampiran) ...[
-                      FileCard.fromItem(item, baseUrl: baseUrl),
+                      FileCard.fromItem(item, baseUrl: widget.baseUrl),
                       const SizedBox(height: 12),
                     ],
                   ],
@@ -1854,21 +1963,59 @@ class _KonfirmasiMateriAiScreen extends StatelessWidget {
   }
 }
 
-class _PengajarTugasDetailScreen extends StatelessWidget {
+class _PengajarTugasDetailScreen extends StatefulWidget {
   final ClassItem classData;
   final _TugasPengajar tugas;
   final bool isGuru;
+  final PengajarController? controller;
   final String? baseUrl;
+  final Future<bool> Function(_TugasPengajar draft)? onEdited;
 
   const _PengajarTugasDetailScreen({
     required this.classData,
     required this.tugas,
     this.isGuru = true,
+    this.controller,
     this.baseUrl,
+    this.onEdited,
   });
 
   @override
+  State<_PengajarTugasDetailScreen> createState() =>
+      _PengajarTugasDetailScreenState();
+}
+
+class _PengajarTugasDetailScreenState
+    extends State<_PengajarTugasDetailScreen> {
+  Future<void> _handleEdit() async {
+    final onEdited = widget.onEdited;
+    if (onEdited == null) return;
+    final saved = await openPage<bool>(
+      context,
+      breadcrumb: [
+        'Pengajar',
+        widget.classData.title,
+        'Tugas',
+        'Edit Tugas',
+      ],
+      page: _TugasFormScreen(
+        classData: widget.classData,
+        existing: widget.tugas,
+        controller: widget.controller,
+        onSaved: onEdited,
+      ),
+    );
+    if (saved == true && mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final classData = widget.classData;
+    final tugas = widget.tugas;
+    final isGuru = widget.isGuru;
+    final baseUrl = widget.baseUrl;
     final meta =
         'Pengajar • ${formatJam(tugas.postedAt)} • ${formatTanggal(tugas.postedAt)}';
 
@@ -1882,7 +2029,23 @@ class _PengajarTugasDetailScreen extends StatelessWidget {
           children: [
             Padding(
               padding: alignedBackTitlePadding(h),
-              child: BackTitleRow(title: tugas.title),
+              child: Row(
+                children: [
+                  Expanded(child: BackTitleRow(title: tugas.title)),
+                  if (isGuru && widget.onEdited != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: IconButton(
+                        tooltip: 'Edit tugas',
+                        onPressed: _handleEdit,
+                        icon: const Icon(
+                          Icons.edit_outlined,
+                          color: AppColors.text,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -1983,13 +2146,16 @@ class _TugasFormScreen extends StatefulWidget {
   final ClassItem classData;
   final _TugasPengajar? existing;
   final PengajarController? controller;
-  final ValueChanged<_TugasPengajar> onSaved;
+  final Future<bool> Function(_TugasPengajar tugas) onSaved;
+  final Future<bool> Function(_TugasPengajar target, _TugasPengajar draft)?
+  onEditedCreated;
 
   const _TugasFormScreen({
     required this.classData,
     this.existing,
     this.controller,
     required this.onSaved,
+    this.onEditedCreated,
   });
 
   @override
@@ -2003,9 +2169,11 @@ class _TugasFormScreenState extends State<_TugasFormScreen> {
   bool _accept = true;
   late List<LampiranItem> _lampiran;
   bool _isUploading = false;
+  bool _isSaving = false;
 
   bool get _isEdit => widget.existing != null;
-  bool get _canSave => _titleController.text.trim().isNotEmpty && !_isUploading;
+  bool get _hasTitle => _titleController.text.trim().isNotEmpty;
+  bool get _canSave => _hasTitle && !_isUploading && !_isSaving;
 
   @override
   void initState() {
@@ -2050,35 +2218,52 @@ class _TugasFormScreenState extends State<_TugasFormScreen> {
     });
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
     final existing = widget.existing;
-    if (existing == null) {
-      final created = _TugasPengajar(
-        title: _titleController.text.trim(),
-        description: _descController.text.trim(),
-        postedAt: DateTime.now(),
-        dueDate: _dueDate,
-        lampiran: _lampiran,
-      );
-      widget.onSaved(created);
-      replacePage(
-        context,
-        breadcrumb: ['Pengajar', widget.classData.title, created.title],
-        page: _PengajarTugasDetailScreen(
-          classData: widget.classData,
-          tugas: created,
-          baseUrl: widget.controller?.baseUrl,
-        ),
-      );
-    } else {
-      existing
-        ..title = _titleController.text.trim()
-        ..description = _descController.text.trim()
-        ..dueDate = _dueDate
-        ..acceptSubmissions = _accept
-        ..lampiran = _lampiran;
-      widget.onSaved(existing);
-      Navigator.of(context).pop();
+    try {
+      if (existing == null) {
+        final created = _TugasPengajar(
+          title: _titleController.text.trim(),
+          description: _descController.text.trim(),
+          postedAt: DateTime.now(),
+          dueDate: _dueDate,
+          lampiran: List<LampiranItem>.from(_lampiran),
+        );
+        final ok = await widget.onSaved(created);
+        if (!mounted || !ok) return;
+        replacePage(
+          context,
+          breadcrumb: ['Pengajar', widget.classData.title, created.title],
+          page: _PengajarTugasDetailScreen(
+            classData: widget.classData,
+            tugas: created,
+            controller: widget.controller,
+            baseUrl: widget.controller?.baseUrl,
+            onEdited: widget.onEditedCreated == null
+                ? null
+                : (draft) => widget.onEditedCreated!(created, draft),
+          ),
+        );
+      } else {
+        final draft = _TugasPengajar(
+          id: existing.id,
+          title: _titleController.text.trim(),
+          description: _descController.text.trim(),
+          postedAt: existing.postedAt,
+          dueDate: _dueDate,
+          lampiran: List<LampiranItem>.from(_lampiran),
+          pengumpulan: existing.pengumpulan,
+        )..acceptSubmissions = _accept;
+        final ok = await widget.onSaved(draft);
+        if (!mounted || !ok) return;
+        Navigator.of(context).pop(true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -2136,7 +2321,7 @@ class _TugasFormScreenState extends State<_TugasFormScreen> {
                         border: UnderlineInputBorder(),
                       ),
                     ),
-                    if (!_canSave)
+                    if (!_hasTitle)
                       const Padding(
                         padding: EdgeInsets.only(top: 4),
                         child: Text(
@@ -2269,7 +2454,16 @@ class _TugasFormScreenState extends State<_TugasFormScreen> {
                           minimumSize: const Size.fromHeight(44),
                           shape: const StadiumBorder(),
                         ),
-                        child: const Text('Simpan'),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Simpan'),
                       ),
                     ),
                   ],

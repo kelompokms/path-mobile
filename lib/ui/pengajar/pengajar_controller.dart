@@ -128,24 +128,7 @@ class PengajarController extends ChangeNotifier {
   }
 
   List<String> resolveLampiranPaths(List<LampiranItem> items) {
-    final result = <String>[];
-
-    for (final item in items) {
-      if (item.isLink) {
-        final link = normalizeLampiranLink(item.targetUrl ?? item.detail);
-        if (link != null) {
-          result.add(link);
-        }
-        continue;
-      }
-
-      final url = item.targetUrl;
-      if (url != null && url.isNotEmpty) {
-        result.add(url);
-      }
-    }
-
-    return result;
+    return resolveLampiranItemPaths(items);
   }
 
   Future<(List<PostinganModel>?, String?)> getListPostingan(

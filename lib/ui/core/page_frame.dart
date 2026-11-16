@@ -97,14 +97,14 @@ class BackTitleRow extends StatelessWidget {
   }
 }
 
-void openPage(
+Future<T?> openPage<T>(
   BuildContext context, {
   required List<String> breadcrumb,
   required Widget page,
   String? routeName,
 }) {
-  Navigator.of(context).push(
-    MaterialPageRoute(
+  return Navigator.of(context).push<T>(
+    MaterialPageRoute<T>(
       settings: RouteSettings(name: routeName),
       builder: (_) => Scaffold(
         backgroundColor: AppColors.card,

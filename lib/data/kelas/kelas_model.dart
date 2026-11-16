@@ -192,34 +192,7 @@ class PostinganModel {
     required this.dibuat,
   });
 
-  List<LampiranItem> get lampiranItems {
-    return lampiran.map((raw) {
-      final trimmed = raw.trim();
-      final lower = trimmed.toLowerCase();
-      final isHttp =
-          lower.startsWith('http://') || lower.startsWith('https://');
-      final isUpload = isLampiranUploadPath(trimmed);
-      if (isHttp && !isUpload) {
-        return LampiranItem(
-          name: 'Link',
-          detail: trimmed,
-          isLink: true,
-          url: trimmed,
-        );
-      }
-      final uri = Uri.tryParse(trimmed);
-      final segments = uri?.pathSegments.where((s) => s.isNotEmpty).toList();
-      final fileName = (segments != null && segments.isNotEmpty)
-          ? segments.last
-          : trimmed.split('/').last;
-      final ext = extractLampiranExtension(fileName);
-      return LampiranItem(
-        name: fileName,
-        detail: ext.isEmpty ? 'FILE' : ext.toUpperCase(),
-        url: (isHttp || isUpload) ? trimmed : null,
-      );
-    }).toList();
-  }
+  List<LampiranItem> get lampiranItems => parseLampiranItems(lampiran);
 
   factory PostinganModel.fromJson(Map<String, dynamic> json) {
     final rawLampiran = json['lampiran'];
@@ -317,5 +290,52 @@ class TipePostinganModel {
   Map<String, dynamic> toJson() => {
     'id': id,
     'nama': nama,
+  };
+}
+
+class PengumpulanTugasModel {
+  final int id;
+  final int postinganId;
+  final int penggunaId;
+  final bool submitted;
+  final List<String> lampiran;
+  final DateTime? dibuat;
+
+  const PengumpulanTugasModel({
+    this.id = 0,
+    required this.postinganId,
+    this.penggunaId = 0,
+    required this.submitted,
+    this.lampiran = const [],
+    this.dibuat,
+  });
+
+  List<LampiranItem> get lampiranItems => parseLampiranItems(lampiran);
+
+  factory PengumpulanTugasModel.fromJson(Map<String, dynamic> json) {
+    final rawLampiran = json['lampiran'];
+    final parsedLampiran = rawLampiran is List
+        ? rawLampiran.map((e) => e.toString()).toList()
+        : <String>[];
+    final rawDibuat = json['dibuat']?.toString();
+    final id = (json['id'] as num?)?.toInt() ?? 0;
+    final submitted = json['submitted'] as bool? ?? (id > 0);
+    return PengumpulanTugasModel(
+      id: id,
+      postinganId: (json['postingan_id'] as num?)?.toInt() ?? 0,
+      penggunaId: (json['pengguna_id'] as num?)?.toInt() ?? 0,
+      submitted: submitted,
+      lampiran: parsedLampiran,
+      dibuat: rawDibuat != null ? DateTime.tryParse(rawDibuat) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'postingan_id': postinganId,
+    'pengguna_id': penggunaId,
+    'submitted': submitted,
+    'lampiran': lampiran,
+    if (dibuat != null) 'dibuat': dibuat!.toIso8601String(),
   };
 }

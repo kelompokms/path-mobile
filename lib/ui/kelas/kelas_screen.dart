@@ -314,6 +314,8 @@ class _TugasData {
   final String description;
   String status = 'Ditugaskan';
   final List<LampiranItem> lampiran;
+  final List<LampiranItem> submissionLampiran;
+  final List<LampiranItem> draftLampiran;
 
   _TugasData({
     this.id,
@@ -323,7 +325,14 @@ class _TugasData {
     required this.dueDate,
     required this.description,
     List<LampiranItem>? lampiran,
-  }) : lampiran = lampiran ?? [];
+    List<LampiranItem>? submissionLampiran,
+    List<LampiranItem>? draftLampiran,
+  }) : lampiran = lampiran ?? [],
+       submissionLampiran = submissionLampiran ?? [],
+       draftLampiran = draftLampiran ?? [];
+
+  bool get isSubmitted =>
+      status == 'Dikumpulkan' || status == 'Ditandai Sebagai Selesai';
 
   factory _TugasData.fromModel(PostinganModel model, {String? author}) {
     return _TugasData(
@@ -571,6 +580,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 context,
                 breadcrumb: [...widget.breadcrumb, tugas.title],
                 page: _TugasDetailScreen(
+                  kodeKelas: widget.classData.code,
                   tugas: tugas,
                   controller: widget.controller,
                 ),
@@ -903,10 +913,15 @@ class _MateriDetailScreenState extends State<_MateriDetailScreen> {
 }
 
 class _TugasDetailScreen extends StatefulWidget {
+  final String kodeKelas;
   final _TugasData tugas;
   final KelasController? controller;
 
-  const _TugasDetailScreen({required this.tugas, this.controller});
+  const _TugasDetailScreen({
+    required this.kodeKelas,
+    required this.tugas,
+    this.controller,
+  });
 
   @override
   State<_TugasDetailScreen> createState() => _TugasDetailScreenState();
@@ -916,15 +931,89 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
   bool _composing = false;
   bool _isBusy = false;
   bool _isUploading = false;
-  final List<LampiranItem> _drafts = [];
+  bool _isLoadingPengumpulan = false;
 
   _TugasData get _tugas => widget.tugas;
+  List<LampiranItem> get _drafts => _tugas.draftLampiran;
+
+  bool get _canSyncBackend =>
+      widget.controller != null &&
+      _tugas.id != null &&
+      _tugas.id! > 0 &&
+      widget.kodeKelas.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _composing = !_tugas.isSubmitted && _drafts.isNotEmpty;
+    _loadPengumpulan();
+  }
 
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Preserves richer local metadata (like uploaded original file names) when
+  /// syncing items returned by the API whose raw storage paths only contain IDs.
+  List<LampiranItem> _mergeLampiranWithLocal(
+    List<LampiranItem> remoteItems,
+    List<LampiranItem> localItems,
+  ) {
+    if (localItems.isEmpty) return List<LampiranItem>.from(remoteItems);
+    final byUrl = <String, LampiranItem>{
+      for (final item in localItems)
+        if (item.targetUrl != null && item.targetUrl!.isNotEmpty)
+          item.targetUrl!: item,
+    };
+    return remoteItems
+        .map((item) => byUrl[item.targetUrl] ?? item)
+        .toList();
+  }
+
+  Future<void> _loadPengumpulan() async {
+    if (!_canSyncBackend) return;
+
+    setState(() => _isLoadingPengumpulan = true);
+    try {
+      final (pengumpulan, err) = await widget.controller!.getPengumpulanTugas(
+        widget.kodeKelas,
+        _tugas.id!,
+      );
+      if (!mounted) return;
+      if (err != null) {
+        _showMessage(err);
+        return;
+      }
+      if (pengumpulan == null) return;
+
+      setState(() {
+        if (pengumpulan.submitted) {
+          final merged = _mergeLampiranWithLocal(
+            pengumpulan.lampiranItems,
+            [..._tugas.submissionLampiran, ..._drafts],
+          );
+          _tugas.submissionLampiran
+            ..clear()
+            ..addAll(merged);
+          _tugas.status = merged.isEmpty
+              ? 'Ditandai Sebagai Selesai'
+              : 'Dikumpulkan';
+          _drafts.clear();
+          _composing = false;
+        } else {
+          _tugas.submissionLampiran.clear();
+          _tugas.status = 'Ditugaskan';
+          _composing = _drafts.isNotEmpty;
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingPengumpulan = false);
+      }
+    }
   }
 
   Future<void> _addFile() async {
@@ -980,13 +1069,112 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
     });
   }
 
-  void _submit() {
-    setState(() {
-      _tugas.lampiran.addAll(_drafts);
-      _tugas.status = 'Dikumpulkan';
-      _drafts.clear();
-      _composing = false;
-    });
+  Future<void> _submitPengumpulan({required bool isMarkDone}) async {
+    if (_isBusy || _isUploading) return;
+    if (!isMarkDone && _drafts.isEmpty) return;
+
+    final itemsToSubmit = isMarkDone
+        ? const <LampiranItem>[]
+        : List<LampiranItem>.from(_drafts);
+
+    setState(() => _isBusy = true);
+    try {
+      List<LampiranItem> syncedItems = itemsToSubmit;
+      if (_canSyncBackend) {
+        final paths = isMarkDone
+            ? const <String>[]
+            : resolveLampiranItemPaths(itemsToSubmit);
+        final (result, err) = await widget.controller!.submitPengumpulanTugas(
+          widget.kodeKelas,
+          _tugas.id!,
+          paths,
+        );
+        if (!mounted) return;
+        if (err != null) {
+          _showMessage(err);
+          return;
+        }
+        if (result != null) {
+          syncedItems = _mergeLampiranWithLocal(
+            result.lampiranItems,
+            itemsToSubmit,
+          );
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _tugas.submissionLampiran
+          ..clear()
+          ..addAll(syncedItems);
+        _tugas.status = syncedItems.isEmpty
+            ? 'Ditandai Sebagai Selesai'
+            : 'Dikumpulkan';
+        _drafts.clear();
+        _composing = false;
+      });
+      _showMessage(
+        syncedItems.isEmpty
+            ? 'Tugas ditandai sebagai selesai'
+            : 'Tugas berhasil diserahkan',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isBusy = false);
+      }
+    }
+  }
+
+  Future<void> _tarikPengumpulan() async {
+    if (_isBusy || _isUploading || !_tugas.isSubmitted) return;
+
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Tarik Pengumpulan',
+      message: 'Apakah anda yakin ingin menarik pengumpulan tugas ini?',
+    );
+    if (!confirmed || !mounted) return;
+
+    setState(() => _isBusy = true);
+    try {
+      List<LampiranItem> restoredDrafts = List<LampiranItem>.from(
+        _tugas.submissionLampiran,
+      );
+
+      if (_canSyncBackend) {
+        final (returnedPaths, err) =
+            await widget.controller!.tarikPengumpulanTugas(
+          widget.kodeKelas,
+          _tugas.id!,
+        );
+        if (!mounted) return;
+        if (err != null) {
+          _showMessage(err);
+          return;
+        }
+        if (returnedPaths != null && returnedPaths.isNotEmpty) {
+          restoredDrafts = _mergeLampiranWithLocal(
+            parseLampiranItems(returnedPaths),
+            _tugas.submissionLampiran,
+          );
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _drafts
+          ..clear()
+          ..addAll(restoredDrafts);
+        _tugas.submissionLampiran.clear();
+        _tugas.status = 'Ditugaskan';
+        _composing = _drafts.isNotEmpty;
+      });
+      _showMessage('Pengumpulan tugas berhasil ditarik');
+    } finally {
+      if (mounted) {
+        setState(() => _isBusy = false);
+      }
+    }
   }
 
   @override
@@ -1121,6 +1309,13 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
           _tugas.description,
           style: const TextStyle(fontSize: 12, color: AppColors.text),
         ),
+        if (_tugas.lampiran.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          for (final item in _tugas.lampiran) ...[
+            FileCard.fromItem(item, baseUrl: widget.controller?.baseUrl),
+            const SizedBox(height: 10),
+          ],
+        ],
         const SizedBox(height: 16),
         PostCard(
           icon: Icons.list_alt_outlined,
@@ -1132,7 +1327,18 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
     );
   }
 
+  static final ButtonStyle _primarySubmissionButtonStyle =
+      ElevatedButton.styleFrom(
+        backgroundColor: AppColors.color1,
+        foregroundColor: Colors.white,
+        elevation: 3,
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+      );
+
   Widget _buildSubmissionCard() {
+    final actionsDisabled = _isBusy || _isUploading;
+
     return Card(
       elevation: 3,
       margin: EdgeInsets.zero,
@@ -1156,41 +1362,48 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
                     ),
                   ),
                 ),
-                if (!_composing)
-                  Text(
-                    _tugas.status,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.secondaryText,
-                    ),
+                Text(
+                  _tugas.status,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.secondaryText,
                   ),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            for (var i = 0; i < _tugas.lampiran.length; i++) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: FileCard.fromItem(
-                      _tugas.lampiran[i],
-                      baseUrl: widget.controller?.baseUrl,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Hapus lampiran',
-                    onPressed: () => setState(() {
-                      _tugas.lampiran.removeAt(i);
-                      if (_tugas.lampiran.isEmpty) {
-                        _tugas.status = 'Ditugaskan';
-                      }
-                    }),
-                    icon: const Icon(Icons.close, color: AppColors.text),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
+            if (_isLoadingPengumpulan) ...[
+              const SizedBox(height: 8),
+              const LinearProgressIndicator(minHeight: 2),
             ],
-            if (_composing) ...[
+            const SizedBox(height: 12),
+            if (_tugas.isSubmitted) ...[
+              for (final item in _tugas.submissionLampiran) ...[
+                FileCard.fromItem(item, baseUrl: widget.controller?.baseUrl),
+                const SizedBox(height: 10),
+              ],
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: actionsDisabled ? null : _tarikPengumpulan,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.color1,
+                    side: const BorderSide(color: AppColors.color1),
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: _isBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Tarik Pengumpulan',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                ),
+              ),
+            ] else if (_composing) ...[
               for (final draft in _drafts) ...[
                 Row(
                   children: [
@@ -1202,7 +1415,7 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
                     ),
                     IconButton(
                       tooltip: 'Hapus lampiran',
-                      onPressed: _isUploading
+                      onPressed: actionsDisabled
                           ? null
                           : () => setState(() => _drafts.remove(draft)),
                       icon: const Icon(Icons.close, color: AppColors.text),
@@ -1216,58 +1429,79 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
                 onAddFile: _addFile,
                 onAddLink: _addLink,
               ),
-              if (_drafts.isNotEmpty) ...[
-                const SizedBox(height: 10),
+              const SizedBox(height: 10),
+              if (_drafts.isNotEmpty)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _isUploading ? null : _submit,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.color1,
-                      foregroundColor: Colors.white,
-                      elevation: 3,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text(
-                      'Serahkan',
-                      style: TextStyle(fontSize: 12),
-                    ),
+                    onPressed: actionsDisabled
+                        ? null
+                        : () => _submitPengumpulan(isMarkDone: false),
+                    style: _primarySubmissionButtonStyle,
+                    child: _isBusy && !_isUploading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Serahkan',
+                            style: TextStyle(fontSize: 12),
+                          ),
                   ),
-                ),
-              ],
-            ] else ...[
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => setState(() => _composing = true),
-                  icon: const Icon(Icons.add_box_outlined, size: 18),
-                  label: const Text('Tambah', style: TextStyle(fontSize: 12)),
-                  style: AppTheme.softCompactButton,
-                ),
-              ),
-              if (_tugas.status == 'Ditugaskan') ...[
-                const SizedBox(height: 10),
+                )
+              else
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => setState(
-                      () => _tugas.status = 'Ditandai Sebagai Selesai',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.color1,
-                      foregroundColor: Colors.white,
-                      elevation: 3,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
+                    onPressed: actionsDisabled
+                        ? null
+                        : () => _submitPengumpulan(isMarkDone: true),
+                    style: _primarySubmissionButtonStyle,
                     child: const Text(
                       'Tandai Sebagai Selesai',
                       style: TextStyle(fontSize: 12),
                     ),
                   ),
                 ),
-              ],
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: actionsDisabled
+                      ? null
+                      : () => setState(() => _composing = true),
+                  icon: const Icon(Icons.add_box_outlined, size: 18),
+                  label: const Text('Tambah', style: TextStyle(fontSize: 12)),
+                  style: AppTheme.softCompactButton,
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: actionsDisabled
+                      ? null
+                      : () => _submitPengumpulan(isMarkDone: true),
+                  style: _primarySubmissionButtonStyle,
+                  child: _isBusy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Tandai Sebagai Selesai',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                ),
+              ),
             ],
           ],
         ),

@@ -119,4 +119,26 @@ class KelasController extends ChangeNotifier {
   ) {
     return _repo.uploadPostinganFiles(files);
   }
+
+  Future<(PengumpulanTugasModel?, String?)> getPengumpulanTugas(
+    String kodeKelas,
+    int postinganId,
+  ) {
+    return _repo.getPengumpulanTugas(kodeKelas, postinganId);
+  }
+
+  Future<(PengumpulanTugasModel?, String?)> submitPengumpulanTugas(
+    String kodeKelas,
+    int postinganId,
+    List<String> lampiran,
+  ) {
+    return _repo.submitPengumpulanTugas(kodeKelas, postinganId, lampiran);
+  }
+
+  Future<(List<String>?, String?)> tarikPengumpulanTugas(
+    String kodeKelas,
+    int postinganId,
+  ) {
+    return _repo.tarikPengumpulanTugas(kodeKelas, postinganId);
+  }
 }

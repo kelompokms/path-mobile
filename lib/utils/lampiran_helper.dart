@@ -366,3 +366,54 @@ Future<(List<LampiranItem>?, String?)> uploadPickedLampiranFiles(
 
   return (items, null);
 }
+
+/// Converts raw URL strings or uploaded `/uploads/...` paths returned by the
+/// backend into [LampiranItem]s for display and opening.
+List<LampiranItem> parseLampiranItems(List<String> rawItems) {
+  return rawItems.map((raw) {
+    final trimmed = raw.trim();
+    final lower = trimmed.toLowerCase();
+    final isHttp = lower.startsWith('http://') || lower.startsWith('https://');
+    final isUpload = isLampiranUploadPath(trimmed);
+    if (isHttp && !isUpload) {
+      return LampiranItem(
+        name: 'Link',
+        detail: trimmed,
+        isLink: true,
+        url: trimmed,
+      );
+    }
+    final uri = Uri.tryParse(trimmed);
+    final segments = uri?.pathSegments.where((s) => s.isNotEmpty).toList();
+    final fileName = (segments != null && segments.isNotEmpty)
+        ? segments.last
+        : trimmed.split('/').last;
+    final ext = extractLampiranExtension(fileName);
+    return LampiranItem(
+      name: fileName,
+      detail: ext.isEmpty ? 'FILE' : ext.toUpperCase(),
+      url: (isHttp || isUpload) ? trimmed : null,
+    );
+  }).toList();
+}
+
+/// Resolves [LampiranItem]s into normalized link URLs or uploaded `/uploads/...`
+/// paths suitable for backend JSON payloads.
+List<String> resolveLampiranItemPaths(List<LampiranItem> items) {
+  final result = <String>[];
+  for (final item in items) {
+    if (item.isLink) {
+      final link = normalizeLampiranLink(item.targetUrl ?? item.detail);
+      if (link != null) {
+        result.add(link);
+      }
+      continue;
+    }
+
+    final url = item.targetUrl;
+    if (url != null && url.isNotEmpty) {
+      result.add(url);
+    }
+  }
+  return result;
+}
