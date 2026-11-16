@@ -85,8 +85,9 @@ class KelasRepository {
 
   Future<(KelasModel?, String?)> getKelas(String kodeKelas) async {
     try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
       final response = await _client
-          .get(_client.uri('/kelas/$kodeKelas'))
+          .get(_client.uri('/kelas/$encodedCode'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
@@ -183,9 +184,10 @@ class KelasRepository {
 
   Future<String?> joinKelas(String kodeKelas) async {
     try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
       final response = await _client
           .post(
-            _client.uri('/kelas/$kodeKelas/gabung'),
+            _client.uri('/kelas/$encodedCode/gabung'),
             headers: _client.JSON,
           )
           .timeout(const Duration(seconds: 10));
@@ -204,9 +206,10 @@ class KelasRepository {
 
   Future<String?> leaveKelas(String kodeKelas) async {
     try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
       final response = await _client
           .post(
-            _client.uri('/kelas/$kodeKelas/keluar'),
+            _client.uri('/kelas/$encodedCode/keluar'),
             headers: _client.JSON,
           )
           .timeout(const Duration(seconds: 10));
@@ -225,17 +228,14 @@ class KelasRepository {
 
   Future<(List<PostinganModel>?, String?)> getListPostingan(
     String kodeKelas, {
-    required int tipe,
-    String? mapel,
+    int? tipe,
   }) async {
     try {
-      final queryParams = <String, String>{
-        'tipe': tipe.toString(),
-        if (mapel != null && mapel.isNotEmpty) 'mapel': mapel,
-      };
-      final uri = _client
-          .uri('/kelas/$kodeKelas/posts')
-          .replace(queryParameters: queryParams);
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final baseUri = _client.uri('/kelas/$encodedCode/posts');
+      final uri = tipe == null
+          ? baseUri
+          : baseUri.replace(queryParameters: {'tipe': tipe.toString()});
 
       final response = await _client
           .get(uri)
@@ -267,9 +267,10 @@ class KelasRepository {
     CreatePostinganPayload payload,
   ) async {
     try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
       final response = await _client
           .post(
-            _client.uri('/kelas/$kodeKelas/posts'),
+            _client.uri('/kelas/$encodedCode/posts'),
             headers: _client.JSON,
             body: jsonEncode(payload.toJson()),
           )
@@ -297,9 +298,10 @@ class KelasRepository {
     EditPostinganPayload payload,
   ) async {
     try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
       final response = await _client
           .patch(
-            _client.uri('/kelas/$kodeKelas/postingan/$postinganId'),
+            _client.uri('/kelas/$encodedCode/postingan/$postinganId'),
             headers: _client.JSON,
             body: jsonEncode(payload.toJson()),
           )

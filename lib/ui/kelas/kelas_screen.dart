@@ -378,8 +378,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
     if (!mounted) return;
 
-    final (materiModels, _) = results[0];
-    final (tugasModels, _) = results[1];
+    final (materiModels, materiErr) = results[0];
+    final (tugasModels, tugasErr) = results[1];
     final author = widget.classData.teacher ?? 'Pengajar';
 
     setState(() {
@@ -395,6 +395,13 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             .toList();
       }
     });
+
+    final firstError = materiErr ?? tugasErr;
+    if (firstError != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(firstError)));
+    }
   }
 
   @override

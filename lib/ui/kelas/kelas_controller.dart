@@ -89,25 +89,24 @@ class KelasController extends ChangeNotifier {
     return null;
   }
 
-  Future<(List<PostinganModel>?, String?)> getListMateri(
+  Future<(List<PostinganModel>?, String?)> getListPostingan(
     String kodeKelas, {
-    String? mapel,
+    int? tipe,
   }) {
+    return _repo.getListPostingan(kodeKelas, tipe: tipe);
+  }
+
+  Future<(List<PostinganModel>?, String?)> getListMateri(String kodeKelas) {
     return _repo.getListPostingan(
       kodeKelas,
       tipe: PostinganModel.tipeMateri,
-      mapel: mapel,
     );
   }
 
-  Future<(List<PostinganModel>?, String?)> getListTugas(
-    String kodeKelas, {
-    String? mapel,
-  }) {
+  Future<(List<PostinganModel>?, String?)> getListTugas(String kodeKelas) {
     return _repo.getListPostingan(
       kodeKelas,
       tipe: PostinganModel.tipeTugas,
-      mapel: mapel,
     );
   }
 

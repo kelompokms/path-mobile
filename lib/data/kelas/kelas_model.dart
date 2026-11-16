@@ -176,7 +176,6 @@ class PostinganModel {
   final String judul;
   final String deskripsi;
   final List<String> lampiran;
-  final String? mataPelajaran;
   final int penggunaId;
   final int kelasId;
   final int tipeId;
@@ -187,7 +186,6 @@ class PostinganModel {
     required this.judul,
     required this.deskripsi,
     required this.lampiran,
-    this.mataPelajaran,
     required this.penggunaId,
     required this.kelasId,
     required this.tipeId,
@@ -239,7 +237,6 @@ class PostinganModel {
       judul: json['judul'] as String? ?? '',
       deskripsi: json['deskripsi'] as String? ?? '',
       lampiran: parsedLampiran,
-      mataPelajaran: json['mata_pelajaran'] as String?,
       penggunaId: (json['pengguna_id'] as num?)?.toInt() ?? 0,
       kelasId: (json['kelas_id'] as num?)?.toInt() ?? 0,
       tipeId: (json['tipe_id'] as num?)?.toInt() ?? 1,
@@ -252,7 +249,6 @@ class PostinganModel {
     'judul': judul,
     'deskripsi': deskripsi,
     'lampiran': lampiran,
-    if (mataPelajaran != null) 'mata_pelajaran': mataPelajaran,
     'pengguna_id': penggunaId,
     'kelas_id': kelasId,
     'tipe_id': tipeId,

@@ -83,8 +83,9 @@ class KalenderRepository {
 
         for (final k in kelasList) {
           if (k.kodeKelas.isEmpty) continue;
+          final encodedCode = Uri.encodeComponent(k.kodeKelas);
           final uri = _client
-              .uri('/kelas/${k.kodeKelas}/posts')
+              .uri('/kelas/$encodedCode/posts')
               .replace(
                 queryParameters: {'tipe': PostinganModel.tipeTugas.toString()},
               );

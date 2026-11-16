@@ -586,8 +586,8 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
 
     if (!mounted) return;
 
-    final (materiModels, _) = results[0];
-    final (tugasModels, _) = results[1];
+    final (materiModels, materiErr) = results[0];
+    final (tugasModels, tugasErr) = results[1];
 
     setState(() {
       _isLoading = false;
@@ -598,6 +598,13 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         _tugasList = tugasModels.map(_TugasPengajar.fromModel).toList();
       }
     });
+
+    final firstError = materiErr ?? tugasErr;
+    if (firstError != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(firstError)));
+    }
   }
 
   Future<void> _handleMateriCreated(_MateriPengajar materi) async {
