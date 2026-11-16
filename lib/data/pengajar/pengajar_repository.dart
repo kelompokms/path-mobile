@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:path_mobile/data/kelas/kelas_repository.dart';
 import 'package:path_mobile/data/pengajar/pengajar_model.dart';
 import 'package:path_mobile/utils/http_client.dart';
 
 class PengajarRepository {
   final HttpClient _client;
+  late final KelasRepository _kelasRepo = KelasRepository(_client);
 
   PengajarRepository(this._client);
 
@@ -20,28 +22,14 @@ class PengajarRepository {
     return fallback;
   }
 
-  Future<(List<KelasModel>?, String?)> getListKelas() async {
-    try {
-      final response = await _client
-          .get(_client.uri('/kelas'))
-          .timeout(const Duration(seconds: 10));
+  Future<(List<KelasModel>?, String?)> getListKelas() {
+    return _kelasRepo.getListKelas(guru: true);
+  }
 
-      if (response.statusCode != 200) {
-        return (null, _extractMessage(response.body, 'Gagal memuat kelas'));
-      }
-
-      final decoded = jsonDecode(response.body);
-      final data = (decoded as List<dynamic>?) ?? <dynamic>[];
-      final list = data
-          .map((x) => KelasModel.fromJson(x as Map<String, dynamic>))
-          .toList();
-
-      return (list, null);
-    } on TimeoutException {
-      return (null, 'Request timed out. Please try again.');
-    } catch (e) {
-      return (null, 'Network error: $e');
-    }
+  Future<(List<AnggotaKelasModel>?, String?)> getListAnggota(
+    String kodeKelas,
+  ) {
+    return _kelasRepo.getListAnggota(kodeKelas);
   }
 
   Future<(KelasModel?, String?)> getKelas(String kodeKelas) async {

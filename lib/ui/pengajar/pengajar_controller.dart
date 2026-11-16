@@ -44,8 +44,12 @@ class PengajarController extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    _listKelas = list ?? [];
+    _listKelas = (list ?? []).where((k) => k.guru).toList();
     notifyListeners();
+  }
+
+  Future<(List<AnggotaKelasModel>?, String?)> getListAnggota(String kodeKelas) {
+    return _repo.getListAnggota(kodeKelas);
   }
 
   Future<KelasModel?> getKelas(String kodeKelas) async {

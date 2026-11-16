@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:path_mobile/data/kelas/kelas_model.dart';
+import 'package:path_mobile/ui/core/anggota_kelas_tab.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
@@ -63,9 +64,10 @@ class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
   List<ClassItem> get _classes {
     final ctrl = widget.controller;
     if (ctrl == null) return _fallbackClasses;
+    final enrolled = ctrl.listKelas.where((k) => !k.guru).toList();
     return [
-      for (var i = 0; i < ctrl.listKelas.length; i++)
-        ctrl.listKelas[i].toClassItem(coverIndex: i),
+      for (var i = 0; i < enrolled.length; i++)
+        enrolled[i].toClassItem(coverIndex: i),
     ];
   }
 
@@ -397,7 +399,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final h = responsiveHorizontalInset(
@@ -427,17 +429,29 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 tabs: const [
                   Tab(text: 'Materi'),
                   Tab(text: 'Tugas'),
+                  Tab(text: 'Anggota'),
                 ],
               ),
               Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : TabBarView(
-                        children: [
-                          _buildMateriTab(h),
-                          _buildTugasTab(h),
-                        ],
-                      ),
+                child: TabBarView(
+                  children: [
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildMateriTab(h),
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildTugasTab(h),
+                    AnggotaKelasTab(
+                      kodeKelas: widget.classData.code,
+                      loadMembers: widget.controller == null
+                          ? null
+                          : () => widget.controller!.getListAnggota(
+                              widget.classData.code,
+                            ),
+                      horizontalPadding: h,
+                    ),
+                  ],
+                ),
               ),
             ],
           );

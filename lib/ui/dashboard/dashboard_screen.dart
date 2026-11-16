@@ -35,9 +35,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<ClassItem> get _teachingClasses {
     final ctrl = widget.pengajarController;
     if (ctrl == null) return const [];
+    final teaching = ctrl.listKelas.where((k) => k.guru).toList();
     return [
-      for (var i = 0; i < ctrl.listKelas.length; i++)
-        ctrl.listKelas[i].toClassItem(coverIndex: i),
+      for (var i = 0; i < teaching.length; i++)
+        teaching[i].toClassItem(coverIndex: i),
     ];
   }
 
@@ -109,6 +110,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 page: PengajarDetailScreen(
                                   classData: item,
                                   controller: ctrl,
+                                  breadcrumbRoot: 'Beranda',
                                 ),
                                 routeName: 'pengajar-detail',
                               ),
@@ -173,7 +175,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildTabButton(String label, int index) {
     final isCurrent = _selectedTab == index;
-    void onPressed() => setState(() => _selectedTab = index);
+    void onPressed() {
+      if (_selectedTab == index) return;
+      setState(() => _selectedTab = index);
+      if (index == 0) {
+        widget.kelasController?.getListKelas();
+      } else {
+        widget.pengajarController?.getListKelas();
+      }
+    }
 
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 104),

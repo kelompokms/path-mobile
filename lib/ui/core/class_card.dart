@@ -9,6 +9,7 @@ class ClassItem {
   final String? teacher;
   final int? coverIndex;
   final String code;
+  final bool isGuru;
 
   const ClassItem({
     required this.title,
@@ -16,6 +17,7 @@ class ClassItem {
     this.teacher,
     this.coverIndex,
     this.code = 'ABC123',
+    this.isGuru = false,
   });
 
   String get inviteLink => 'https://path.app/join/$code';

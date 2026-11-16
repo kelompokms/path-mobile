@@ -20,10 +20,14 @@ class KelasRepository {
     return fallback;
   }
 
-  Future<(List<KelasModel>?, String?)> getListKelas() async {
+  Future<(List<KelasModel>?, String?)> getListKelas({bool? guru}) async {
     try {
+      final baseUri = _client.uri('/kelas');
+      final uri = guru == null
+          ? baseUri
+          : baseUri.replace(queryParameters: {'guru': guru.toString()});
       final response = await _client
-          .get(_client.uri('/kelas'))
+          .get(uri)
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
@@ -32,11 +36,44 @@ class KelasRepository {
 
       final decoded = jsonDecode(response.body);
       final data = (decoded as List<dynamic>?) ?? <dynamic>[];
-      final kelasList = data
+      var kelasList = data
           .map((x) => KelasModel.fromJson(x as Map<String, dynamic>))
           .toList();
+      if (guru != null) {
+        kelasList = kelasList.where((k) => k.guru == guru).toList();
+      }
 
       return (kelasList, null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  Future<(List<AnggotaKelasModel>?, String?)> getListAnggota(
+    String kodeKelas,
+  ) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final response = await _client
+          .get(_client.uri('/kelas/$encodedCode/anggota'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal memuat daftar anggota'),
+        );
+      }
+
+      final decoded = jsonDecode(response.body);
+      final data = (decoded as List<dynamic>?) ?? <dynamic>[];
+      final members = data
+          .map((x) => AnggotaKelasModel.fromJson(x as Map<String, dynamic>))
+          .toList();
+
+      return (members, null);
     } on TimeoutException {
       return (null, 'Request timed out. Please try again.');
     } catch (e) {

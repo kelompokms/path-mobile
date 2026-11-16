@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 
 class PageFrame extends StatelessWidget {
@@ -68,7 +69,14 @@ class BackTitleRow extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () {
+              final nav = Navigator.of(context);
+              if (nav.canPop()) {
+                nav.pop();
+              } else {
+                GoRouter.maybeOf(context)?.go('/kelas');
+              }
+            },
             icon: const Icon(Icons.arrow_back, color: AppColors.text),
           ),
           Expanded(

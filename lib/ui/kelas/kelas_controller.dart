@@ -22,15 +22,19 @@ class KelasController extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
-    final (listKelas, err) = await _repo.getListKelas();
+    final (listKelas, err) = await _repo.getListKelas(guru: false);
     _isLoading = false;
     if (err != null) {
       _errorMessage = err;
       notifyListeners();
       return;
     }
-    _listKelas = listKelas ?? [];
+    _listKelas = (listKelas ?? []).where((k) => !k.guru).toList();
     notifyListeners();
+  }
+
+  Future<(List<AnggotaKelasModel>?, String?)> getListAnggota(String kodeKelas) {
+    return _repo.getListAnggota(kodeKelas);
   }
 
   Future<KelasModel?> getKelas(String kodeKelas) async {

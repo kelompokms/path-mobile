@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_mobile/data/pengajar/pengajar_model.dart';
+import 'package:path_mobile/ui/core/anggota_kelas_tab.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
@@ -35,10 +36,13 @@ class _PengajarScreenState extends State<PengajarScreen> {
     widget.controller.getListKelas();
   }
 
-  List<ClassItem> get _classes => [
-    for (var i = 0; i < widget.controller.listKelas.length; i++)
-      widget.controller.listKelas[i].toClassItem(coverIndex: i),
-  ];
+  List<ClassItem> get _classes {
+    final teaching = widget.controller.listKelas.where((k) => k.guru).toList();
+    return [
+      for (var i = 0; i < teaching.length; i++)
+        teaching[i].toClassItem(coverIndex: i),
+    ];
+  }
 
   Future<void> _createClass(String name, String grade) async {
     final err = await widget.controller.createKelas(
@@ -404,11 +408,13 @@ class _PengumpulanItem {
 class PengajarDetailScreen extends StatefulWidget {
   final ClassItem classData;
   final PengajarController? controller;
+  final String breadcrumbRoot;
 
   const PengajarDetailScreen({
     super.key,
     required this.classData,
     this.controller,
+    this.breadcrumbRoot = 'Pengajar',
   });
 
   @override
@@ -417,6 +423,7 @@ class PengajarDetailScreen extends StatefulWidget {
 
 class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   ClassItem get _class => widget.classData;
+  bool get _isGuru => _class.isGuru;
 
   bool _isLoading = false;
   List<_MateriPengajar> _materiList = [];
@@ -456,6 +463,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   }
 
   Future<void> _handleMateriCreated(_MateriPengajar materi) async {
+    if (!_isGuru) return;
     final ctrl = widget.controller;
     if (ctrl != null) {
       final (created, err) = await ctrl.createMateri(
@@ -484,6 +492,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   }
 
   Future<void> _handleTugasCreated(_TugasPengajar tugas) async {
+    if (!_isGuru) return;
     final ctrl = widget.controller;
     if (ctrl != null) {
       final (created, err) = await ctrl.createTugas(
@@ -509,6 +518,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   }
 
   Future<void> _handleTugasEdited(_TugasPengajar tugas) async {
+    if (!_isGuru) return;
     final ctrl = widget.controller;
     if (ctrl != null && tugas.id != null) {
       final (_, err) = await ctrl.editPostingan(
@@ -531,6 +541,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   }
 
   Future<void> _editMateri(_MateriPengajar m) async {
+    if (!_isGuru) return;
     final titleCtrl = TextEditingController(text: m.title);
     final descCtrl = TextEditingController(text: m.description);
 
@@ -670,7 +681,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final h = responsiveHorizontalInset(
@@ -700,17 +711,27 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                 tabs: const [
                   Tab(text: 'Materi'),
                   Tab(text: 'Tugas'),
+                  Tab(text: 'Anggota'),
                 ],
               ),
               Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : TabBarView(
-                        children: [
-                          _buildMateriTab(h),
-                          _buildTugasTab(h),
-                        ],
-                      ),
+                child: TabBarView(
+                  children: [
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildMateriTab(h),
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : _buildTugasTab(h),
+                    AnggotaKelasTab(
+                      kodeKelas: _class.code,
+                      loadMembers: widget.controller == null
+                          ? null
+                          : () => widget.controller!.getListAnggota(_class.code),
+                      horizontalPadding: h,
+                    ),
+                  ],
+                ),
               ),
             ],
           );
@@ -722,38 +743,43 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   Widget _buildMateriTab(double horizontalPadding) {
     return Column(
       children: [
-        SizedBox(
-          width: double.infinity,
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              horizontalPadding,
-              12,
-              horizontalPadding,
-              12,
-            ),
-            child: Wrap(
-              spacing: 16,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _ClassCodeCard(classData: _class),
-                ElevatedButton.icon(
-                  style: AppTheme.softCompactButton,
-                  onPressed: () => openPage(
-                    context,
-                    breadcrumb: ['Pengajar', _class.title, 'Buat Materi'],
-                    page: _BuatMateriScreen(
-                      classData: _class,
-                      onCreated: _handleMateriCreated,
+        if (_isGuru)
+          SizedBox(
+            width: double.infinity,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                horizontalPadding,
+                12,
+                horizontalPadding,
+                12,
+              ),
+              child: Wrap(
+                spacing: 16,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  _ClassCodeCard(classData: _class),
+                  ElevatedButton.icon(
+                    style: AppTheme.softCompactButton,
+                    onPressed: () => openPage(
+                      context,
+                      breadcrumb: [
+                        widget.breadcrumbRoot,
+                        _class.title,
+                        'Buat Materi',
+                      ],
+                      page: _BuatMateriScreen(
+                        classData: _class,
+                        onCreated: _handleMateriCreated,
+                      ),
                     ),
+                    icon: const Icon(Icons.add_box_outlined, size: 18),
+                    label: const Text('Buat Materi'),
                   ),
-                  icon: const Icon(Icons.add_box_outlined, size: 18),
-                  label: const Text('Buat Materi'),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
         Expanded(
           child: _materiList.isEmpty
               ? const Center(
@@ -771,7 +797,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                   child: ListView.separated(
                     padding: EdgeInsets.fromLTRB(
                       horizontalPadding,
-                      0,
+                      _isGuru ? 0 : 12,
                       horizontalPadding,
                       16,
                     ),
@@ -786,11 +812,17 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                         date: m.postedAt,
                         onTap: () => openPage(
                           context,
-                          breadcrumb: ['Pengajar', _class.title, m.title],
+                          breadcrumb: [
+                            widget.breadcrumbRoot,
+                            _class.title,
+                            m.title,
+                          ],
                           page: _PengajarMateriDetailScreen(materi: m),
                         ),
-                        menuLabels: const ['Edit'],
-                        onMenuItemSelected: (_) => _editMateri(m),
+                        menuLabels: _isGuru ? const ['Edit'] : null,
+                        onMenuItemSelected: _isGuru
+                            ? (_) => _editMateri(m)
+                            : null,
                       );
                     },
                   ),
@@ -803,30 +835,36 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   Widget _buildTugasTab(double horizontalPadding) {
     return Column(
       children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            horizontalPadding,
-            12,
-            horizontalPadding,
-            12,
-          ),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: ElevatedButton.icon(
-              style: AppTheme.softCompactButton,
-              onPressed: () => openPage(
-                context,
-                breadcrumb: ['Pengajar', _class.title, 'Tugas', 'Buat Tugas'],
-                page: _TugasFormScreen(
-                  classData: _class,
-                  onSaved: _handleTugasCreated,
+        if (_isGuru)
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              12,
+              horizontalPadding,
+              12,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: ElevatedButton.icon(
+                style: AppTheme.softCompactButton,
+                onPressed: () => openPage(
+                  context,
+                  breadcrumb: [
+                    widget.breadcrumbRoot,
+                    _class.title,
+                    'Tugas',
+                    'Buat Tugas',
+                  ],
+                  page: _TugasFormScreen(
+                    classData: _class,
+                    onSaved: _handleTugasCreated,
+                  ),
                 ),
+                icon: const Icon(Icons.add_box_outlined, size: 18),
+                label: const Text('Tambah Tugas'),
               ),
-              icon: const Icon(Icons.add_box_outlined, size: 18),
-              label: const Text('Tambah Tugas'),
             ),
           ),
-        ),
         Expanded(
           child: _tugasList.isEmpty
               ? const Center(
@@ -844,7 +882,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                   child: ListView.separated(
                     padding: EdgeInsets.fromLTRB(
                       horizontalPadding,
-                      0,
+                      _isGuru ? 0 : 12,
                       horizontalPadding,
                       16,
                     ),
@@ -859,27 +897,34 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                         date: t.postedAt,
                         onTap: () => openPage(
                           context,
-                          breadcrumb: ['Pengajar', _class.title, t.title],
+                          breadcrumb: [
+                            widget.breadcrumbRoot,
+                            _class.title,
+                            t.title,
+                          ],
                           page: _PengajarTugasDetailScreen(
                             classData: _class,
                             tugas: t,
+                            isGuru: _isGuru,
                           ),
                         ),
-                        menuLabels: const ['Edit'],
-                        onMenuItemSelected: (_) => openPage(
-                          context,
-                          breadcrumb: [
-                            'Pengajar',
-                            _class.title,
-                            'Tugas',
-                            'Edit Tugas',
-                          ],
-                          page: _TugasFormScreen(
-                            classData: _class,
-                            existing: t,
-                            onSaved: _handleTugasEdited,
-                          ),
-                        ),
+                        menuLabels: _isGuru ? const ['Edit'] : null,
+                        onMenuItemSelected: _isGuru
+                            ? (_) => openPage(
+                                context,
+                                breadcrumb: [
+                                  widget.breadcrumbRoot,
+                                  _class.title,
+                                  'Tugas',
+                                  'Edit Tugas',
+                                ],
+                                page: _TugasFormScreen(
+                                  classData: _class,
+                                  existing: t,
+                                  onSaved: _handleTugasEdited,
+                                ),
+                              )
+                            : null,
                       );
                     },
                   ),
@@ -1606,10 +1651,12 @@ class _KonfirmasiMateriAiScreen extends StatelessWidget {
 class _PengajarTugasDetailScreen extends StatelessWidget {
   final ClassItem classData;
   final _TugasPengajar tugas;
+  final bool isGuru;
 
   const _PengajarTugasDetailScreen({
     required this.classData,
     required this.tugas,
+    this.isGuru = true,
   });
 
   @override
@@ -1686,31 +1733,33 @@ class _PengajarTugasDetailScreen extends StatelessWidget {
                       FileCard.fromItem(item),
                       const SizedBox(height: 12),
                     ],
-                    const SizedBox(height: 4),
-                    const Text(
-                      'AI bisa membantu guru dalam mengecek jawaban siswa',
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton(
-                      onPressed: () => openPage(
-                        context,
-                        breadcrumb: ['Pengajar', classData.title, tugas.title],
-                        page: _CekJawabanScreen(
-                          classData: classData,
-                          tugas: tugas,
+                    if (isGuru) ...[
+                      const SizedBox(height: 4),
+                      const Text(
+                        'AI bisa membantu guru dalam mengecek jawaban siswa',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.secondaryText,
                         ),
-                        routeName: 'cek-jawaban',
                       ),
-                      style: FilledButton.styleFrom(
-                        shape: const StadiumBorder(),
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                      const SizedBox(height: 8),
+                      FilledButton(
+                        onPressed: () => openPage(
+                          context,
+                          breadcrumb: ['Pengajar', classData.title, tugas.title],
+                          page: _CekJawabanScreen(
+                            classData: classData,
+                            tugas: tugas,
+                          ),
+                          routeName: 'cek-jawaban',
+                        ),
+                        style: FilledButton.styleFrom(
+                          shape: const StadiumBorder(),
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                        ),
+                        child: const Text('Cek jawaban'),
                       ),
-                      child: const Text('Cek jawaban'),
-                    ),
+                    ],
                   ],
                 ),
               ),

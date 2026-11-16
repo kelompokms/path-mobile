@@ -6,6 +6,7 @@ import 'package:path_mobile/utils/http_client.dart';
 import 'package:path_mobile/routes/slide_transition.dart';
 import 'package:path_mobile/ui/auth/auth_screen.dart';
 import 'package:path_mobile/ui/auth/oauth_callback_screen.dart';
+import 'package:path_mobile/ui/core/anggota_kelas_tab.dart';
 import 'package:path_mobile/ui/core/layout_screen.dart';
 import 'package:path_mobile/ui/dashboard/dashboard_screen.dart';
 
@@ -76,6 +77,18 @@ GoRouter createRouter({
             path: '/kelas',
             builder: (context, state) =>
                 KelasScreen(controller: KelasController(kelasRepo)),
+            routes: [
+              GoRoute(
+                path: ':kode_kelas/anggota',
+                builder: (context, state) {
+                  final kodeKelas = state.pathParameters['kode_kelas'] ?? '';
+                  return AnggotaKelasScreen(
+                    kodeKelas: kodeKelas,
+                    controller: KelasController(kelasRepo),
+                  );
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: '/kalender',

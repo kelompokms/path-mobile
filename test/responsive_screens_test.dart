@@ -42,7 +42,42 @@ HttpClient _mockClient({bool emptyClasses = false}) {
     30,
   ).toIso8601String();
 
-  final classesJson = emptyClasses
+  final enrolledClassesJson = emptyClasses
+      ? <Map<String, dynamic>>[]
+      : [
+          {
+            'id': 101,
+            'nama': 'Biologi Sel dan Genetika',
+            'tingkat': 10,
+            'tahun_ajaran': '2026/2027',
+            'kode_kelas': 'BIO10A',
+            'pengampu': 2,
+            'guru': false,
+            'dibuat': isoNow,
+          },
+          {
+            'id': 102,
+            'nama': 'Sejarah Peradaban Dunia',
+            'tingkat': 11,
+            'tahun_ajaran': '2026/2027',
+            'kode_kelas': 'SEJ11B',
+            'pengampu': 2,
+            'guru': false,
+            'dibuat': isoNow,
+          },
+          {
+            'id': 103,
+            'nama': 'Bahasa Indonesia Lanjutan',
+            'tingkat': 12,
+            'tahun_ajaran': '2026/2027',
+            'kode_kelas': 'BIN12C',
+            'pengampu': 2,
+            'guru': false,
+            'dibuat': isoNow,
+          },
+        ];
+
+  final teachingClassesJson = emptyClasses
       ? <Map<String, dynamic>>[]
       : [
           {
@@ -52,6 +87,7 @@ HttpClient _mockClient({bool emptyClasses = false}) {
             'tahun_ajaran': '2026/2027',
             'kode_kelas': 'MAT10A',
             'pengampu': 1,
+            'guru': true,
             'dibuat': isoNow,
           },
           {
@@ -61,6 +97,7 @@ HttpClient _mockClient({bool emptyClasses = false}) {
             'tahun_ajaran': '2026/2027',
             'kode_kelas': 'FIS11B',
             'pengampu': 1,
+            'guru': true,
             'dibuat': isoNow,
           },
           {
@@ -70,9 +107,31 @@ HttpClient _mockClient({bool emptyClasses = false}) {
             'tahun_ajaran': '2026/2027',
             'kode_kelas': 'KIM12C',
             'pengampu': 1,
+            'guru': true,
             'dibuat': isoNow,
           },
         ];
+
+  final anggotaJson = [
+    {
+      'pengguna_id': 1,
+      'nama': 'Pak Budi Pengajar',
+      'email': 'budi.pengajar@example.com',
+      'profile_picture': '',
+      'guru': true,
+      'role': 'guru',
+      'dibuat': isoNow,
+    },
+    {
+      'pengguna_id': 2,
+      'nama': 'Rin Pratama Putra',
+      'email': 'rin.pratama@example.com',
+      'profile_picture': '',
+      'guru': false,
+      'role': 'murid',
+      'dibuat': isoNow,
+    },
+  ];
 
   final materiJson = [
     {
@@ -121,7 +180,20 @@ HttpClient _mockClient({bool emptyClasses = false}) {
     client: MockClient((request) async {
       final path = request.url.path;
       if (path == '/kelas') {
-        return http.Response(jsonEncode(classesJson), 200);
+        final guruParam = request.url.queryParameters['guru'];
+        if (guruParam == 'true') {
+          return http.Response(jsonEncode(teachingClassesJson), 200);
+        }
+        if (guruParam == 'false') {
+          return http.Response(jsonEncode(enrolledClassesJson), 200);
+        }
+        return http.Response(
+          jsonEncode([...enrolledClassesJson, ...teachingClassesJson]),
+          200,
+        );
+      }
+      if (path.endsWith('/anggota')) {
+        return http.Response(jsonEncode(anggotaJson), 200);
       }
       if (path.endsWith('/posts')) {
         final tipe = request.url.queryParameters['tipe'];
@@ -566,6 +638,11 @@ void main() {
 
         await _tapVisible(tester, find.text('Tugas'));
         await _tapVisible(tester, find.textContaining('Latihan Soal').first);
+        await _tapVisible(tester, find.byIcon(Icons.arrow_back).first);
+
+        await _tapVisible(tester, find.text('Anggota'));
+        expect(find.text('Pak Budi Pengajar'), findsOneWidget);
+        expect(find.text('Rin Pratama Putra'), findsOneWidget);
       }
     });
   });
@@ -606,6 +683,13 @@ void main() {
         await _tapVisible(tester, find.text('Cek jawaban'));
 
         await _tapVisible(tester, find.text('Koreksi menggunakan AI'));
+        await _tapVisible(tester, find.byIcon(Icons.arrow_back).first);
+        await _tapVisible(tester, find.byIcon(Icons.arrow_back).first);
+        await _tapVisible(tester, find.byIcon(Icons.arrow_back).first);
+
+        await _tapVisible(tester, find.text('Anggota'));
+        expect(find.text('Pak Budi Pengajar'), findsOneWidget);
+        expect(find.text('Rin Pratama Putra'), findsOneWidget);
       }
     });
   });

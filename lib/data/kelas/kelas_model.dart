@@ -9,6 +9,7 @@ class KelasModel {
   final String kodeKelas;
   final int pengampu;
   final String dibuat;
+  final bool guru;
 
   KelasModel({
     required this.id,
@@ -19,6 +20,7 @@ class KelasModel {
     int? pengampu,
     int? pembuat,
     required this.dibuat,
+    this.guru = false,
   }) : pengampu = pengampu ?? pembuat ?? 0;
 
   int get pembuat => pengampu;
@@ -43,6 +45,7 @@ class KelasModel {
       teacher: teacher,
       coverIndex: coverIndex ?? id,
       code: kodeKelas,
+      isGuru: guru,
     );
   }
 
@@ -53,8 +56,10 @@ class KelasModel {
       tingkat: (json['tingkat'] as num?)?.toInt() ?? 10,
       tahunAjaran: json['tahun_ajaran'] as String? ?? '',
       kodeKelas: json['kode_kelas'] as String? ?? '',
-      pengampu: (json['pengampu'] as num? ?? json['pembuat'] as num?)?.toInt() ?? 0,
+      pengampu:
+          (json['pengampu'] as num? ?? json['pembuat'] as num?)?.toInt() ?? 0,
       dibuat: json['dibuat']?.toString() ?? '',
+      guru: json['guru'] as bool? ?? false,
     );
   }
 
@@ -66,6 +71,56 @@ class KelasModel {
     'kode_kelas': kodeKelas,
     'pengampu': pengampu,
     'dibuat': dibuat,
+    'guru': guru,
+  };
+}
+
+class AnggotaKelasModel {
+  final int penggunaId;
+  final String nama;
+  final String email;
+  final String profilePicture;
+  final bool guru;
+  final String role;
+  final DateTime? dibuat;
+
+  const AnggotaKelasModel({
+    required this.penggunaId,
+    required this.nama,
+    required this.email,
+    this.profilePicture = '',
+    required this.guru,
+    String? role,
+    this.dibuat,
+  }) : role = role ?? (guru ? 'guru' : 'murid');
+
+  bool get isGuru => guru;
+
+  factory AnggotaKelasModel.fromJson(Map<String, dynamic> json) {
+    final rawGuru = json['guru'] as bool?;
+    final rawRole = (json['role'] as String?)?.toLowerCase().trim();
+    final isGuru = rawGuru ?? (rawRole == 'guru');
+    final rawDibuat = json['dibuat']?.toString();
+    return AnggotaKelasModel(
+      penggunaId:
+          (json['pengguna_id'] as num? ?? json['id'] as num?)?.toInt() ?? 0,
+      nama: json['nama'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      profilePicture: json['profile_picture']?.toString() ?? '',
+      guru: isGuru,
+      role: rawRole ?? (isGuru ? 'guru' : 'murid'),
+      dibuat: rawDibuat != null ? DateTime.tryParse(rawDibuat) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'pengguna_id': penggunaId,
+    'nama': nama,
+    'email': email,
+    'profile_picture': profilePicture,
+    'guru': guru,
+    'role': role,
+    if (dibuat != null) 'dibuat': dibuat!.toIso8601String(),
   };
 }
 
