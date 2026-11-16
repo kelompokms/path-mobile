@@ -106,7 +106,10 @@ void openPage(
   Navigator.of(context).push(
     MaterialPageRoute(
       settings: RouteSettings(name: routeName),
-      builder: (_) => PageFrame(breadcrumb: breadcrumb, child: page),
+      builder: (_) => Scaffold(
+        backgroundColor: AppColors.card,
+        body: PageFrame(breadcrumb: breadcrumb, child: page),
+      ),
     ),
   );
 }
@@ -118,7 +121,10 @@ void replacePage(
 }) {
   Navigator.of(context).pushReplacement(
     MaterialPageRoute(
-      builder: (_) => PageFrame(breadcrumb: breadcrumb, child: page),
+      builder: (_) => Scaffold(
+        backgroundColor: AppColors.card,
+        body: PageFrame(breadcrumb: breadcrumb, child: page),
+      ),
     ),
   );
 }

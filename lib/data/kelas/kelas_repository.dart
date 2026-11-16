@@ -10,6 +10,8 @@ class KelasRepository {
 
   KelasRepository(this._client);
 
+  String get baseUrl => _client.baseUrl;
+
   String? _extractMessage(String body, String fallback) {
     try {
       final decoded = jsonDecode(body);
@@ -114,6 +116,61 @@ class KelasRepository {
 
       if (response.statusCode != 200 && response.statusCode != 201) {
         return _extractMessage(response.body, 'Gagal membuat kelas');
+      }
+
+      return null;
+    } on TimeoutException {
+      return 'Request timed out. Please try again.';
+    } catch (e) {
+      return 'Network error: $e';
+    }
+  }
+
+  Future<(KelasModel?, String?)> updateKelas(
+    String kodeKelas,
+    UpdateKelasRequest request,
+  ) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final response = await _client
+          .patch(
+            _client.uri('/kelas/$encodedCode'),
+            headers: _client.JSON,
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal memperbarui kelas'),
+        );
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (KelasModel.fromJson(data), null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  Future<String?> promoteToGuru(String kodeKelas, int penggunaId) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final response = await _client
+          .patch(
+            _client.uri('/kelas/$encodedCode/anggota/$penggunaId/guru'),
+            headers: _client.JSON,
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        return _extractMessage(
+          response.body,
+          'Gagal mengangkat murid menjadi guru',
+        );
       }
 
       return null;

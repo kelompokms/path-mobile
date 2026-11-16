@@ -1,9 +1,13 @@
 import 'package:path_mobile/ui/core/class_card.dart';
-import 'package:path_mobile/ui/core/post_card.dart';
+import 'package:path_mobile/utils/lampiran_helper.dart';
+
+export 'package:path_mobile/utils/lampiran_helper.dart'
+    show UploadPostinganFilesResponse, UploadedPostinganFile;
 
 class KelasModel {
   final int id;
   final String nama;
+  final String deskripsi;
   final int tingkat;
   final String tahunAjaran;
   final String kodeKelas;
@@ -14,6 +18,7 @@ class KelasModel {
   KelasModel({
     required this.id,
     required this.nama,
+    this.deskripsi = '',
     required this.tingkat,
     required this.tahunAjaran,
     required this.kodeKelas,
@@ -41,6 +46,7 @@ class KelasModel {
   ClassItem toClassItem({String? teacher, int? coverIndex}) {
     return ClassItem(
       title: nama,
+      description: deskripsi,
       grade: gradeLabel,
       teacher: teacher,
       coverIndex: coverIndex ?? id,
@@ -53,6 +59,7 @@ class KelasModel {
     return KelasModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
       nama: json['nama'] as String? ?? '',
+      deskripsi: json['deskripsi'] as String? ?? '',
       tingkat: (json['tingkat'] as num?)?.toInt() ?? 10,
       tahunAjaran: json['tahun_ajaran'] as String? ?? '',
       kodeKelas: json['kode_kelas'] as String? ?? '',
@@ -66,6 +73,7 @@ class KelasModel {
   Map<String, dynamic> toJson() => {
     'id': id,
     'nama': nama,
+    'deskripsi': deskripsi,
     'tingkat': tingkat,
     'tahun_ajaran': tahunAjaran,
     'kode_kelas': kodeKelas,
@@ -126,19 +134,37 @@ class AnggotaKelasModel {
 
 class CreateKelasRequest {
   final String nama;
+  final String deskripsi;
   final int tingkat;
   final String tahunAjaran;
 
   const CreateKelasRequest({
     required this.nama,
+    this.deskripsi = '',
     required this.tingkat,
     required this.tahunAjaran,
   });
 
   Map<String, dynamic> toJson() => {
     'nama': nama,
+    if (deskripsi.isNotEmpty) 'deskripsi': deskripsi,
     'tingkat': tingkat,
     'tahun_ajaran': tahunAjaran,
+  };
+}
+
+class UpdateKelasRequest {
+  final String nama;
+  final String deskripsi;
+
+  const UpdateKelasRequest({
+    required this.nama,
+    required this.deskripsi,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'nama': nama,
+    'deskripsi': deskripsi,
   };
 }
 
@@ -170,15 +196,30 @@ class PostinganModel {
 
   List<LampiranItem> get lampiranItems {
     return lampiran.map((raw) {
-      final isHttp = raw.startsWith('http://') || raw.startsWith('https://');
-      if (isHttp && !raw.contains('/uploads/')) {
-        return LampiranItem(name: 'Link', detail: raw, isLink: true);
+      final trimmed = raw.trim();
+      final lower = trimmed.toLowerCase();
+      final isHttp =
+          lower.startsWith('http://') || lower.startsWith('https://');
+      final isUpload = isLampiranUploadPath(trimmed);
+      if (isHttp && !isUpload) {
+        return LampiranItem(
+          name: 'Link',
+          detail: trimmed,
+          isLink: true,
+          url: trimmed,
+        );
       }
-      final fileName = raw.split('/').last;
-      final ext = fileName.contains('.')
-          ? fileName.split('.').last.toUpperCase()
-          : 'FILE';
-      return LampiranItem(name: fileName, detail: ext);
+      final uri = Uri.tryParse(trimmed);
+      final segments = uri?.pathSegments.where((s) => s.isNotEmpty).toList();
+      final fileName = (segments != null && segments.isNotEmpty)
+          ? segments.last
+          : trimmed.split('/').last;
+      final ext = extractLampiranExtension(fileName);
+      return LampiranItem(
+        name: fileName,
+        detail: ext.isEmpty ? 'FILE' : ext.toUpperCase(),
+        url: (isHttp || isUpload) ? trimmed : null,
+      );
     }).toList();
   }
 
@@ -281,49 +322,4 @@ class TipePostinganModel {
     'id': id,
     'nama': nama,
   };
-}
-
-class UploadedPostinganFile {
-  final String nama;
-  final String path;
-  final int ukuran;
-
-  const UploadedPostinganFile({
-    required this.nama,
-    required this.path,
-    required this.ukuran,
-  });
-
-  factory UploadedPostinganFile.fromJson(Map<String, dynamic> json) {
-    return UploadedPostinganFile(
-      nama: json['nama'] as String? ?? '',
-      path: json['path'] as String? ?? '',
-      ukuran: (json['ukuran'] as num?)?.toInt() ?? 0,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'nama': nama,
-    'path': path,
-    'ukuran': ukuran,
-  };
-}
-
-class UploadPostinganFilesResponse {
-  final List<UploadedPostinganFile> files;
-
-  const UploadPostinganFilesResponse({required this.files});
-
-  factory UploadPostinganFilesResponse.fromJson(Map<String, dynamic> json) {
-    final rawFiles = json['files'];
-    final list = rawFiles is List
-        ? rawFiles
-              .map(
-                (e) =>
-                    UploadedPostinganFile.fromJson(e as Map<String, dynamic>),
-              )
-              .toList()
-        : <UploadedPostinganFile>[];
-    return UploadPostinganFilesResponse(files: list);
-  }
 }

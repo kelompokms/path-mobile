@@ -8,6 +8,8 @@ class KelasController extends ChangeNotifier {
 
   KelasController(this._repo);
 
+  String get baseUrl => _repo.baseUrl;
+
   List<KelasModel>? _listKelas;
   List<KelasModel> get listKelas => _listKelas ?? [];
 
@@ -35,6 +37,10 @@ class KelasController extends ChangeNotifier {
 
   Future<(List<AnggotaKelasModel>?, String?)> getListAnggota(String kodeKelas) {
     return _repo.getListAnggota(kodeKelas);
+  }
+
+  Future<String?> promoteToGuru(String kodeKelas, int penggunaId) {
+    return _repo.promoteToGuru(kodeKelas, penggunaId);
   }
 
   Future<KelasModel?> getKelas(String kodeKelas) async {

@@ -1,15 +1,15 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_mobile/data/pengajar/pengajar_model.dart';
 import 'package:path_mobile/data/pengajar/pengajar_repository.dart';
-import 'package:path_mobile/ui/core/post_card.dart';
+import 'package:path_mobile/utils/lampiran_helper.dart';
 
 class PengajarController extends ChangeNotifier {
   final PengajarRepository _repo;
 
   PengajarController(this._repo);
+
+  String get baseUrl => _repo.baseUrl;
 
   List<KelasModel> _listKelas = [];
   List<KelasModel> get listKelas => _listKelas;
@@ -62,8 +62,14 @@ class PengajarController extends ChangeNotifier {
     return kelas;
   }
 
+  static String defaultTahunAjaran([DateTime? now]) {
+    final current = now ?? DateTime.now();
+    return '${current.year}/${current.year + 1}';
+  }
+
   Future<String?> createKelas({
     required String nama,
+    String deskripsi = '',
     required String gradeInput,
     String? tahunAjaran,
   }) async {
@@ -72,14 +78,16 @@ class PengajarController extends ChangeNotifier {
     notifyListeners();
 
     final tingkat = parseTingkat(gradeInput);
-    final now = DateTime.now();
-    final defaultTahunAjaran = '${now.year}/${now.year + 1}';
+    final normalizedTahunAjaran = (tahunAjaran ?? '').trim();
 
     final err = await _repo.createKelas(
       CreateKelasRequest(
         nama: nama,
+        deskripsi: deskripsi,
         tingkat: tingkat,
-        tahunAjaran: tahunAjaran ?? defaultTahunAjaran,
+        tahunAjaran: normalizedTahunAjaran.isEmpty
+            ? defaultTahunAjaran()
+            : normalizedTahunAjaran,
       ),
     );
 
@@ -94,51 +102,46 @@ class PengajarController extends ChangeNotifier {
     return null;
   }
 
-  Future<List<String>> resolveLampiranPaths(List<LampiranItem> items) async {
+  Future<(KelasModel?, String?)> editKelas(
+    String kodeKelas, {
+    required String nama,
+    required String deskripsi,
+  }) async {
+    final (updated, err) = await _repo.updateKelas(
+      kodeKelas,
+      UpdateKelasRequest(nama: nama, deskripsi: deskripsi),
+    );
+    if (err != null || updated == null) {
+      return (null, err ?? 'Gagal memperbarui kelas');
+    }
+
+    final idx = _listKelas.indexWhere((k) => k.kodeKelas == kodeKelas);
+    if (idx != -1) {
+      _listKelas[idx] = updated;
+      notifyListeners();
+    }
+    return (updated, null);
+  }
+
+  Future<String?> promoteToGuru(String kodeKelas, int penggunaId) {
+    return _repo.promoteToGuru(kodeKelas, penggunaId);
+  }
+
+  List<String> resolveLampiranPaths(List<LampiranItem> items) {
     final result = <String>[];
-    final filesToUpload = <http.MultipartFile>[];
 
     for (final item in items) {
       if (item.isLink) {
-        final raw = item.detail.trim();
-        if (raw.isEmpty) continue;
-        final link =
-            (raw.startsWith('http://') || raw.startsWith('https://'))
-            ? raw
-            : 'https://$raw';
-        result.add(link);
-      } else if (item.name.startsWith('/uploads/') ||
-          item.name.startsWith('uploads/') ||
-          item.name.startsWith('http://') ||
-          item.name.startsWith('https://')) {
-        result.add(item.name);
-      } else if (item.detail.startsWith('/uploads/') ||
-          item.detail.startsWith('uploads/')) {
-        result.add(item.detail);
-      } else {
-        final fileName = item.name.contains('.')
-            ? item.name
-            : '${item.name}.pdf';
-        final isPdf = fileName.toLowerCase().endsWith('.pdf');
-        final bytes = isPdf
-            ? utf8.encode('%PDF-1.4\n%Lampiran $fileName\n%%EOF\n')
-            : utf8.encode('Lampiran $fileName\n');
-        filesToUpload.add(
-          http.MultipartFile.fromBytes(
-            'files',
-            bytes,
-            filename: fileName,
-          ),
-        );
-      }
-    }
-
-    if (filesToUpload.isNotEmpty) {
-      final (uploaded, _) = await _repo.uploadPostinganFiles(filesToUpload);
-      if (uploaded != null) {
-        for (final f in uploaded) {
-          result.add(f.path);
+        final link = normalizeLampiranLink(item.targetUrl ?? item.detail);
+        if (link != null) {
+          result.add(link);
         }
+        continue;
+      }
+
+      final url = item.targetUrl;
+      if (url != null && url.isNotEmpty) {
+        result.add(url);
       }
     }
 
@@ -172,8 +175,8 @@ class PengajarController extends ChangeNotifier {
     required String judul,
     required String deskripsi,
     List<LampiranItem> lampiran = const [],
-  }) async {
-    final lampiranPaths = await resolveLampiranPaths(lampiran);
+  }) {
+    final lampiranPaths = resolveLampiranPaths(lampiran);
     return _repo.createPostingan(
       kodeKelas,
       CreatePostinganPayload(
@@ -190,8 +193,8 @@ class PengajarController extends ChangeNotifier {
     required String judul,
     required String deskripsi,
     List<LampiranItem> lampiran = const [],
-  }) async {
-    final lampiranPaths = await resolveLampiranPaths(lampiran);
+  }) {
+    final lampiranPaths = resolveLampiranPaths(lampiran);
     return _repo.createPostingan(
       kodeKelas,
       CreatePostinganPayload(
@@ -210,11 +213,10 @@ class PengajarController extends ChangeNotifier {
     required String deskripsi,
     List<LampiranItem>? lampiran,
     required int tipe,
-  }) async {
-    List<String>? lampiranPaths;
-    if (lampiran != null) {
-      lampiranPaths = await resolveLampiranPaths(lampiran);
-    }
+  }) {
+    final lampiranPaths = lampiran == null
+        ? null
+        : resolveLampiranPaths(lampiran);
     return _repo.editPostingan(
       kodeKelas,
       postinganId,

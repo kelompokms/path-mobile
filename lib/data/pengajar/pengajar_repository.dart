@@ -12,6 +12,8 @@ class PengajarRepository {
 
   PengajarRepository(this._client);
 
+  String get baseUrl => _client.baseUrl;
+
   String? _extractMessage(String body, String fallback) {
     try {
       final decoded = jsonDecode(body);
@@ -51,26 +53,19 @@ class PengajarRepository {
     }
   }
 
-  Future<String?> createKelas(CreateKelasRequest request) async {
-    try {
-      final response = await _client
-          .post(
-            _client.uri('/kelas'),
-            headers: _client.JSON,
-            body: jsonEncode(request.toJson()),
-          )
-          .timeout(const Duration(seconds: 10));
+  Future<String?> createKelas(CreateKelasRequest request) {
+    return _kelasRepo.createKelas(request);
+  }
 
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        return _extractMessage(response.body, 'Gagal membuat kelas');
-      }
+  Future<(KelasModel?, String?)> updateKelas(
+    String kodeKelas,
+    UpdateKelasRequest request,
+  ) {
+    return _kelasRepo.updateKelas(kodeKelas, request);
+  }
 
-      return null;
-    } on TimeoutException {
-      return 'Request timed out. Please try again.';
-    } catch (e) {
-      return 'Network error: $e';
-    }
+  Future<String?> promoteToGuru(String kodeKelas, int penggunaId) {
+    return _kelasRepo.promoteToGuru(kodeKelas, penggunaId);
   }
 
   Future<(List<PostinganModel>?, String?)> getListPostingan(
@@ -200,34 +195,8 @@ class PengajarRepository {
 
   Future<(List<UploadedPostinganFile>?, String?)> uploadPostinganFiles(
     List<http.MultipartFile> files,
-  ) async {
-    try {
-      final request = http.MultipartRequest(
-        'POST',
-        _client.uri('/files/postingan'),
-      );
-      request.files.addAll(files);
-
-      final streamed = await _client
-          .send(request)
-          .timeout(const Duration(seconds: 30));
-      final response = await http.Response.fromStream(streamed);
-
-      if (response.statusCode != 200 && response.statusCode != 201) {
-        return (
-          null,
-          _extractMessage(response.body, 'Gagal mengunggah file lampiran'),
-        );
-      }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final parsed = UploadPostinganFilesResponse.fromJson(data);
-      return (parsed.files, null);
-    } on TimeoutException {
-      return (null, 'Request timed out. Please try again.');
-    } catch (e) {
-      return (null, 'Network error: $e');
-    }
+  ) {
+    return _kelasRepo.uploadPostinganFiles(files);
   }
 
   Future<String?> updateRoleGuru(String kodeKelas, bool roleGuru) async {

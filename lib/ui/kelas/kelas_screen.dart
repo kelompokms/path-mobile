@@ -9,6 +9,7 @@ import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/kelas/kelas_controller.dart';
+import 'package:path_mobile/utils/lampiran_helper.dart';
 
 class KelasScreen extends StatelessWidget {
   final KelasController controller;
@@ -412,6 +413,22 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
                 padding: alignedBackTitlePadding(h),
                 child: BackTitleRow(title: widget.classData.title),
               ),
+              if (widget.classData.description.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(h, 0, h, 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      widget.classData.description,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ),
+                ),
               TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
@@ -494,7 +511,10 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
             onTap: () => openPage(
               context,
               breadcrumb: [...widget.breadcrumb, m.title],
-              page: _MateriDetailScreen(materi: m),
+              page: _MateriDetailScreen(
+                materi: m,
+                baseUrl: widget.controller?.baseUrl,
+              ),
             ),
           );
         },
@@ -543,7 +563,10 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               onTap: () => openPage(
                 context,
                 breadcrumb: [...widget.breadcrumb, tugas.title],
-                page: _TugasDetailScreen(tugas: tugas),
+                page: _TugasDetailScreen(
+                  tugas: tugas,
+                  controller: widget.controller,
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -556,8 +579,9 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
 class _MateriDetailScreen extends StatefulWidget {
   final _MateriData materi;
+  final String? baseUrl;
 
-  const _MateriDetailScreen({required this.materi});
+  const _MateriDetailScreen({required this.materi, this.baseUrl});
 
   @override
   State<_MateriDetailScreen> createState() => _MateriDetailScreenState();
@@ -645,7 +669,7 @@ class _MateriDetailScreenState extends State<_MateriDetailScreen> {
             ),
             const SizedBox(height: 16),
             for (final item in materi.lampiran) ...[
-              FileCard.fromItem(item),
+              FileCard.fromItem(item, baseUrl: widget.baseUrl),
               const SizedBox(height: 10),
             ],
             if (!_showAi) ...[
@@ -873,8 +897,9 @@ class _MateriDetailScreenState extends State<_MateriDetailScreen> {
 
 class _TugasDetailScreen extends StatefulWidget {
   final _TugasData tugas;
+  final KelasController? controller;
 
-  const _TugasDetailScreen({required this.tugas});
+  const _TugasDetailScreen({required this.tugas, this.controller});
 
   @override
   State<_TugasDetailScreen> createState() => _TugasDetailScreenState();
@@ -882,27 +907,69 @@ class _TugasDetailScreen extends StatefulWidget {
 
 class _TugasDetailScreenState extends State<_TugasDetailScreen> {
   bool _composing = false;
+  bool _isBusy = false;
+  bool _isUploading = false;
   final List<LampiranItem> _drafts = [];
 
   _TugasData get _tugas => widget.tugas;
 
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _addFile() async {
-    final name = await showAddLinkDialog(
-      context,
-      title: 'Tambahkan file',
-      label: 'Nama file',
-      buttonLabel: 'Tambah file',
-    );
-    if (name == null || !mounted) return;
-    final ext = name.contains('.') ? name.split('.').last.toUpperCase() : 'PDF';
-    setState(() => _drafts.add(LampiranItem(name: name, detail: ext)));
+    if (_isBusy) return;
+    if (_drafts.length >= maxPostinganFiles) {
+      _showMessage('Maksimal $maxPostinganFiles lampiran');
+      return;
+    }
+
+    setState(() => _isBusy = true);
+    try {
+      final picked = await pickLampiranFiles();
+      if (picked.isEmpty || !mounted) return;
+
+      setState(() => _isUploading = true);
+      final (uploadedItems, err) = await uploadPickedLampiranFiles(
+        picked,
+        currentCount: _drafts.length,
+        onUploadFiles: widget.controller?.uploadPostinganFiles,
+      );
+      if (!mounted) return;
+      if (err != null) {
+        _showMessage(err);
+        return;
+      }
+      if (uploadedItems != null && uploadedItems.isNotEmpty) {
+        setState(() => _drafts.addAll(uploadedItems));
+      }
+    } catch (e) {
+      _showMessage('Gagal memilih file: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBusy = false;
+          _isUploading = false;
+        });
+      }
+    }
   }
 
   Future<void> _addLink() async {
-    final link = await showAddLinkDialog(context);
+    if (_isBusy) return;
+    if (_drafts.length >= maxPostinganFiles) {
+      _showMessage('Maksimal $maxPostinganFiles lampiran');
+      return;
+    }
+    final link = await showAddLinkDialog(context, validateUrl: true);
     if (link == null || !mounted) return;
     setState(() {
-      _drafts.add(LampiranItem(name: 'Link', detail: link, isLink: true));
+      _drafts.add(
+        LampiranItem(name: 'Link', detail: link, isLink: true, url: link),
+      );
     });
   }
 
@@ -1096,7 +1163,12 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
             for (var i = 0; i < _tugas.lampiran.length; i++) ...[
               Row(
                 children: [
-                  Expanded(child: FileCard.fromItem(_tugas.lampiran[i])),
+                  Expanded(
+                    child: FileCard.fromItem(
+                      _tugas.lampiran[i],
+                      baseUrl: widget.controller?.baseUrl,
+                    ),
+                  ),
                   IconButton(
                     tooltip: 'Hapus lampiran',
                     onPressed: () => setState(() {
@@ -1115,55 +1187,34 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
               for (final draft in _drafts) ...[
                 Row(
                   children: [
-                    Expanded(child: FileCard.fromItem(draft)),
+                    Expanded(
+                      child: FileCard.fromItem(
+                        draft,
+                        baseUrl: widget.controller?.baseUrl,
+                      ),
+                    ),
                     IconButton(
                       tooltip: 'Hapus lampiran',
-                      onPressed: () => setState(() => _drafts.remove(draft)),
+                      onPressed: _isUploading
+                          ? null
+                          : () => setState(() => _drafts.remove(draft)),
                       icon: const Icon(Icons.close, color: AppColors.text),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
               ],
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final fileButton = ElevatedButton.icon(
-                    onPressed: _addFile,
-                    icon: const Icon(Icons.description_outlined, size: 18),
-                    label: const Text('File', style: TextStyle(fontSize: 12)),
-                    style: AppTheme.softCompactButton,
-                  );
-                  final linkButton = ElevatedButton.icon(
-                    onPressed: _addLink,
-                    icon: const Icon(Icons.link, size: 18),
-                    label: const Text('Link', style: TextStyle(fontSize: 12)),
-                    style: AppTheme.softCompactButton,
-                  );
-                  if (constraints.maxWidth < 230) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        fileButton,
-                        const SizedBox(height: 8),
-                        linkButton,
-                      ],
-                    );
-                  }
-                  return Row(
-                    children: [
-                      Expanded(child: fileButton),
-                      const SizedBox(width: 12),
-                      Expanded(child: linkButton),
-                    ],
-                  );
-                },
+              LampiranPickerButtons(
+                isUploading: _isUploading,
+                onAddFile: _addFile,
+                onAddLink: _addLink,
               ),
               if (_drafts.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _submit,
+                    onPressed: _isUploading ? null : _submit,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.color1,
                       foregroundColor: Colors.white,

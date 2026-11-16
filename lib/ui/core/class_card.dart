@@ -5,6 +5,7 @@ import 'package:path_mobile/ui/core/page_frame.dart';
 
 class ClassItem {
   final String title;
+  final String description;
   final String grade;
   final String? teacher;
   final int? coverIndex;
@@ -13,12 +14,33 @@ class ClassItem {
 
   const ClassItem({
     required this.title,
+    this.description = '',
     required this.grade,
     this.teacher,
     this.coverIndex,
     this.code = 'ABC123',
     this.isGuru = false,
   });
+
+  ClassItem copyWith({
+    String? title,
+    String? description,
+    String? grade,
+    String? teacher,
+    int? coverIndex,
+    String? code,
+    bool? isGuru,
+  }) {
+    return ClassItem(
+      title: title ?? this.title,
+      description: description ?? this.description,
+      grade: grade ?? this.grade,
+      teacher: teacher ?? this.teacher,
+      coverIndex: coverIndex ?? this.coverIndex,
+      code: code ?? this.code,
+      isGuru: isGuru ?? this.isGuru,
+    );
+  }
 
   String get inviteLink => 'https://path.app/join/$code';
 }
@@ -51,6 +73,7 @@ class ClassCard extends StatelessWidget {
   final VoidCallback? onTap;
   final String? menuLabel;
   final VoidCallback? onMenuSelected;
+  final List<({String label, VoidCallback onSelected})>? menuItems;
 
   const ClassCard({
     super.key,
@@ -58,6 +81,7 @@ class ClassCard extends StatelessWidget {
     this.onTap,
     this.menuLabel,
     this.onMenuSelected,
+    this.menuItems,
   });
 
   @override
@@ -155,7 +179,8 @@ class ClassCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (onMenuSelected == null)
+                  if ((menuItems == null || menuItems!.isEmpty) &&
+                      onMenuSelected == null)
                     const Icon(
                       Icons.more_vert,
                       size: 20,
@@ -178,13 +203,30 @@ class ClassCard extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        onSelected: (_) => onMenuSelected!(),
-                        itemBuilder: (_) => [
-                          PopupMenuItem<int>(
-                            value: 0,
-                            child: Text(menuLabel ?? ''),
-                          ),
-                        ],
+                        onSelected: (index) {
+                          if (menuItems != null && menuItems!.isNotEmpty) {
+                            menuItems![index].onSelected();
+                          } else {
+                            onMenuSelected?.call();
+                          }
+                        },
+                        itemBuilder: (_) {
+                          if (menuItems != null && menuItems!.isNotEmpty) {
+                            return [
+                              for (var i = 0; i < menuItems!.length; i++)
+                                PopupMenuItem<int>(
+                                  value: i,
+                                  child: Text(menuItems![i].label),
+                                ),
+                            ];
+                          }
+                          return [
+                            PopupMenuItem<int>(
+                              value: 0,
+                              child: Text(menuLabel ?? ''),
+                            ),
+                          ];
+                        },
                       ),
                     ),
                 ],
@@ -447,6 +489,145 @@ class _JoinClassFormState extends State<JoinClassForm> {
           ),
         );
       },
+    );
+  }
+}
+
+Future<({String nama, String deskripsi})?> showEditKelasDialog(
+  BuildContext context, {
+  required String initialNama,
+  required String initialDeskripsi,
+}) {
+  return showDialog<({String nama, String deskripsi})>(
+    context: context,
+    builder: (_) => _EditKelasDialog(
+      initialNama: initialNama,
+      initialDeskripsi: initialDeskripsi,
+    ),
+  );
+}
+
+class _EditKelasDialog extends StatefulWidget {
+  final String initialNama;
+  final String initialDeskripsi;
+
+  const _EditKelasDialog({
+    required this.initialNama,
+    required this.initialDeskripsi,
+  });
+
+  @override
+  State<_EditKelasDialog> createState() => _EditKelasDialogState();
+}
+
+class _EditKelasDialogState extends State<_EditKelasDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _descController;
+
+  bool get _canSave => _nameController.text.trim().isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialNama);
+    _descController = TextEditingController(text: widget.initialDeskripsi);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.background,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Edit Kelas',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.text,
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Nama Kelas',
+                style: TextStyle(fontSize: 10, color: AppColors.secondaryText),
+              ),
+              TextField(
+                controller: _nameController,
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(fontSize: 16, color: AppColors.text),
+                decoration: InputDecoration(
+                  hintText: 'Masukkan nama kelas',
+                  errorText: _canSave ? null : 'Nama kelas wajib diisi',
+                  isDense: true,
+                  border: const UnderlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Deskripsi Kelas',
+                style: TextStyle(fontSize: 10, color: AppColors.secondaryText),
+              ),
+              TextField(
+                controller: _descController,
+                minLines: 3,
+                maxLines: 5,
+                keyboardType: TextInputType.multiline,
+                style: const TextStyle(fontSize: 12, color: AppColors.text),
+                decoration: const InputDecoration(
+                  hintText: 'Tambahkan deskripsi kelas (opsional)',
+                  isDense: true,
+                  border: InputBorder.none,
+                ),
+              ),
+              const Divider(color: AppColors.text, height: 1),
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.text,
+                      ),
+                      child: const Text(
+                        'Batal',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _canSave
+                          ? () => Navigator.pop(context, (
+                              nama: _nameController.text.trim(),
+                              deskripsi: _descController.text.trim(),
+                            ))
+                          : null,
+                      child: const Text('Simpan'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -7,16 +7,19 @@ import 'package:path_mobile/ui/kelas/kelas_controller.dart';
 
 typedef AnggotaLoader =
     Future<(List<AnggotaKelasModel>?, String?)> Function();
+typedef PromoteMemberCallback = Future<String?> Function(AnggotaKelasModel member);
 
 class AnggotaKelasTab extends StatefulWidget {
   final String kodeKelas;
   final AnggotaLoader? loadMembers;
+  final PromoteMemberCallback? onPromoteToGuru;
   final double horizontalPadding;
 
   const AnggotaKelasTab({
     super.key,
     required this.kodeKelas,
     this.loadMembers,
+    this.onPromoteToGuru,
     required this.horizontalPadding,
   });
 
@@ -26,6 +29,7 @@ class AnggotaKelasTab extends StatefulWidget {
 
 class _AnggotaKelasTabState extends State<AnggotaKelasTab> {
   bool _isLoading = false;
+  int? _promotingUserId;
   String? _error;
   List<AnggotaKelasModel> _members = const [];
 
@@ -62,6 +66,40 @@ class _AnggotaKelasTabState extends State<AnggotaKelasTab> {
         _members = members;
       }
     });
+  }
+
+  Future<void> _handlePromote(AnggotaKelasModel member) async {
+    final onPromote = widget.onPromoteToGuru;
+    if (onPromote == null || _promotingUserId != null) return;
+
+    final displayName = member.nama.isNotEmpty
+        ? member.nama
+        : 'Pengguna #${member.penggunaId}';
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Angkat Menjadi Guru',
+      message: 'Apakah Anda yakin ingin mengangkat $displayName menjadi guru?',
+    );
+    if (!confirmed || !mounted) return;
+
+    setState(() => _promotingUserId = member.penggunaId);
+    final err = await onPromote(member);
+    if (!mounted) return;
+    setState(() => _promotingUserId = null);
+
+    if (err != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(err)));
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text('$displayName berhasil diangkat menjadi guru')),
+      );
+    await _load();
   }
 
   @override
@@ -119,6 +157,8 @@ class _AnggotaKelasTabState extends State<AnggotaKelasTab> {
             emptyMessage: 'Belum ada murid',
             members: students,
             isTeacherSection: false,
+            promotingUserId: _promotingUserId,
+            onPromote: widget.onPromoteToGuru == null ? null : _handlePromote,
           ),
         ],
       ),
@@ -131,12 +171,16 @@ class _AnggotaSectionCard extends StatelessWidget {
   final String emptyMessage;
   final List<AnggotaKelasModel> members;
   final bool isTeacherSection;
+  final int? promotingUserId;
+  final ValueChanged<AnggotaKelasModel>? onPromote;
 
   const _AnggotaSectionCard({
     required this.title,
     required this.emptyMessage,
     required this.members,
     required this.isTeacherSection,
+    this.promotingUserId,
+    this.onPromote,
   });
 
   String _initials(String name) {
@@ -269,6 +313,45 @@ class _AnggotaSectionCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (!isTeacherSection && onPromote != null) ...[
+                        const SizedBox(width: 4),
+                        if (promotingUserId == members[i].penggunaId)
+                          const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: Padding(
+                              padding: EdgeInsets.all(4),
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: PopupMenuButton<int>(
+                              padding: EdgeInsets.zero,
+                              iconSize: 18,
+                              icon: const Icon(
+                                Icons.more_vert,
+                                color: AppColors.text,
+                              ),
+                              tooltip: 'Opsi anggota',
+                              color: AppColors.background,
+                              surfaceTintColor: Colors.transparent,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              enabled: promotingUserId == null,
+                              onSelected: (_) => onPromote!(members[i]),
+                              itemBuilder: (_) => const [
+                                PopupMenuItem<int>(
+                                  value: 0,
+                                  child: Text('Angkat menjadi guru'),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
                     ],
                   ),
                 ),
@@ -302,6 +385,7 @@ class AnggotaKelasScreen extends StatefulWidget {
 
 class _AnggotaKelasScreenState extends State<AnggotaKelasScreen> {
   String? _className;
+  bool _isGuru = false;
 
   @override
   void initState() {
@@ -312,7 +396,10 @@ class _AnggotaKelasScreenState extends State<AnggotaKelasScreen> {
   Future<void> _loadClassInfo() async {
     final kelas = await widget.controller.getKelas(widget.kodeKelas);
     if (!mounted || kelas == null) return;
-    setState(() => _className = kelas.nama);
+    setState(() {
+      _className = kelas.nama;
+      _isGuru = kelas.guru;
+    });
   }
 
   @override
@@ -337,6 +424,12 @@ class _AnggotaKelasScreenState extends State<AnggotaKelasScreen> {
                   kodeKelas: widget.kodeKelas,
                   loadMembers: () =>
                       widget.controller.getListAnggota(widget.kodeKelas),
+                  onPromoteToGuru: _isGuru
+                      ? (member) => widget.controller.promoteToGuru(
+                          widget.kodeKelas,
+                          member.penggunaId,
+                        )
+                      : null,
                   horizontalPadding: h,
                 ),
               ),

@@ -18,6 +18,48 @@ void _copyText(BuildContext context, String text, String message) {
     ..showSnackBar(SnackBar(content: Text(message)));
 }
 
+Future<ClassItem?> editKelasWithDialog(
+  BuildContext context,
+  ClassItem classData,
+  PengajarController? controller,
+) async {
+  final result = await showEditKelasDialog(
+    context,
+    initialNama: classData.title,
+    initialDeskripsi: classData.description,
+  );
+  if (result == null || !context.mounted) return null;
+
+  if (controller != null) {
+    final (updated, err) = await controller.editKelas(
+      classData.code,
+      nama: result.nama,
+      deskripsi: result.deskripsi,
+    );
+    if (!context.mounted) return null;
+    if (err != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(err)));
+      return null;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Kelas berhasil diperbarui')));
+    if (updated != null) {
+      return updated.toClassItem(
+        teacher: classData.teacher,
+        coverIndex: classData.coverIndex,
+      );
+    }
+  }
+
+  return classData.copyWith(
+    title: result.nama,
+    description: result.deskripsi,
+  );
+}
+
 class PengajarScreen extends StatefulWidget {
   final PengajarController controller;
 
@@ -44,10 +86,17 @@ class _PengajarScreenState extends State<PengajarScreen> {
     ];
   }
 
-  Future<void> _createClass(String name, String grade) async {
+  Future<void> _createClass(
+    String name,
+    String description,
+    String grade,
+    String tahunAjaran,
+  ) async {
     final err = await widget.controller.createKelas(
       nama: name,
+      deskripsi: description,
       gradeInput: grade,
+      tahunAjaran: tahunAjaran,
     );
     if (!mounted) return;
     if (err != null) {
@@ -164,12 +213,24 @@ class _PengajarScreenState extends State<PengajarScreen> {
                               ),
                               routeName: 'pengajar-detail',
                             ),
-                            menuLabel: 'Salin link undangan kelas',
-                            onMenuSelected: () => _copyText(
-                              context,
-                              item.inviteLink,
-                              'Link undangan kelas disalin',
-                            ),
+                            menuItems: [
+                              (
+                                label: 'Edit kelas',
+                                onSelected: () => editKelasWithDialog(
+                                  context,
+                                  item,
+                                  widget.controller,
+                                ),
+                              ),
+                              (
+                                label: 'Salin link undangan kelas',
+                                onSelected: () => _copyText(
+                                  context,
+                                  item.inviteLink,
+                                  'Link undangan kelas disalin',
+                                ),
+                              ),
+                            ],
                           );
                         },
                       ),
@@ -186,7 +247,13 @@ class _PengajarScreenState extends State<PengajarScreen> {
 }
 
 class _CreateClassForm extends StatefulWidget {
-  final void Function(String name, String grade) onCreate;
+  final void Function(
+    String name,
+    String description,
+    String grade,
+    String tahunAjaran,
+  )
+  onCreate;
   final VoidCallback onCancel;
 
   const _CreateClassForm({required this.onCreate, required this.onCancel});
@@ -197,14 +264,28 @@ class _CreateClassForm extends StatefulWidget {
 
 class _CreateClassFormState extends State<_CreateClassForm> {
   final _nameController = TextEditingController();
+  final _descController = TextEditingController();
   final _gradeController = TextEditingController();
+  late final TextEditingController _tahunAjaranController;
 
-  bool get _canCreate => _nameController.text.trim().isNotEmpty;
+  bool get _hasName => _nameController.text.trim().isNotEmpty;
+  bool get _hasTahunAjaran => _tahunAjaranController.text.trim().isNotEmpty;
+  bool get _canCreate => _hasName && _hasTahunAjaran;
+
+  @override
+  void initState() {
+    super.initState();
+    _tahunAjaranController = TextEditingController(
+      text: PengajarController.defaultTahunAjaran(),
+    );
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _descController.dispose();
     _gradeController.dispose();
+    _tahunAjaranController.dispose();
     super.dispose();
   }
 
@@ -262,7 +343,7 @@ class _CreateClassFormState extends State<_CreateClassForm> {
                             ),
                           ],
                         ),
-                        if (!_canCreate)
+                        if (!_hasName)
                           const Padding(
                             padding: EdgeInsets.only(top: 4),
                             child: Text(
@@ -278,6 +359,40 @@ class _CreateClassFormState extends State<_CreateClassForm> {
                           controller: _gradeController,
                           decoration: const InputDecoration(
                             hintText: 'Kelas',
+                            isDense: true,
+                            border: UnderlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _tahunAjaranController,
+                          onChanged: (_) => setState(() {}),
+                          decoration: const InputDecoration(
+                            labelText: 'Tahun Ajaran',
+                            hintText: 'Contoh: 2026/2027',
+                            isDense: true,
+                            border: UnderlineInputBorder(),
+                          ),
+                        ),
+                        if (!_hasTahunAjaran)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 4),
+                            child: Text(
+                              '*Wajib diisi',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.secondaryText,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _descController,
+                          minLines: 1,
+                          maxLines: 3,
+                          keyboardType: TextInputType.multiline,
+                          decoration: const InputDecoration(
+                            hintText: 'Deskripsi Kelas (opsional)',
                             isDense: true,
                             border: UnderlineInputBorder(),
                           ),
@@ -304,7 +419,9 @@ class _CreateClassFormState extends State<_CreateClassForm> {
                       onPressed: _canCreate
                           ? () => widget.onCreate(
                               _nameController.text.trim(),
+                              _descController.text.trim(),
                               _gradeController.text.trim(),
+                              _tahunAjaranController.text.trim(),
                             )
                           : null,
                       child: const Text('Buat'),
@@ -422,7 +539,7 @@ class PengajarDetailScreen extends StatefulWidget {
 }
 
 class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
-  ClassItem get _class => widget.classData;
+  late ClassItem _class;
   bool get _isGuru => _class.isGuru;
 
   bool _isLoading = false;
@@ -432,7 +549,28 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _class = widget.classData;
     _loadPosts();
+  }
+
+  @override
+  void didUpdateWidget(covariant PengajarDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.classData != widget.classData) {
+      _class = widget.classData;
+    }
+  }
+
+  Future<void> _editKelas() async {
+    if (!_isGuru) return;
+    final updated = await editKelasWithDialog(
+      context,
+      _class,
+      widget.controller,
+    );
+    if (updated != null && mounted) {
+      setState(() => _class = updated);
+    }
   }
 
   Future<void> _loadPosts() async {
@@ -692,8 +830,40 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
             children: [
               Padding(
                 padding: alignedBackTitlePadding(h),
-                child: BackTitleRow(title: _class.title),
+                child: Row(
+                  children: [
+                    Expanded(child: BackTitleRow(title: _class.title)),
+                    if (_isGuru)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: IconButton(
+                          tooltip: 'Edit kelas',
+                          onPressed: _editKelas,
+                          icon: const Icon(
+                            Icons.edit_outlined,
+                            color: AppColors.text,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
+              if (_class.description.isNotEmpty)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(h, 0, h, 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      _class.description,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ),
+                ),
               TabBar(
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
@@ -728,6 +898,12 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                       loadMembers: widget.controller == null
                           ? null
                           : () => widget.controller!.getListAnggota(_class.code),
+                      onPromoteToGuru: _isGuru && widget.controller != null
+                          ? (member) => widget.controller!.promoteToGuru(
+                              _class.code,
+                              member.penggunaId,
+                            )
+                          : null,
                       horizontalPadding: h,
                     ),
                   ],
@@ -770,6 +946,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                       ],
                       page: _BuatMateriScreen(
                         classData: _class,
+                        controller: widget.controller,
                         onCreated: _handleMateriCreated,
                       ),
                     ),
@@ -817,7 +994,10 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                             _class.title,
                             m.title,
                           ],
-                          page: _PengajarMateriDetailScreen(materi: m),
+                          page: _PengajarMateriDetailScreen(
+                            materi: m,
+                            baseUrl: widget.controller?.baseUrl,
+                          ),
                         ),
                         menuLabels: _isGuru ? const ['Edit'] : null,
                         onMenuItemSelected: _isGuru
@@ -857,6 +1037,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                   ],
                   page: _TugasFormScreen(
                     classData: _class,
+                    controller: widget.controller,
                     onSaved: _handleTugasCreated,
                   ),
                 ),
@@ -906,6 +1087,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                             classData: _class,
                             tugas: t,
                             isGuru: _isGuru,
+                            baseUrl: widget.controller?.baseUrl,
                           ),
                         ),
                         menuLabels: _isGuru ? const ['Edit'] : null,
@@ -921,6 +1103,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                                 page: _TugasFormScreen(
                                   classData: _class,
                                   existing: t,
+                                  controller: widget.controller,
                                   onSaved: _handleTugasEdited,
                                 ),
                               )
@@ -1101,8 +1284,9 @@ class _ClassCodeCard extends StatelessWidget {
 
 class _PengajarMateriDetailScreen extends StatelessWidget {
   final _MateriPengajar materi;
+  final String? baseUrl;
 
-  const _PengajarMateriDetailScreen({required this.materi});
+  const _PengajarMateriDetailScreen({required this.materi, this.baseUrl});
 
   @override
   Widget build(BuildContext context) {
@@ -1146,7 +1330,7 @@ class _PengajarMateriDetailScreen extends StatelessWidget {
                     ],
                     const SizedBox(height: 16),
                     for (final item in materi.lampiran) ...[
-                      FileCard.fromItem(item),
+                      FileCard.fromItem(item, baseUrl: baseUrl),
                       const SizedBox(height: 12),
                     ],
                   ],
@@ -1162,6 +1346,7 @@ class _PengajarMateriDetailScreen extends StatelessWidget {
 
 class _BuatMateriScreen extends StatefulWidget {
   final ClassItem classData;
+  final PengajarController? controller;
   final ValueChanged<_MateriPengajar> onCreated;
   final String initialTitle;
   final String initialDescription;
@@ -1169,6 +1354,7 @@ class _BuatMateriScreen extends StatefulWidget {
 
   const _BuatMateriScreen({
     required this.classData,
+    this.controller,
     required this.onCreated,
     this.initialTitle = '',
     this.initialDescription = '',
@@ -1183,8 +1369,9 @@ class _BuatMateriScreenState extends State<_BuatMateriScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _descController;
   late List<LampiranItem> _lampiran;
+  bool _isUploading = false;
 
-  bool get _canSave => _titleController.text.trim().isNotEmpty;
+  bool get _canSave => _titleController.text.trim().isNotEmpty && !_isUploading;
 
   @override
   void initState() {
@@ -1285,6 +1472,11 @@ class _BuatMateriScreenState extends State<_BuatMateriScreen> {
                     LampiranEditor(
                       items: _lampiran,
                       onChanged: (v) => setState(() => _lampiran = v),
+                      onUploadFiles: widget.controller?.uploadPostinganFiles,
+                      onUploadingChanged: (uploading) {
+                        if (mounted) setState(() => _isUploading = uploading);
+                      },
+                      baseUrl: widget.controller?.baseUrl,
                     ),
                     const SizedBox(height: 16),
                     SizedBox(
@@ -1317,6 +1509,7 @@ class _BuatMateriScreenState extends State<_BuatMateriScreen> {
                         ],
                         page: _BuatMateriAiScreen(
                           classData: widget.classData,
+                          controller: widget.controller,
                           onCreated: widget.onCreated,
                         ),
                       ),
@@ -1351,10 +1544,12 @@ class _BuatMateriScreenState extends State<_BuatMateriScreen> {
 
 class _BuatMateriAiScreen extends StatefulWidget {
   final ClassItem classData;
+  final PengajarController? controller;
   final ValueChanged<_MateriPengajar> onCreated;
 
   const _BuatMateriAiScreen({
     required this.classData,
+    this.controller,
     required this.onCreated,
   });
 
@@ -1420,6 +1615,7 @@ class _BuatMateriAiScreenState extends State<_BuatMateriAiScreen> {
       breadcrumb: ['Pengajar', widget.classData.title, 'Buat Materi'],
       page: _KonfirmasiMateriAiScreen(
         classData: widget.classData,
+        controller: widget.controller,
         materi: generated,
         onCreated: widget.onCreated,
       ),
@@ -1542,11 +1738,13 @@ class _BuatMateriAiScreenState extends State<_BuatMateriAiScreen> {
 
 class _KonfirmasiMateriAiScreen extends StatelessWidget {
   final ClassItem classData;
+  final PengajarController? controller;
   final _MateriPengajar materi;
   final ValueChanged<_MateriPengajar> onCreated;
 
   const _KonfirmasiMateriAiScreen({
     required this.classData,
+    this.controller,
     required this.materi,
     required this.onCreated,
   });
@@ -1580,7 +1778,7 @@ class _KonfirmasiMateriAiScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     for (final item in materi.lampiran) ...[
-                      FileCard.fromItem(item),
+                      FileCard.fromItem(item, baseUrl: controller?.baseUrl),
                       const SizedBox(height: 12),
                     ],
                     const SizedBox(height: 4),
@@ -1627,6 +1825,7 @@ class _KonfirmasiMateriAiScreen extends StatelessWidget {
                             ],
                             page: _BuatMateriScreen(
                               classData: classData,
+                              controller: controller,
                               onCreated: onCreated,
                               initialTitle: materi.title,
                               initialDescription: materi.description,
@@ -1652,11 +1851,13 @@ class _PengajarTugasDetailScreen extends StatelessWidget {
   final ClassItem classData;
   final _TugasPengajar tugas;
   final bool isGuru;
+  final String? baseUrl;
 
   const _PengajarTugasDetailScreen({
     required this.classData,
     required this.tugas,
     this.isGuru = true,
+    this.baseUrl,
   });
 
   @override
@@ -1730,7 +1931,7 @@ class _PengajarTugasDetailScreen extends StatelessWidget {
                     ],
                     const SizedBox(height: 16),
                     for (final item in tugas.lampiran) ...[
-                      FileCard.fromItem(item),
+                      FileCard.fromItem(item, baseUrl: baseUrl),
                       const SizedBox(height: 12),
                     ],
                     if (isGuru) ...[
@@ -1774,11 +1975,13 @@ class _PengajarTugasDetailScreen extends StatelessWidget {
 class _TugasFormScreen extends StatefulWidget {
   final ClassItem classData;
   final _TugasPengajar? existing;
+  final PengajarController? controller;
   final ValueChanged<_TugasPengajar> onSaved;
 
   const _TugasFormScreen({
     required this.classData,
     this.existing,
+    this.controller,
     required this.onSaved,
   });
 
@@ -1792,9 +1995,10 @@ class _TugasFormScreenState extends State<_TugasFormScreen> {
   DateTime? _dueDate;
   bool _accept = true;
   late List<LampiranItem> _lampiran;
+  bool _isUploading = false;
 
   bool get _isEdit => widget.existing != null;
-  bool get _canSave => _titleController.text.trim().isNotEmpty;
+  bool get _canSave => _titleController.text.trim().isNotEmpty && !_isUploading;
 
   @override
   void initState() {
@@ -1856,6 +2060,7 @@ class _TugasFormScreenState extends State<_TugasFormScreen> {
         page: _PengajarTugasDetailScreen(
           classData: widget.classData,
           tugas: created,
+          baseUrl: widget.controller?.baseUrl,
         ),
       );
     } else {
@@ -2042,6 +2247,11 @@ class _TugasFormScreenState extends State<_TugasFormScreen> {
                     LampiranEditor(
                       items: _lampiran,
                       onChanged: (v) => setState(() => _lampiran = v),
+                      onUploadFiles: widget.controller?.uploadPostinganFiles,
+                      onUploadingChanged: (uploading) {
+                        if (mounted) setState(() => _isUploading = uploading);
+                      },
+                      baseUrl: widget.controller?.baseUrl,
                     ),
                     const SizedBox(height: 16),
                     SizedBox(

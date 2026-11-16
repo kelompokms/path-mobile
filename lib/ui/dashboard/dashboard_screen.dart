@@ -114,6 +114,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                                 routeName: 'pengajar-detail',
                               ),
+                              menuItems: ctrl == null
+                                  ? null
+                                  : [
+                                      (
+                                        label: 'Edit kelas',
+                                        onSelected: () => editKelasWithDialog(
+                                          context,
+                                          item,
+                                          ctrl,
+                                        ),
+                                      ),
+                                    ],
                             );
                           },
                         ),

@@ -2,15 +2,18 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class HttpClient extends http.BaseClient with ChangeNotifier {
-  final String baseUrl = const String.fromEnvironment(
+  static const String defaultBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'https://api.pathclass.app',
   );
+
+  final String baseUrl;
   final http.Client _inner;
   String? _token;
 
-  HttpClient({http.Client? client, String? token})
+  HttpClient({http.Client? client, String? token, String? baseUrl})
     : _inner = client ?? http.Client(),
+      baseUrl = baseUrl ?? defaultBaseUrl,
       _token = _normalizeToken(token);
 
   static String? _normalizeToken(String? token) {
