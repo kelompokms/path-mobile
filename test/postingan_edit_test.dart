@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,14 +14,20 @@ import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_screen.dart';
 import 'package:path_mobile/utils/http_client.dart';
+import 'package:path_mobile/utils/lampiran_helper.dart';
 
 void main() {
-  group('Edit judul & deskripsi postingan (materi & tugas)', () {
+  tearDown(LampiranHelper.resetTestOverrides);
+
+  group('Edit judul, deskripsi, & lampiran postingan (materi & tugas)', () {
+    const uploadedPath =
+        '/uploads/2026/11/17/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf';
     HttpClient createEditClient({
       required List<({String method, String path, Map<String, dynamic> body})>
       patchCalls,
       bool failPatch = false,
       bool isGuru = true,
+      String uploadedFileName = 'revisi.pdf',
     }) {
       final isoNow = DateTime(2026, 11, 16, 10, 0).toIso8601String();
       var materi = {
@@ -79,6 +86,20 @@ void main() {
           if (path == '/kelas/MAT202/anggota') {
             return http.Response(jsonEncode([]), 200);
           }
+          if (path == '/files/postingan' && request.method == 'POST') {
+            return http.Response(
+              jsonEncode({
+                'files': [
+                  {
+                    'nama': uploadedFileName,
+                    'path': uploadedPath,
+                    'ukuran': 12,
+                  },
+                ],
+              }),
+              201,
+            );
+          }
           if (path == '/kelas/MAT202/postingan/10' &&
               request.method == 'PATCH') {
             final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -93,6 +114,7 @@ void main() {
               ...materi,
               'judul': body['judul'],
               'deskripsi': body['deskripsi'] ?? '',
+              'lampiran': body['lampiran'] ?? materi['lampiran'],
               'tipe_id': body['tipe'],
             };
             return http.Response(jsonEncode(materi), 200);
@@ -127,7 +149,12 @@ void main() {
         final patchCalls =
             <({String method, String path, Map<String, dynamic> body})>[];
         final ctrl = PengajarController(
-          PengajarRepository(createEditClient(patchCalls: patchCalls)),
+          PengajarRepository(
+            createEditClient(
+              patchCalls: patchCalls,
+              uploadedFileName: 'modul_revisi.pdf',
+            ),
+          ),
         );
         addTearDown(ctrl.dispose);
 
@@ -187,6 +214,7 @@ void main() {
         expect(patchCalls.first.body, {
           'judul': 'Materi Bab 1 Revisi',
           'deskripsi': 'Deskripsi materi telah diperbarui',
+          'lampiran': ['https://example.com/materi-awal'],
           'tipe': PostinganModel.tipeMateri,
         });
         expect(find.text('Materi Bab 1 Revisi'), findsOneWidget);
@@ -234,7 +262,12 @@ void main() {
         final patchCalls =
             <({String method, String path, Map<String, dynamic> body})>[];
         final ctrl = PengajarController(
-          PengajarRepository(createEditClient(patchCalls: patchCalls)),
+          PengajarRepository(
+            createEditClient(
+              patchCalls: patchCalls,
+              uploadedFileName: 'modul_revisi.pdf',
+            ),
+          ),
         );
         addTearDown(ctrl.dispose);
 
@@ -453,5 +486,219 @@ void main() {
       expect(find.byTooltip('Edit tugas'), findsNothing);
       expect(patchCalls, isEmpty);
     });
+
+    testWidgets(
+      'edits and clears lampiran on materi via dialog and syncs detail view',
+      (tester) async {
+        final patchCalls =
+            <({String method, String path, Map<String, dynamic> body})>[];
+        LampiranHelper.filePickerOverride = () async => [
+          PickedLampiranFile(
+            name: 'modul_revisi.pdf',
+            size: 12,
+            readBytes: () async =>
+                Uint8List.fromList(utf8.encode('%PDF-1.4\n%%EOF')),
+          ),
+        ];
+
+        final ctrl = PengajarController(
+          PengajarRepository(
+            createEditClient(
+              patchCalls: patchCalls,
+              uploadedFileName: 'modul_revisi.pdf',
+            ),
+          ),
+        );
+        addTearDown(ctrl.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: Scaffold(body: PengajarScreen(controller: ctrl)),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(ClassCard).first);
+        await tester.pumpAndSettle();
+
+        // Open Edit dialog via card menu
+        final materiCard = find.ancestor(
+          of: find.text('Materi Awal'),
+          matching: find.byType(PostCard),
+        );
+        await tester.tap(
+          find.descendant(
+            of: materiCard,
+            matching: find.byIcon(Icons.more_vert),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit'));
+        await tester.pumpAndSettle();
+
+        // Remove existing attachment, upload file, add link
+        expect(find.text('https://example.com/materi-awal'), findsOneWidget);
+        await tester.tap(find.byTooltip('Hapus lampiran').first);
+        await tester.pumpAndSettle();
+        expect(find.text('https://example.com/materi-awal'), findsNothing);
+
+        await tester.ensureVisible(find.text('File'));
+        await tester.tap(find.text('File'));
+        await tester.pumpAndSettle();
+        expect(find.text('modul_revisi.pdf'), findsOneWidget);
+
+        await tester.ensureVisible(find.text('Link'));
+        await tester.tap(find.text('Link'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byType(TextField).last,
+          'example.org/materi-baru',
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Tambah link'));
+        await tester.pumpAndSettle();
+        expect(find.text('https://example.org/materi-baru'), findsOneWidget);
+
+        await tester.ensureVisible(find.text('Simpan'));
+        await tester.tap(find.text('Simpan'));
+        await tester.pumpAndSettle();
+
+        expect(patchCalls, hasLength(1));
+        expect(patchCalls.first.path, '/kelas/MAT202/postingan/10');
+        expect(patchCalls.first.body['lampiran'], [
+          uploadedPath,
+          'https://example.org/materi-baru',
+        ]);
+
+        // Open Materi detail -> shows updated attachments and not the removed one
+        await tester.pump(const Duration(seconds: 5));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Materi Awal'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('https://example.com/materi-awal'), findsNothing);
+        expect(find.text('modul_revisi.pdf'), findsOneWidget);
+        expect(find.text('https://example.org/materi-baru'), findsOneWidget);
+
+        // Edit from detail screen to clear ALL attachments -> sends empty array []
+        await tester.tap(find.byTooltip('Edit materi'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byTooltip('Hapus lampiran').first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Hapus lampiran').first);
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.text('Simpan'));
+        await tester.tap(find.text('Simpan'));
+        await tester.pumpAndSettle();
+
+        expect(patchCalls, hasLength(2));
+        expect(patchCalls[1].body['lampiran'], <String>[]);
+        expect(find.text('modul_revisi.pdf'), findsNothing);
+        expect(find.text('https://example.org/materi-baru'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'edits and clears lampiran on tugas via form and syncs detail view',
+      (tester) async {
+        final patchCalls =
+            <({String method, String path, Map<String, dynamic> body})>[];
+        LampiranHelper.filePickerOverride = () async => [
+          PickedLampiranFile(
+            name: 'soal_revisi.pdf',
+            size: 12,
+            readBytes: () async =>
+                Uint8List.fromList(utf8.encode('%PDF-1.4\n%%EOF')),
+          ),
+        ];
+
+        final ctrl = PengajarController(
+          PengajarRepository(
+            createEditClient(
+              patchCalls: patchCalls,
+              uploadedFileName: 'soal_revisi.pdf',
+            ),
+          ),
+        );
+        addTearDown(ctrl.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: Scaffold(body: PengajarScreen(controller: ctrl)),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(ClassCard).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Tugas'));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Tugas Awal'));
+        await tester.pumpAndSettle();
+        expect(find.text('https://example.com/tugas-awal'), findsOneWidget);
+
+        // Edit tugas via detail icon -> replace attachment with uploaded file + new link
+        await tester.tap(find.byTooltip('Edit tugas'));
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.byTooltip('Hapus lampiran').first);
+        await tester.tap(find.byTooltip('Hapus lampiran').first);
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.text('File'));
+        await tester.tap(find.text('File'));
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.text('Link'));
+        await tester.tap(find.text('Link'));
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byType(TextField).last,
+          'example.org/tugas-baru',
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Tambah link'));
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.text('Simpan'));
+        await tester.tap(find.text('Simpan'));
+        await tester.pumpAndSettle();
+
+        expect(patchCalls, hasLength(1));
+        expect(patchCalls.first.path, '/kelas/MAT202/postingan/20');
+        expect(patchCalls.first.body['lampiran'], [
+          uploadedPath,
+          'https://example.org/tugas-baru',
+        ]);
+        expect(find.text('https://example.com/tugas-awal'), findsNothing);
+        expect(find.text('soal_revisi.pdf'), findsOneWidget);
+        expect(find.text('https://example.org/tugas-baru'), findsOneWidget);
+
+        // Edit again and clear all attachments -> sends []
+        await tester.tap(find.byTooltip('Edit tugas'));
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.byTooltip('Hapus lampiran').first);
+        await tester.tap(find.byTooltip('Hapus lampiran').first);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byTooltip('Hapus lampiran').first);
+        await tester.tap(find.byTooltip('Hapus lampiran').first);
+        await tester.pumpAndSettle();
+
+        await tester.ensureVisible(find.text('Simpan'));
+        await tester.tap(find.text('Simpan'));
+        await tester.pumpAndSettle();
+
+        expect(patchCalls, hasLength(2));
+        expect(patchCalls[1].body['lampiran'], <String>[]);
+        expect(find.text('soal_revisi.pdf'), findsNothing);
+        expect(find.text('https://example.org/tugas-baru'), findsNothing);
+      },
+    );
   });
 }

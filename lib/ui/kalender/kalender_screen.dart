@@ -17,8 +17,16 @@ class KalenderScreen extends StatefulWidget {
 }
 
 class _KalenderScreenState extends State<KalenderScreen> {
+  static const int _initialPage = 1200;
+
   late final DateTime _today = DateUtils.dateOnly(DateTime.now());
-  late DateTime _shownMonth = DateTime(_today.year, _today.month);
+  late final DateTime _baseMonth = DateTime(_today.year, _today.month);
+  late DateTime _shownMonth = _baseMonth;
+  late final PageController _pageController = PageController(
+    initialPage: _initialPage,
+  );
+  int _targetPage = _initialPage;
+  bool? _lastIsTwoPane;
 
   @override
   void initState() {
@@ -26,10 +34,54 @@ class _KalenderScreenState extends State<KalenderScreen> {
     widget.controller.loadAgendas();
   }
 
-  void _changeMonth(int delta) {
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  DateTime _monthForPage(int page) =>
+      DateTime(_baseMonth.year, _baseMonth.month + (page - _initialPage));
+
+  void _onPageChanged(int page) {
+    _targetPage = page;
+    final nextMonth = _monthForPage(page);
+    if (nextMonth.year == _shownMonth.year &&
+        nextMonth.month == _shownMonth.month) {
+      return;
+    }
     setState(() {
-      _shownMonth = DateTime(_shownMonth.year, _shownMonth.month + delta);
+      _shownMonth = nextMonth;
     });
+  }
+
+  void _changeMonth(int delta) {
+    final nextPage = math.max(0, _targetPage + delta);
+    if (nextPage == _targetPage) return;
+    _targetPage = nextPage;
+    if (_pageController.hasClients) {
+      _pageController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+    setState(() {
+      _shownMonth = _monthForPage(nextPage);
+    });
+  }
+
+  Widget _buildMonthCalendar() {
+    return _MonthCalendar(
+      month: _shownMonth,
+      today: _today,
+      pageController: _pageController,
+      monthForPage: _monthForPage,
+      onPageChanged: _onPageChanged,
+      onPrev: () => _changeMonth(-1),
+      onNext: () => _changeMonth(1),
+    );
   }
 
   List<MapEntry<DateTime, List<AgendaItemModel>>> get _days {
@@ -57,8 +109,18 @@ class _KalenderScreenState extends State<KalenderScreen> {
           return LayoutBuilder(
             builder: (context, constraints) {
               final width = constraints.maxWidth;
+              final isTwoPane = width >= 720;
+              if (_lastIsTwoPane != null && _lastIsTwoPane != isTwoPane) {
+                final target = _targetPage;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted && _pageController.hasClients) {
+                    _pageController.jumpToPage(target);
+                  }
+                });
+              }
+              _lastIsTwoPane = isTwoPane;
 
-              if (width >= 720) {
+              if (isTwoPane) {
                 final hPad = responsiveHorizontalPadding(width);
                 final calendarPaneWidth = math.min(
                   420.0,
@@ -83,12 +145,7 @@ class _KalenderScreenState extends State<KalenderScreen> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            _MonthCalendar(
-                              month: _shownMonth,
-                              today: _today,
-                              onPrev: () => _changeMonth(-1),
-                              onNext: () => _changeMonth(1),
-                            ),
+                            _buildMonthCalendar(),
                           ],
                         ),
                       ),
@@ -148,12 +205,7 @@ class _KalenderScreenState extends State<KalenderScreen> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            _MonthCalendar(
-                              month: _shownMonth,
-                              today: _today,
-                              onPrev: () => _changeMonth(-1),
-                              onNext: () => _changeMonth(1),
-                            ),
+                            _buildMonthCalendar(),
                             const Padding(
                               padding: EdgeInsets.only(top: 16, bottom: 4),
                               child: Text(
@@ -272,24 +324,28 @@ class _KalenderScreenState extends State<KalenderScreen> {
 class _MonthCalendar extends StatelessWidget {
   final DateTime month;
   final DateTime today;
+  final PageController pageController;
+  final DateTime Function(int page) monthForPage;
+  final ValueChanged<int> onPageChanged;
   final VoidCallback onPrev;
   final VoidCallback onNext;
 
   const _MonthCalendar({
     required this.month,
     required this.today,
+    required this.pageController,
+    required this.monthForPage,
+    required this.onPageChanged,
     required this.onPrev,
     required this.onNext,
   });
 
   static const _weekdays = ['S', 'S', 'R', 'K', 'J', 'S', 'M'];
+  static const _maxRows = 6;
   static const _line = Divider(height: 1, thickness: 1, color: Colors.black12);
 
   @override
   Widget build(BuildContext context) {
-    final leading = month.weekday - 1;
-    final daysInMonth = DateUtils.getDaysInMonth(month.year, month.month);
-    final rows = ((leading + daysInMonth) / 7).ceil();
     final textScaler = MediaQuery.textScalerOf(context);
     final weekdayHeight = math.max(36.0, textScaler.scale(13) + 18.0);
     final cellHeight = math.max(44.0, textScaler.scale(12) + 28.0);
@@ -345,6 +401,36 @@ class _MonthCalendar extends StatelessWidget {
           ),
         ),
         _line,
+        SizedBox(
+          height: cellHeight * _maxRows,
+          child: PageView.builder(
+            controller: pageController,
+            onPageChanged: onPageChanged,
+            itemBuilder: (context, page) => _buildMonthGrid(
+              monthForPage(page),
+              cellHeight: cellHeight,
+              circleDiameter: circleDiameter,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMonthGrid(
+    DateTime displayMonth, {
+    required double cellHeight,
+    required double circleDiameter,
+  }) {
+    final leading = displayMonth.weekday - 1;
+    final daysInMonth = DateUtils.getDaysInMonth(
+      displayMonth.year,
+      displayMonth.month,
+    );
+    final rows = ((leading + daysInMonth) / 7).ceil();
+
+    return Column(
+      children: [
         for (var r = 0; r < rows; r++)
           Row(
             children: [
@@ -353,6 +439,7 @@ class _MonthCalendar extends StatelessWidget {
                   child: _buildCell(
                     r * 7 + c,
                     leading,
+                    displayMonth: displayMonth,
                     cellHeight: cellHeight,
                     circleDiameter: circleDiameter,
                   ),
@@ -366,11 +453,16 @@ class _MonthCalendar extends StatelessWidget {
   Widget _buildCell(
     int index,
     int leading, {
+    required DateTime displayMonth,
     required double cellHeight,
     required double circleDiameter,
   }) {
-    final date = DateTime(month.year, month.month, 1 - leading + index);
-    final inMonth = date.month == month.month;
+    final date = DateTime(
+      displayMonth.year,
+      displayMonth.month,
+      1 - leading + index,
+    );
+    final inMonth = date.month == displayMonth.month;
     final isToday = inMonth && DateUtils.isSameDay(date, today);
     final isSunday = date.weekday == DateTime.sunday;
 

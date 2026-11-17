@@ -956,23 +956,6 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  /// Preserves richer local metadata (like uploaded original file names) when
-  /// syncing items returned by the API whose raw storage paths only contain IDs.
-  List<LampiranItem> _mergeLampiranWithLocal(
-    List<LampiranItem> remoteItems,
-    List<LampiranItem> localItems,
-  ) {
-    if (localItems.isEmpty) return List<LampiranItem>.from(remoteItems);
-    final byUrl = <String, LampiranItem>{
-      for (final item in localItems)
-        if (item.targetUrl != null && item.targetUrl!.isNotEmpty)
-          item.targetUrl!: item,
-    };
-    return remoteItems
-        .map((item) => byUrl[item.targetUrl] ?? item)
-        .toList();
-  }
-
   Future<void> _loadPengumpulan() async {
     if (!_canSyncBackend) return;
 
@@ -991,7 +974,7 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
 
       setState(() {
         if (pengumpulan.submitted) {
-          final merged = _mergeLampiranWithLocal(
+          final merged = mergeLampiranWithLocal(
             pengumpulan.lampiranItems,
             [..._tugas.submissionLampiran, ..._drafts],
           );
@@ -1095,7 +1078,7 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
           return;
         }
         if (result != null) {
-          syncedItems = _mergeLampiranWithLocal(
+          syncedItems = mergeLampiranWithLocal(
             result.lampiranItems,
             itemsToSubmit,
           );
@@ -1153,7 +1136,7 @@ class _TugasDetailScreenState extends State<_TugasDetailScreen> {
           return;
         }
         if (returnedPaths != null && returnedPaths.isNotEmpty) {
-          restoredDrafts = _mergeLampiranWithLocal(
+          restoredDrafts = mergeLampiranWithLocal(
             parseLampiranItems(returnedPaths),
             _tugas.submissionLampiran,
           );

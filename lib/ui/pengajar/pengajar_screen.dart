@@ -11,6 +11,7 @@ import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/pengajar/list_pengumpulan_screen.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
+import 'package:path_mobile/utils/lampiran_helper.dart';
 
 void _copyText(BuildContext context, String text, String message) {
   Clipboard.setData(ClipboardData(text: text));
@@ -443,7 +444,7 @@ class _MateriPengajar {
   String title;
   String description;
   final DateTime postedAt;
-  final List<LampiranItem> lampiran;
+  List<LampiranItem> lampiran;
 
   _MateriPengajar({
     this.id,
@@ -630,8 +631,13 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         return;
       }
       if (created != null) {
+        final createdMateri = _MateriPengajar.fromModel(created)
+          ..lampiran = mergeLampiranWithLocal(
+            created.lampiranItems,
+            materi.lampiran,
+          );
         setState(() {
-          _materiList.insert(0, _MateriPengajar.fromModel(created));
+          _materiList.insert(0, createdMateri);
         });
         return;
       }
@@ -661,7 +667,10 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
           ..id = created.id
           ..title = created.judul
           ..description = created.deskripsi
-          ..lampiran = List<LampiranItem>.from(created.lampiranItems);
+          ..lampiran = mergeLampiranWithLocal(
+            created.lampiranItems,
+            tugas.lampiran,
+          );
       }
     }
     setState(() {
@@ -704,7 +713,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         ..dueDate = draft.dueDate
         ..acceptSubmissions = draft.acceptSubmissions
         ..lampiran = savedModel != null
-            ? List<LampiranItem>.from(savedModel.lampiranItems)
+            ? mergeLampiranWithLocal(savedModel.lampiranItems, draft.lampiran)
             : List<LampiranItem>.from(draft.lampiran);
     });
     _showSnackBar('Tugas berhasil diperbarui');
@@ -713,12 +722,17 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
 
   Future<bool> _editMateri(_MateriPengajar m) async {
     if (!_isGuru) return false;
-    final result = await showDialog<({String title, String description})>(
+    final result = await showDialog<
+      ({String title, String description, List<LampiranItem> lampiran})
+    >(
       context: context,
       builder: (_) => _EditPostinganDialog(
         headerTitle: 'Edit Materi',
         initialTitle: m.title,
         initialDescription: m.description,
+        initialLampiran: m.lampiran,
+        onUploadFiles: widget.controller?.uploadPostinganFiles,
+        baseUrl: widget.controller?.baseUrl,
         titleHint: 'Edit judul materi disini',
         descHint: 'Edit deskripsi materi disini',
       ),
@@ -737,6 +751,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         m.id!,
         judul: result.title,
         deskripsi: result.description,
+        lampiran: result.lampiran,
         tipe: PostinganModel.tipeMateri,
       );
       if (!mounted) return false;
@@ -748,8 +763,12 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
     }
 
     setState(() {
-      m.title = savedModel?.judul ?? result.title;
-      m.description = savedModel?.deskripsi ?? result.description;
+      m
+        ..title = savedModel?.judul ?? result.title
+        ..description = savedModel?.deskripsi ?? result.description
+        ..lampiran = savedModel != null
+            ? mergeLampiranWithLocal(savedModel.lampiranItems, result.lampiran)
+            : List<LampiranItem>.from(result.lampiran);
     });
     _showSnackBar('Materi berhasil diperbarui');
     return true;
@@ -1232,6 +1251,9 @@ class _EditPostinganDialog extends StatefulWidget {
   final String headerTitle;
   final String initialTitle;
   final String initialDescription;
+  final List<LampiranItem> initialLampiran;
+  final UploadLampiranFiles? onUploadFiles;
+  final String? baseUrl;
   final String titleHint;
   final String descHint;
 
@@ -1239,6 +1261,9 @@ class _EditPostinganDialog extends StatefulWidget {
     required this.headerTitle,
     required this.initialTitle,
     required this.initialDescription,
+    this.initialLampiran = const [],
+    this.onUploadFiles,
+    this.baseUrl,
     required this.titleHint,
     required this.descHint,
   });
@@ -1250,14 +1275,18 @@ class _EditPostinganDialog extends StatefulWidget {
 class _EditPostinganDialogState extends State<_EditPostinganDialog> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _descCtrl;
+  late List<LampiranItem> _lampiran;
+  bool _isUploading = false;
 
-  bool get _canSave => _titleCtrl.text.trim().isNotEmpty;
+  bool get _hasTitle => _titleCtrl.text.trim().isNotEmpty;
+  bool get _canSave => _hasTitle && !_isUploading;
 
   @override
   void initState() {
     super.initState();
     _titleCtrl = TextEditingController(text: widget.initialTitle);
     _descCtrl = TextEditingController(text: widget.initialDescription);
+    _lampiran = List<LampiranItem>.from(widget.initialLampiran);
   }
 
   @override
@@ -1300,7 +1329,7 @@ class _EditPostinganDialogState extends State<_EditPostinganDialog> {
                 style: const TextStyle(fontSize: 16, color: AppColors.text),
                 decoration: InputDecoration(
                   hintText: widget.titleHint,
-                  errorText: _canSave ? null : 'Judul wajib diisi',
+                  errorText: _hasTitle ? null : 'Judul wajib diisi',
                   isDense: true,
                   border: const UnderlineInputBorder(),
                 ),
@@ -1312,7 +1341,7 @@ class _EditPostinganDialogState extends State<_EditPostinganDialog> {
               ),
               TextField(
                 controller: _descCtrl,
-                minLines: 5,
+                minLines: 3,
                 maxLines: null,
                 keyboardType: TextInputType.multiline,
                 style: const TextStyle(fontSize: 12, color: AppColors.text),
@@ -1323,6 +1352,17 @@ class _EditPostinganDialogState extends State<_EditPostinganDialog> {
                 ),
               ),
               const Divider(color: AppColors.text, height: 1),
+              const SizedBox(height: 12),
+              LampiranEditor(
+                items: _lampiran,
+                onChanged: (v) => setState(() => _lampiran = v),
+                onUploadFiles: widget.onUploadFiles,
+                onUploadingChanged: (uploading) {
+                  if (mounted) setState(() => _isUploading = uploading);
+                },
+                baseUrl: widget.baseUrl,
+              ),
+              const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: Wrap(
@@ -1344,6 +1384,7 @@ class _EditPostinganDialogState extends State<_EditPostinganDialog> {
                           ? () => Navigator.pop(context, (
                               title: _titleCtrl.text.trim(),
                               description: _descCtrl.text.trim(),
+                              lampiran: _lampiran,
                             ))
                           : null,
                       child: const Text('Simpan'),

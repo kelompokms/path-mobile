@@ -417,3 +417,18 @@ List<String> resolveLampiranItemPaths(List<LampiranItem> items) {
   }
   return result;
 }
+
+/// Preserves richer local metadata (such as original uploaded file names)
+/// when syncing items returned by the API whose raw paths only contain IDs.
+List<LampiranItem> mergeLampiranWithLocal(
+  List<LampiranItem> remoteItems,
+  List<LampiranItem> localItems,
+) {
+  if (localItems.isEmpty) return List<LampiranItem>.from(remoteItems);
+  final byUrl = <String, LampiranItem>{
+    for (final item in localItems)
+      if (item.targetUrl != null && item.targetUrl!.isNotEmpty)
+        item.targetUrl!: item,
+  };
+  return remoteItems.map((item) => byUrl[item.targetUrl] ?? item).toList();
+}
