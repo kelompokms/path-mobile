@@ -9,6 +9,7 @@ import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
+import 'package:path_mobile/ui/pengajar/list_pengumpulan_screen.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 
 void _copyText(BuildContext context, String text, String message) {
@@ -2114,21 +2115,65 @@ class _PengajarTugasDetailScreenState
                         ),
                       ),
                       const SizedBox(height: 8),
-                      FilledButton(
-                        onPressed: () => openPage(
-                          context,
-                          breadcrumb: ['Pengajar', classData.title, tugas.title],
-                          page: _CekJawabanScreen(
-                            classData: classData,
-                            tugas: tugas,
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton(
+                            onPressed: () => openPage(
+                              context,
+                              breadcrumb: [
+                                'Pengajar',
+                                classData.title,
+                                tugas.title,
+                              ],
+                              page: _CekJawabanScreen(
+                                classData: classData,
+                                tugas: tugas,
+                              ),
+                              routeName: 'cek-jawaban',
+                            ),
+                            style: FilledButton.styleFrom(
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                              ),
+                            ),
+                            child: const Text('Cek jawaban'),
                           ),
-                          routeName: 'cek-jawaban',
-                        ),
-                        style: FilledButton.styleFrom(
-                          shape: const StadiumBorder(),
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                        ),
-                        child: const Text('Cek jawaban'),
+                          OutlinedButton.icon(
+                            onPressed: () => openPage(
+                              context,
+                              breadcrumb: [
+                                'Pengajar',
+                                classData.title,
+                                tugas.title,
+                                'Daftar Pengumpulan',
+                              ],
+                              page: ListPengumpulanScreen(
+                                classData: classData,
+                                postinganId: tugas.id,
+                                tugasTitle: tugas.title,
+                                controller: widget.controller,
+                                baseUrl: baseUrl,
+                              ),
+                              routeName: 'list-pengumpulan',
+                            ),
+                            icon: const Icon(
+                              Icons.assignment_turned_in_outlined,
+                              size: 18,
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.color1,
+                              side: const BorderSide(color: AppColors.color1),
+                              shape: const StadiumBorder(),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                            ),
+                            label: const Text('Daftar pengumpulan'),
+                          ),
+                        ],
                       ),
                     ],
                   ],

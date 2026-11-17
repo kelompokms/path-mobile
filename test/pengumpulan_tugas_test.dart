@@ -36,19 +36,20 @@ void main() {
             path: request.url.path,
             body: request.body,
           ));
+          if (request.url.path == '/kelas/BIO101/postingan/20/pengumpulan/saya' &&
+              request.method == 'GET') {
+            return http.Response(
+              jsonEncode({
+                'id': 0,
+                'postingan_id': 20,
+                'pengguna_id': 2,
+                'submitted': false,
+                'lampiran': <String>[],
+              }),
+              200,
+            );
+          }
           if (request.url.path == '/kelas/BIO101/postingan/20/pengumpulan') {
-            if (request.method == 'GET') {
-              return http.Response(
-                jsonEncode({
-                  'id': 0,
-                  'postingan_id': 20,
-                  'pengguna_id': 2,
-                  'submitted': false,
-                  'lampiran': <String>[],
-                }),
-                200,
-              );
-            }
             if (request.method == 'POST') {
               final req = jsonDecode(request.body) as Map<String, dynamic>;
               return http.Response(
@@ -100,7 +101,7 @@ void main() {
       expect(withdrawn, [uploadedPath]);
 
       expect(calls.map((c) => '${c.method} ${c.path}').toList(), [
-        'GET /kelas/BIO101/postingan/20/pengumpulan',
+        'GET /kelas/BIO101/postingan/20/pengumpulan/saya',
         'POST /kelas/BIO101/postingan/20/pengumpulan',
         'DELETE /kelas/BIO101/postingan/20/pengumpulan',
       ]);
@@ -211,20 +212,21 @@ void main() {
               201,
             );
           }
+          if (path == '/kelas/BIO101/postingan/20/pengumpulan/saya' &&
+              request.method == 'GET') {
+            return http.Response(
+              jsonEncode({
+                'id': submitted ? 5 : 0,
+                'postingan_id': 20,
+                'pengguna_id': 2,
+                'submitted': submitted,
+                'lampiran': storedLampiran,
+                if (submitted) 'dibuat': isoNow,
+              }),
+              200,
+            );
+          }
           if (path == '/kelas/BIO101/postingan/20/pengumpulan') {
-            if (request.method == 'GET') {
-              return http.Response(
-                jsonEncode({
-                  'id': submitted ? 5 : 0,
-                  'postingan_id': 20,
-                  'pengguna_id': 2,
-                  'submitted': submitted,
-                  'lampiran': storedLampiran,
-                  if (submitted) 'dibuat': isoNow,
-                }),
-                200,
-              );
-            }
             if (request.method == 'POST') {
               final req = jsonDecode(request.body) as Map<String, dynamic>;
               storedLampiran = (req['lampiran'] as List<dynamic>? ?? [])
@@ -374,14 +376,14 @@ void main() {
         expect(find.text('Tarik Pengumpulan'), findsOneWidget);
 
         final submissionCalls = requestLog
-            .where((r) => r.path == '/kelas/BIO101/postingan/20/pengumpulan')
+            .where((r) => r.path.startsWith('/kelas/BIO101/postingan/20/pengumpulan'))
             .toList();
-        expect(submissionCalls.map((c) => c.method).toList(), [
-          'GET',
-          'POST',
-          'DELETE',
-          'POST',
-          'GET',
+        expect(submissionCalls.map((c) => '${c.method} ${c.path}').toList(), [
+          'GET /kelas/BIO101/postingan/20/pengumpulan/saya',
+          'POST /kelas/BIO101/postingan/20/pengumpulan',
+          'DELETE /kelas/BIO101/postingan/20/pengumpulan',
+          'POST /kelas/BIO101/postingan/20/pengumpulan',
+          'GET /kelas/BIO101/postingan/20/pengumpulan/saya',
         ]);
         expect(submissionCalls[1].body, {
           'lampiran': [uploadedPath, 'https://example.org/karya'],

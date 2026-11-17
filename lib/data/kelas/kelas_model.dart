@@ -339,3 +339,58 @@ class PengumpulanTugasModel {
     if (dibuat != null) 'dibuat': dibuat!.toIso8601String(),
   };
 }
+
+class PengumpulanMuridModel {
+  final int id;
+  final int postinganId;
+  final int penggunaId;
+  final String nama;
+  final String email;
+  final String profilePicture;
+  final List<String> lampiran;
+  final DateTime? dibuat;
+
+  const PengumpulanMuridModel({
+    required this.id,
+    required this.postinganId,
+    required this.penggunaId,
+    required this.nama,
+    required this.email,
+    this.profilePicture = '',
+    this.lampiran = const [],
+    this.dibuat,
+  });
+
+  List<LampiranItem> get lampiranItems => parseLampiranItems(lampiran);
+
+  bool get isMarkAsDone => lampiran.isEmpty;
+
+  factory PengumpulanMuridModel.fromJson(Map<String, dynamic> json) {
+    final rawLampiran = json['lampiran'];
+    final parsedLampiran = rawLampiran is List
+        ? rawLampiran.map((e) => e.toString()).toList()
+        : <String>[];
+    final rawDibuat = json['dibuat']?.toString();
+    return PengumpulanMuridModel(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      postinganId: (json['postingan_id'] as num?)?.toInt() ?? 0,
+      penggunaId: (json['pengguna_id'] as num?)?.toInt() ?? 0,
+      nama: json['nama'] as String? ?? '',
+      email: json['email'] as String? ?? '',
+      profilePicture: json['profile_picture']?.toString() ?? '',
+      lampiran: parsedLampiran,
+      dibuat: rawDibuat != null ? DateTime.tryParse(rawDibuat) : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'postingan_id': postinganId,
+    'pengguna_id': penggunaId,
+    'nama': nama,
+    'email': email,
+    'profile_picture': profilePicture,
+    'lampiran': lampiran,
+    if (dibuat != null) 'dibuat': dibuat!.toIso8601String(),
+  };
+}

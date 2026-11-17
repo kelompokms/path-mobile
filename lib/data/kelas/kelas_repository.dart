@@ -390,7 +390,9 @@ class KelasRepository {
       final encodedCode = Uri.encodeComponent(kodeKelas);
       final response = await _client
           .get(
-            _client.uri('/kelas/$encodedCode/postingan/$postinganId/pengumpulan'),
+            _client.uri(
+              '/kelas/$encodedCode/postingan/$postinganId/pengumpulan/saya',
+            ),
           )
           .timeout(const Duration(seconds: 10));
 
@@ -410,6 +412,41 @@ class KelasRepository {
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return (PengumpulanTugasModel.fromJson(data), null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  Future<(List<PengumpulanMuridModel>?, String?)> listPengumpulanTugas(
+    String kodeKelas,
+    int postinganId,
+  ) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final response = await _client
+          .get(
+            _client.uri('/kelas/$encodedCode/postingan/$postinganId/pengumpulan'),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(
+            response.body,
+            'Gagal memuat daftar pengumpulan tugas',
+          ),
+        );
+      }
+
+      final decoded = jsonDecode(response.body);
+      final data = (decoded as List<dynamic>?) ?? <dynamic>[];
+      final items = data
+          .map((x) => PengumpulanMuridModel.fromJson(x as Map<String, dynamic>))
+          .toList();
+      return (items, null);
     } on TimeoutException {
       return (null, 'Request timed out. Please try again.');
     } catch (e) {

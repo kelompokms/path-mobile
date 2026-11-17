@@ -85,6 +85,13 @@ class PengajarRepository {
     return _kelasRepo.uploadPostinganFiles(files);
   }
 
+  Future<(List<PengumpulanMuridModel>?, String?)> listPengumpulanTugas(
+    String kodeKelas,
+    int postinganId,
+  ) {
+    return _kelasRepo.listPengumpulanTugas(kodeKelas, postinganId);
+  }
+
   Future<String?> updateRoleGuru(String kodeKelas, bool roleGuru) async {
     try {
       final payload = UpdateGuruPayload(roleGuru: roleGuru);

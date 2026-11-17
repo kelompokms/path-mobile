@@ -221,6 +221,13 @@ class PengajarController extends ChangeNotifier {
     return _repo.uploadPostinganFiles(files);
   }
 
+  Future<(List<PengumpulanMuridModel>?, String?)> listPengumpulanTugas(
+    String kodeKelas,
+    int postinganId,
+  ) {
+    return _repo.listPengumpulanTugas(kodeKelas, postinganId);
+  }
+
   Future<String?> updateRoleGuru(String kodeKelas, bool roleGuru) {
     return _repo.updateRoleGuru(kodeKelas, roleGuru);
   }
