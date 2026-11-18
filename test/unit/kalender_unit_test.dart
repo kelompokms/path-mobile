@@ -133,6 +133,26 @@ void main() {
                     'tipe_id': 1,
                     'dibuat': '2026-11-19T07:05:00',
                   },
+                  {
+                    'id': 21,
+                    'judul': 'PR Dinamika',
+                    'deskripsi': '',
+                    'lampiran': [],
+                    'pengguna_id': 1,
+                    'kelas_id': 1,
+                    'tipe_id': 1,
+                    'dibuat': '2026-11-18T18:30:00Z',
+                  },
+                  {
+                    'id': 22,
+                    'judul': 'PR Fluida',
+                    'deskripsi': '',
+                    'lampiran': [],
+                    'pengguna_id': 1,
+                    'kelas_id': 1,
+                    'tipe_id': 1,
+                    'dibuat': '2026-11-19T09:15:00+07:00',
+                  },
                 ]),
                 200,
               );
@@ -144,13 +164,19 @@ void main() {
 
       final (agendas, err) = await repo.getAgendas();
       expect(err, isNull);
-      expect(agendas, hasLength(2));
+      expect(agendas, hasLength(4));
       expect(agendas![0].heading, 'Kalender Akademik');
       expect(agendas[0].title, 'Upacara');
       expect(agendas[0].time, 'Seharian');
       expect(agendas[1].heading, 'Tugas Fisika X');
       expect(agendas[1].title, 'PR Kinematika');
       expect(agendas[1].time, '07.05');
+      expect(agendas[2].title, 'PR Dinamika');
+      expect(agendas[2].date, DateTime(2026, 11, 19, 1, 30));
+      expect(agendas[2].time, '01.30');
+      expect(agendas[3].title, 'PR Fluida');
+      expect(agendas[3].date, DateTime(2026, 11, 19, 9, 15));
+      expect(agendas[3].time, '09.15');
       expect(capturedPaths.any((p) => p.contains('FIS%2010/posts?tipe=1')), isTrue);
     });
 
@@ -264,6 +290,70 @@ void main() {
       expect(okErr, isNull);
       expect(kalenderCalls, 2);
       expect(ctrl.agendas.first.title, 'Event 2');
+    });
+
+    test('globalAgendasByDay indexes global ranges, marks API agendas as global, and ignores non-global tugas', () async {
+      final repo = KalenderRepository(
+        HttpClient(
+          client: MockClient((request) async {
+            if (request.url.path == '/kalender') {
+              return http.Response(
+                jsonEncode([
+                  {
+                    'id': 1,
+                    'nama_kegiatan': 'PTS Ganjil',
+                    'keterangan': 'Ruang Ujian',
+                    'tanggal_mulai': '2026-11-28',
+                    'tanggal_selesai': '2026-12-02',
+                  },
+                ]),
+                200,
+              );
+            }
+            if (request.url.path == '/kelas') {
+              return http.Response(
+                jsonEncode([
+                  {'id': 1, 'nama': 'Matematika', 'kode_kelas': 'MTK1'},
+                ]),
+                200,
+              );
+            }
+            if (request.url.path == '/kelas/MTK1/posts') {
+              return http.Response(
+                jsonEncode([
+                  {
+                    'id': 9,
+                    'judul': 'PR Aljabar',
+                    'dibuat': '2026-11-15T10:00:00Z',
+                  },
+                ]),
+                200,
+              );
+            }
+            return http.Response('{}', 404);
+          }),
+        ),
+      );
+
+      final ctrl = KalenderController(repo);
+      addTearDown(ctrl.dispose);
+
+      await ctrl.loadAgendas();
+      expect(ctrl.agendas.where((a) => a.isGlobal), hasLength(1));
+      expect(ctrl.agendas.where((a) => !a.isGlobal), hasLength(1));
+
+      final map = ctrl.globalAgendasByDay;
+      expect(map.containsKey(DateTime(2026, 11, 15)), isFalse);
+      for (final d in [
+        DateTime(2026, 11, 28),
+        DateTime(2026, 11, 29),
+        DateTime(2026, 11, 30),
+        DateTime(2026, 12, 1),
+        DateTime(2026, 12, 2),
+      ]) {
+        expect(map[d]?.map((e) => e.title), ['PTS Ganjil']);
+      }
+      expect(map.containsKey(DateTime(2026, 12, 3)), isFalse);
     });
   });
 }

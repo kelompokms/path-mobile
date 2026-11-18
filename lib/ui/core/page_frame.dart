@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
+import 'package:path_mobile/utils/date_time_helper.dart';
 
 /// Supplies admin profile & logout actions to [PageFrame] headers when rendered
 /// inside the 4-tab admin shell (which has no Profil bottom navigation tab).
@@ -317,14 +318,19 @@ const _namaBulan = [
   'Desember',
 ];
 
-String formatTanggal(DateTime date) =>
-    '${date.day} ${_namaBulan[date.month - 1]} ${date.year}';
+String formatTanggal(DateTime date) {
+  final gmt7 = toGmt7(date);
+  return '${gmt7.day} ${_namaBulan[gmt7.month - 1]} ${gmt7.year}';
+}
 
 String formatJam(DateTime date) {
-  final h = date.hour.toString().padLeft(2, '0');
-  final m = date.minute.toString().padLeft(2, '0');
+  final gmt7 = toGmt7(date);
+  final h = gmt7.hour.toString().padLeft(2, '0');
+  final m = gmt7.minute.toString().padLeft(2, '0');
   return '$h.$m';
 }
 
-String formatBulanTahun(DateTime date) =>
-    '${_namaBulan[date.month - 1]} ${date.year}';
+String formatBulanTahun(DateTime date) {
+  final gmt7 = toGmt7(date);
+  return '${_namaBulan[gmt7.month - 1]} ${gmt7.year}';
+}

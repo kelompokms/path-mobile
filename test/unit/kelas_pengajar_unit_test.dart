@@ -726,5 +726,53 @@ void main() {
       expect(tErr, isNull);
       expect(tugas!.tipeId, PostinganModel.tipeTugas);
     });
+
+    test('PostinganModel and Pengumpulan models convert UTC and +07:00 timestamps to GMT+7', () {
+      final postFromUtc = PostinganModel.fromJson({
+        'id': 1,
+        'judul': 'Post UTC',
+        'deskripsi': '',
+        'lampiran': <String>[],
+        'pengguna_id': 1,
+        'kelas_id': 1,
+        'tipe_id': 2,
+        'dibuat': '2026-11-18T18:30:00Z',
+      });
+      expect(postFromUtc.dibuat, DateTime(2026, 11, 19, 1, 30));
+
+      final postFromGmt7 = PostinganModel.fromJson({
+        'id': 2,
+        'judul': 'Post WIB',
+        'deskripsi': '',
+        'lampiran': <String>[],
+        'pengguna_id': 1,
+        'kelas_id': 1,
+        'tipe_id': 2,
+        'dibuat': '2026-11-19T01:30:00+07:00',
+      });
+      expect(postFromGmt7.dibuat, DateTime(2026, 11, 19, 1, 30));
+
+      final roundTripped = PostinganModel.fromJson(postFromGmt7.toJson());
+      expect(roundTripped.dibuat, DateTime(2026, 11, 19, 1, 30));
+
+      final subMine = PengumpulanTugasModel.fromJson({
+        'id': 5,
+        'postingan_id': 1,
+        'pengguna_id': 2,
+        'submitted': true,
+        'dibuat': '2026-11-18T02:16:00Z',
+      });
+      expect(subMine.dibuat, DateTime(2026, 11, 18, 9, 16));
+
+      final subMurid = PengumpulanMuridModel.fromJson({
+        'id': 6,
+        'postingan_id': 1,
+        'pengguna_id': 2,
+        'nama': 'Budi',
+        'email': 'budi@example.com',
+        'dibuat': '2026-11-18T09:16:00+07:00',
+      });
+      expect(subMurid.dibuat, DateTime(2026, 11, 18, 9, 16));
+    });
   });
 }

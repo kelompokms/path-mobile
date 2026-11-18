@@ -11,6 +11,29 @@ class KalenderController extends ChangeNotifier {
   List<AgendaItemModel> _agendas = [];
   List<AgendaItemModel> get agendas => _agendas;
 
+  /// Normalized date (midnight local) -> global school agendas active on that day.
+  Map<DateTime, List<AgendaItemModel>> get globalAgendasByDay {
+    final map = <DateTime, List<AgendaItemModel>>{};
+    for (final item in _agendas) {
+      if (!item.isGlobal && item.heading != 'Kalender Akademik') continue;
+      final start = DateTime(item.date.year, item.date.month, item.date.day);
+      final rawEnd = item.endDate ?? start;
+      var end = DateTime(rawEnd.year, rawEnd.month, rawEnd.day);
+      if (end.isBefore(start)) {
+        end = start;
+      }
+      var daysAdded = 0;
+      for (
+        var day = start;
+        !day.isAfter(end) && daysAdded <= 366;
+        day = DateTime(day.year, day.month, day.day + 1), daysAdded++
+      ) {
+        (map[day] ??= []).add(item);
+      }
+    }
+    return map;
+  }
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 

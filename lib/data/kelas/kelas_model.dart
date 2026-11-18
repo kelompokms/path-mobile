@@ -1,4 +1,5 @@
 import 'package:path_mobile/ui/core/class_card.dart';
+import 'package:path_mobile/utils/date_time_helper.dart';
 import 'package:path_mobile/utils/lampiran_helper.dart';
 
 export 'package:path_mobile/utils/lampiran_helper.dart'
@@ -117,7 +118,7 @@ class AnggotaKelasModel {
       profilePicture: json['profile_picture']?.toString() ?? '',
       guru: isGuru,
       role: rawRole ?? (isGuru ? 'guru' : 'murid'),
-      dibuat: rawDibuat != null ? DateTime.tryParse(rawDibuat) : null,
+      dibuat: parseGmt7DateTime(rawDibuat),
     );
   }
 
@@ -201,9 +202,7 @@ class PostinganModel {
         : <String>[];
 
     final rawDibuat = json['dibuat']?.toString();
-    final parsedDibuat =
-        (rawDibuat != null ? DateTime.tryParse(rawDibuat) : null) ??
-        DateTime.now();
+    final parsedDibuat = parseGmt7DateTime(rawDibuat) ?? nowGmt7();
 
     return PostinganModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
@@ -326,7 +325,7 @@ class PengumpulanTugasModel {
       penggunaId: (json['pengguna_id'] as num?)?.toInt() ?? 0,
       submitted: submitted,
       lampiran: parsedLampiran,
-      dibuat: rawDibuat != null ? DateTime.tryParse(rawDibuat) : null,
+      dibuat: parseGmt7DateTime(rawDibuat),
     );
   }
 
@@ -379,7 +378,7 @@ class PengumpulanMuridModel {
       email: json['email'] as String? ?? '',
       profilePicture: json['profile_picture']?.toString() ?? '',
       lampiran: parsedLampiran,
-      dibuat: rawDibuat != null ? DateTime.tryParse(rawDibuat) : null,
+      dibuat: parseGmt7DateTime(rawDibuat),
     );
   }
 

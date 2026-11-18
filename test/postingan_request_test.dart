@@ -109,5 +109,107 @@ void main() {
 
       expect(find.text('Anda bukan anggota kelas ini'), findsOneWidget);
     });
+
+    testWidgets('displays post date and time in GMT+7 for UTC and +07:00 payloads', (tester) async {
+      final client = HttpClient(
+        token: 'jwt.token',
+        client: MockClient((request) async {
+          if (request.url.path == '/kelas/FIS101/posts') {
+            final tipe = request.url.queryParameters['tipe'];
+            if (tipe == '2') {
+              return http.Response(
+                jsonEncode([
+                  {
+                    'id': 1,
+                    'judul': 'Materi Gelombang',
+                    'deskripsi': 'Catatan',
+                    'lampiran': <String>[],
+                    'pengguna_id': 99,
+                    'kelas_id': 5,
+                    'tipe_id': 2,
+                    'dibuat': '2026-11-18T18:30:00Z',
+                  },
+                ]),
+                200,
+              );
+            }
+            return http.Response(
+              jsonEncode([
+                {
+                  'id': 2,
+                  'judul': 'Tugas Optik',
+                  'deskripsi': 'Latihan',
+                  'lampiran': <String>[],
+                  'pengguna_id': 99,
+                  'kelas_id': 5,
+                  'tipe_id': 1,
+                  'dibuat': '2026-11-18T09:16:00+07:00',
+                },
+              ]),
+              200,
+            );
+          }
+          if (request.url.path.endsWith('/anggota')) {
+            return http.Response(jsonEncode([]), 200);
+          }
+          if (request.url.path.endsWith('/pengumpulan/saya')) {
+            return http.Response(
+              jsonEncode({
+                'id': 0,
+                'postingan_id': 2,
+                'pengguna_id': 1,
+                'submitted': false,
+                'lampiran': <String>[],
+              }),
+              200,
+            );
+          }
+          return http.Response(jsonEncode({'message': 'Not found'}), 404);
+        }),
+      );
+      final ctrl = KelasController(KelasRepository(client));
+      addTearDown(ctrl.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(
+            body: ClassDetailScreen(
+              classData: const ClassItem(
+                title: 'Fisika X',
+                grade: 'Kelas X',
+                code: 'FIS101',
+              ),
+              breadcrumb: const ['Kelas', 'Fisika X'],
+              controller: ctrl,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 2026-11-18T18:30:00Z -> 19 November 2026 • 01.30 GMT+7
+      expect(find.text('19 November 2026'), findsOneWidget);
+      await tester.tap(find.text('Materi Gelombang'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Pengajar • 19 November 2026 • 01.30'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byIcon(Icons.arrow_back).last);
+      await tester.pumpAndSettle();
+
+      // 2026-11-18T09:16:00+07:00 -> 18 November 2026 • 09.16 GMT+7
+      await tester.tap(find.text('Tugas'));
+      await tester.pumpAndSettle();
+      expect(find.text('18 November 2026'), findsOneWidget);
+      await tester.tap(find.text('Tugas Optik'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Pengajar • 18 November 2026 • 09.16'),
+        findsOneWidget,
+      );
+    });
   });
 }

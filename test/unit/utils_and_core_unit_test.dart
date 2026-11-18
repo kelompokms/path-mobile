@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
+import 'package:path_mobile/utils/date_time_helper.dart';
 import 'package:path_mobile/utils/http_client.dart';
 import 'package:path_mobile/utils/lampiran_helper.dart';
 import 'package:path_mobile/utils/token_storage.dart';
@@ -222,6 +223,21 @@ void main() {
       expect(formatTanggal(dec), '31 Desember 2026');
       expect(formatJam(dec), '23.59');
       expect(formatBulanTahun(dec), 'Desember 2026');
+
+      final utcInstant = DateTime.utc(2026, 11, 18, 18, 30);
+      expect(formatTanggal(utcInstant), '19 November 2026');
+      expect(formatJam(utcInstant), '01.30');
+
+      final parsedUtc = parseGmt7DateTime('2026-11-18T02:16:00Z');
+      expect(parsedUtc, DateTime(2026, 11, 18, 9, 16));
+      expect(parsedUtc!.isUtc, isFalse);
+
+      final parsedOffset = parseGmt7DateTime('2026-11-18T09:16:00+07:00');
+      expect(parsedOffset, DateTime(2026, 11, 18, 9, 16));
+      expect(parsedOffset!.isUtc, isFalse);
+
+      final parsedNaive = parseGmt7DateTime('2026-11-18T09:16:00');
+      expect(parsedNaive, DateTime(2026, 11, 18, 9, 16));
     });
 
     test('responsive padding and grid helpers adapt across breakpoints', () {

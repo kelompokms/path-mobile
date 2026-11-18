@@ -163,11 +163,73 @@ class _KalenderScreenState extends State<KalenderScreen> {
     );
   }
 
+  void _showDayAgendaDialog(DateTime day, List<AgendaItemModel> items) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.background,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Agenda • ${formatTanggal(day)}',
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.text,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) const Divider(height: 16),
+                Text(
+                  items[i].title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _formatAgendaMeta(items[i]),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+                if (items[i].description.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    items[i].description,
+                    style: const TextStyle(fontSize: 13, color: AppColors.text),
+                  ),
+                ],
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context),
+            style: AppTheme.softCompactButton,
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMonthCalendar() {
+    final globalAgendas = widget.controller.globalAgendasByDay;
     return _MonthCalendar(
       month: _shownMonth,
       today: _today,
       selectedDate: widget.isAdmin ? _selectedDate : null,
+      globalAgendasByDay: globalAgendas,
       pageController: _pageController,
       monthForPage: _monthForPage,
       onPageChanged: _onPageChanged,
@@ -176,18 +238,40 @@ class _KalenderScreenState extends State<KalenderScreen> {
       onSelectDate: widget.isAdmin
           ? (day) => setState(() => _selectedDate = DateUtils.dateOnly(day))
           : null,
+      onTapAgendaDay: widget.isAdmin
+          ? null
+          : (day) {
+              final normalized = DateTime(day.year, day.month, day.day);
+              final items = globalAgendas[normalized] ?? const [];
+              if (items.isNotEmpty) {
+                _showDayAgendaDialog(normalized, items);
+              }
+            },
     );
   }
 
   List<MapEntry<DateTime, List<AgendaItemModel>>> get _days {
     final grouped = <DateTime, List<AgendaItemModel>>{};
+    final monthStart = DateTime(_shownMonth.year, _shownMonth.month, 1);
+    final monthEnd = DateTime(
+      _shownMonth.year,
+      _shownMonth.month,
+      DateUtils.getDaysInMonth(_shownMonth.year, _shownMonth.month),
+    );
     for (final item in widget.controller.agendas) {
-      if (item.date.year != _shownMonth.year ||
-          item.date.month != _shownMonth.month) {
+      final start = DateTime(item.date.year, item.date.month, item.date.day);
+      if (start.year == _shownMonth.year && start.month == _shownMonth.month) {
+        (grouped[start] ??= []).add(item);
         continue;
       }
-      final day = DateUtils.dateOnly(item.date);
-      (grouped[day] ??= []).add(item);
+      final rawEnd = item.endDate;
+      if (rawEnd != null &&
+          (item.isGlobal || item.heading == 'Kalender Akademik')) {
+        final end = DateTime(rawEnd.year, rawEnd.month, rawEnd.day);
+        if (!start.isAfter(monthEnd) && !end.isBefore(monthStart)) {
+          (grouped[monthStart] ??= []).add(item);
+        }
+      }
     }
     return grouped.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
   }
@@ -402,32 +486,49 @@ class _KalenderScreenState extends State<KalenderScreen> {
   }
 }
 
+String _formatAgendaMeta(AgendaItemModel item) {
+  final end = item.endDate;
+  final hasRange = end != null && !DateUtils.isSameDay(item.date, end);
+  final dateText = hasRange
+      ? '${formatTanggal(item.date)} - ${formatTanggal(end)}'
+      : formatTanggal(item.date);
+  return '${item.heading} • $dateText (${item.time})';
+}
+
 class _MonthCalendar extends StatelessWidget {
   final DateTime month;
   final DateTime today;
   final DateTime? selectedDate;
+  final Map<DateTime, List<AgendaItemModel>> globalAgendasByDay;
   final PageController pageController;
   final DateTime Function(int page) monthForPage;
   final ValueChanged<int> onPageChanged;
   final VoidCallback onPrev;
   final VoidCallback onNext;
   final ValueChanged<DateTime>? onSelectDate;
+  final ValueChanged<DateTime>? onTapAgendaDay;
 
   const _MonthCalendar({
     required this.month,
     required this.today,
     this.selectedDate,
+    this.globalAgendasByDay = const {},
     required this.pageController,
     required this.monthForPage,
     required this.onPageChanged,
     required this.onPrev,
     required this.onNext,
     this.onSelectDate,
+    this.onTapAgendaDay,
   });
 
   static const _weekdays = ['S', 'S', 'R', 'K', 'J', 'S', 'M'];
   static const _maxRows = 6;
   static const _line = Divider(height: 1, thickness: 1, color: Colors.black12);
+  static const _agendaAccentColor = Color(0xFFE09F00);
+  static const _agendaTextColor = Color(0xFF7A4F01);
+  static final _agendaHighlightColor = AppColors.warning.withValues(alpha: 0.30);
+  static final _agendaRangeBandColor = AppColors.warning.withValues(alpha: 0.18);
 
   @override
   Widget build(BuildContext context) {
@@ -437,6 +538,7 @@ class _MonthCalendar extends StatelessWidget {
     final circleDiameter = math.max(32.0, textScaler.scale(12) + 18.0);
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -498,6 +600,22 @@ class _MonthCalendar extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 14,
+          runSpacing: 4,
+          children: [
+            const _CalendarLegendItem(
+              color: AppColors.color1,
+              label: 'Hari ini',
+            ),
+            _CalendarLegendItem(
+              color: _agendaHighlightColor,
+              borderColor: _agendaAccentColor,
+              label: 'Agenda global',
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -555,6 +673,27 @@ class _MonthCalendar extends StatelessWidget {
         DateUtils.isSameDay(date, selectedDate);
     final isSunday = date.weekday == DateTime.sunday;
 
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    final agendasOnDay = inMonth
+        ? (globalAgendasByDay[normalizedDate] ?? const <AgendaItemModel>[])
+        : const <AgendaItemModel>[];
+    final hasGlobalAgenda = agendasOnDay.isNotEmpty;
+
+    final col = index % 7;
+    final prevDate = DateTime(date.year, date.month, date.day - 1);
+    final nextDate = DateTime(date.year, date.month, date.day + 1);
+    final hasPrevInRow =
+        col > 0 &&
+        hasGlobalAgenda &&
+        prevDate.month == displayMonth.month &&
+        (globalAgendasByDay[prevDate]?.isNotEmpty ?? false);
+    final hasNextInRow =
+        col < 6 &&
+        hasGlobalAgenda &&
+        nextDate.month == displayMonth.month &&
+        (globalAgendasByDay[nextDate]?.isNotEmpty ?? false);
+    final isBandMiddle = hasPrevInRow && hasNextInRow;
+
     final Color color;
     if (inMonth) {
       color = isSunday ? AppColors.error : AppColors.text;
@@ -566,10 +705,13 @@ class _MonthCalendar extends StatelessWidget {
 
     final BoxDecoration decoration;
     if (isToday) {
-      decoration = const BoxDecoration(
+      decoration = BoxDecoration(
         shape: BoxShape.circle,
         color: AppColors.color1,
-        boxShadow: [
+        border: hasGlobalAgenda
+            ? Border.all(color: AppColors.warning, width: 2.2)
+            : null,
+        boxShadow: const [
           BoxShadow(
             color: Colors.black26,
             blurRadius: 4,
@@ -580,48 +722,151 @@ class _MonthCalendar extends StatelessWidget {
     } else if (isSelected) {
       decoration = BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.color1.withValues(alpha: 0.14),
+        color: hasGlobalAgenda
+            ? _agendaHighlightColor
+            : AppColors.color1.withValues(alpha: 0.14),
         border: Border.all(color: AppColors.color1, width: 1.5),
+      );
+    } else if (hasGlobalAgenda) {
+      decoration = BoxDecoration(
+        shape: BoxShape.circle,
+        color: isBandMiddle ? _agendaRangeBandColor : _agendaHighlightColor,
+        border: isBandMiddle
+            ? null
+            : Border.all(color: _agendaAccentColor, width: 1.3),
       );
     } else {
       decoration = const BoxDecoration();
     }
 
-    final cell = SizedBox(
+    final Color textColor;
+    if (isToday) {
+      textColor = Colors.white;
+    } else if (isSelected) {
+      textColor = AppColors.color3;
+    } else if (hasGlobalAgenda) {
+      textColor = isSunday ? AppColors.error : _agendaTextColor;
+    } else {
+      textColor = color;
+    }
+
+    final dateKey =
+        '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+    Widget cell = SizedBox(
       height: cellHeight,
-      child: Center(
-        child: DecoratedBox(
-          decoration: decoration,
-          child: SizedBox(
-            width: circleDiameter,
-            height: circleDiameter,
-            child: Center(
-              child: Text(
-                '${date.day}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isToday
-                      ? Colors.white
-                      : (isSelected ? AppColors.color3 : color),
-                  fontWeight: (isToday || isSelected)
-                      ? FontWeight.w600
-                      : FontWeight.normal,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          if (hasGlobalAgenda && (hasPrevInRow || hasNextInRow))
+            Positioned.fill(
+              child: Center(
+                child: SizedBox(
+                  height: circleDiameter,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ColoredBox(
+                          color: hasPrevInRow
+                              ? _agendaRangeBandColor
+                              : Colors.transparent,
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
+                      Container(
+                        width: circleDiameter,
+                        decoration: BoxDecoration(
+                          color: _agendaRangeBandColor,
+                          borderRadius: BorderRadius.horizontal(
+                            left: hasPrevInRow
+                                ? Radius.zero
+                                : Radius.circular(circleDiameter / 2),
+                            right: hasNextInRow
+                                ? Radius.zero
+                                : Radius.circular(circleDiameter / 2),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: ColoredBox(
+                          color: hasNextInRow
+                              ? _agendaRangeBandColor
+                              : Colors.transparent,
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          DecoratedBox(
+            key: hasGlobalAgenda
+                ? ValueKey('calendar_global_agenda_$dateKey')
+                : null,
+            decoration: decoration,
+            child: SizedBox(
+              width: circleDiameter,
+              height: circleDiameter,
+              child: Center(
+                child: Text(
+                  '${date.day}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textColor,
+                    fontWeight: (isToday || isSelected || hasGlobalAgenda)
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+          if (hasGlobalAgenda)
+            Positioned(
+              bottom: 1.5,
+              child: Container(
+                key: ValueKey('calendar_global_agenda_dot_$dateKey'),
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isToday ? AppColors.warning : _agendaAccentColor,
+                ),
+              ),
+            ),
+        ],
       ),
     );
 
-    if (onSelectDate == null || !inMonth) {
+    if (hasGlobalAgenda) {
+      cell = Tooltip(
+        message: agendasOnDay.map((a) => a.title).join(', '),
+        child: cell,
+      );
+    }
+
+    if (!inMonth) {
       return cell;
     }
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => onSelectDate!(date),
-      child: cell,
-    );
+
+    if (onSelectDate != null) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onSelectDate!(date),
+        child: cell,
+      );
+    }
+
+    if (hasGlobalAgenda && onTapAgendaDay != null) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onTapAgendaDay!(date),
+        child: cell,
+      );
+    }
+
+    return cell;
   }
 
   Widget _arrow(IconData icon, String tooltip, VoidCallback onPressed) {
@@ -632,6 +877,46 @@ class _MonthCalendar extends StatelessWidget {
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
       constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+    );
+  }
+}
+
+class _CalendarLegendItem extends StatelessWidget {
+  final Color color;
+  final Color? borderColor;
+  final String label;
+
+  const _CalendarLegendItem({
+    required this.color,
+    this.borderColor,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+            border: borderColor != null
+                ? Border.all(color: borderColor!, width: 1.2)
+                : null,
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11,
+            color: AppColors.secondaryText,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -746,12 +1031,6 @@ class _AgendaCard extends StatelessWidget {
   const _AgendaCard({required this.item, this.maxWidth = 200});
 
   void _showDetail(BuildContext context) {
-    final end = item.endDate;
-    final hasRange = end != null && !DateUtils.isSameDay(item.date, end);
-    final dateText = hasRange
-        ? '${formatTanggal(item.date)} - ${formatTanggal(end)}'
-        : formatTanggal(item.date);
-
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -771,7 +1050,7 @@ class _AgendaCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${item.heading} • $dateText (${item.time})',
+              _formatAgendaMeta(item),
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.secondaryText,
@@ -816,22 +1095,22 @@ class _AgendaCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 2,
                     children: [
-                      Flexible(
-                        child: Text(
-                          item.heading,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.text,
-                          ),
+                      Text(
+                        item.heading,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.text,
                         ),
                       ),
-                      const SizedBox(width: 12),
                       Text(
                         item.time,
                         style: const TextStyle(

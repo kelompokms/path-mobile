@@ -1,3 +1,5 @@
+import 'package:path_mobile/utils/date_time_helper.dart';
+
 class KalenderAkademikModel {
   final int id;
   final String namaKegiatan;
@@ -25,7 +27,7 @@ class KalenderAkademikModel {
           DateTime.tryParse(json['tanggal_mulai']?.toString() ?? '') ?? now,
       tanggalSelesai:
           DateTime.tryParse(json['tanggal_selesai']?.toString() ?? '') ?? now,
-      dibuat: DateTime.tryParse(json['dibuat']?.toString() ?? ''),
+      dibuat: parseGmt7DateTime(json['dibuat']?.toString()),
     );
   }
 
@@ -46,6 +48,7 @@ class AgendaItemModel {
   final String title;
   final String description;
   final String time;
+  final bool isGlobal;
 
   const AgendaItemModel({
     required this.date,
@@ -54,6 +57,7 @@ class AgendaItemModel {
     required this.title,
     this.description = '',
     required this.time,
+    this.isGlobal = false,
   });
 }
 

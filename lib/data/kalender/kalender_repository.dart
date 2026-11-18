@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:path_mobile/data/kalender/kalender_model.dart';
 import 'package:path_mobile/data/kelas/kelas_model.dart';
+import 'package:path_mobile/utils/date_time_helper.dart';
 import 'package:path_mobile/utils/http_client.dart';
 
 class KalenderRepository {
@@ -71,6 +72,7 @@ class KalenderRepository {
             title: item.namaKegiatan,
             description: item.keterangan,
             time: timeLabel,
+            isGlobal: true,
           ),
         );
       }
@@ -108,11 +110,12 @@ class KalenderRepository {
               final post = PostinganModel.fromJson(
                 pRaw as Map<String, dynamic>,
               );
-              final h = post.dibuat.hour.toString().padLeft(2, '0');
-              final m = post.dibuat.minute.toString().padLeft(2, '0');
+              final dibuat = toGmt7(post.dibuat);
+              final h = dibuat.hour.toString().padLeft(2, '0');
+              final m = dibuat.minute.toString().padLeft(2, '0');
               agendas.add(
                 AgendaItemModel(
-                  date: post.dibuat,
+                  date: dibuat,
                   heading: 'Tugas ${k.nama}',
                   title: post.judul,
                   time: '$h.$m',

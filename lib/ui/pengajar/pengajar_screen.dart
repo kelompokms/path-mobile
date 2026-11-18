@@ -11,6 +11,7 @@ import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/pengajar/list_pengumpulan_screen.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
+import 'package:path_mobile/utils/date_time_helper.dart';
 import 'package:path_mobile/utils/lampiran_helper.dart';
 
 void _copyText(BuildContext context, String text, String message) {
@@ -225,7 +226,7 @@ class _TugasPengajar {
   int? id;
   String title;
   String description;
-  final DateTime postedAt;
+  DateTime postedAt;
   DateTime? dueDate;
   final int points = 100;
   bool acceptSubmissions = true;
@@ -423,6 +424,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
           ..id = created.id
           ..title = created.judul
           ..description = created.deskripsi
+          ..postedAt = created.dibuat
           ..lampiran = mergeLampiranWithLocal(
             created.lampiranItems,
             tugas.lampiran,
@@ -1307,7 +1309,7 @@ class _BuatMateriScreenState extends State<_BuatMateriScreen> {
       _MateriPengajar(
         title: _titleController.text.trim(),
         description: _descController.text.trim(),
-        postedAt: DateTime.now(),
+        postedAt: nowGmt7(),
         lampiran: _lampiran,
       ),
     );
@@ -1518,7 +1520,7 @@ class _BuatMateriAiScreenState extends State<_BuatMateriAiScreen> {
     final generated = _MateriPengajar(
       title: title,
       description: 'Materi hasil AI untuk topik "$prompt".',
-      postedAt: DateTime.now(),
+      postedAt: nowGmt7(),
       lampiran: [
         LampiranItem(name: 'Materi_AI_$title.pdf', detail: 'PDF'),
       ],
@@ -2069,7 +2071,7 @@ class _TugasFormScreenState extends State<_TugasFormScreen> {
         final created = _TugasPengajar(
           title: _titleController.text.trim(),
           description: _descController.text.trim(),
-          postedAt: DateTime.now(),
+          postedAt: nowGmt7(),
           dueDate: _dueDate,
           lampiran: List<LampiranItem>.from(_lampiran),
         );
