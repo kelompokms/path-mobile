@@ -35,7 +35,9 @@ class ProfilRepository {
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       final profil = ProfilModel.fromJson(data);
-      if (data['admin'] is bool || data['role'] is String) {
+      if (data['role'] is String && profil.role.trim().isNotEmpty) {
+        _client.setRole(profil.role);
+      } else if (data['admin'] is bool) {
         _client.setAdmin(profil.admin);
       }
       return (profil, null);

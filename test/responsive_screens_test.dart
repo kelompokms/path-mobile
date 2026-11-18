@@ -515,15 +515,19 @@ void main() {
     );
   });
 
-  group('DashboardScreen responsive grids and tabs', () {
-    testWidgets('scales class grid columns and toggles tabs cleanly', (
+  group('DashboardScreen responsive grids and role views', () {
+    testWidgets('scales class grid columns across sizes for Murid and Guru views without overflow', (
       tester,
     ) async {
       final client = _mockClient();
       final kelasRepo = KelasRepository(client);
       final pengajarRepo = PengajarRepository(client);
 
-      Future<void> pumpAt(Size size, {double scale = 1.0}) async {
+      Future<void> pumpAt(
+        Size size, {
+        double scale = 1.0,
+        bool isGuruRole = false,
+      }) async {
         final kCtrl = KelasController(kelasRepo);
         final pCtrl = PengajarController(pengajarRepo);
         addTearDown(kCtrl.dispose);
@@ -536,16 +540,19 @@ void main() {
             body: DashboardScreen(
               kelasController: kCtrl,
               pengajarController: pCtrl,
+              isGuruRole: isGuruRole,
             ),
           ),
         );
       }
 
       await pumpAt(const Size(320, 480), scale: 1.6);
+      expect(find.text('Beranda Murid'), findsOneWidget);
       expect(_gridColumnsCount(tester), 1);
 
-      await tester.tap(find.text('Pengajar'));
-      await tester.pumpAndSettle();
+      await pumpAt(const Size(320, 480), scale: 1.6, isGuruRole: true);
+      expect(find.text('Beranda Guru'), findsOneWidget);
+      expect(_gridColumnsCount(tester), 1);
 
       await pumpAt(const Size(390, 844));
       expect(_gridColumnsCount(tester), 2);
@@ -553,8 +560,8 @@ void main() {
       await pumpAt(const Size(768, 1024));
       expect(_gridColumnsCount(tester), 3);
 
-      await pumpAt(const Size(1280, 800));
-      final grid = tester.widget<GridView>(find.byType(GridView));
+      await pumpAt(const Size(1280, 800), isGuruRole: true);
+      final grid = tester.widget<GridView>(find.byType(GridView).first);
       final delegate =
           grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
       expect(delegate.crossAxisCount, 5);

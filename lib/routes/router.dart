@@ -71,6 +71,7 @@ GoRouter createRouter({
         redirect: (context, state) => client.isAuthenticated ? null : '/',
         builder: (context, state, child) => LayoutScreen(
           isAdmin: client.isAdmin,
+          userRole: client.role,
           onOpenProfile: () => GoRouter.of(context).push('/profil'),
           onLogout: () async {
             profilRepo.logout();
@@ -86,8 +87,12 @@ GoRouter createRouter({
             builder: (context, state) => client.isAdmin
                 ? const AdminDashboardScreen()
                 : DashboardScreen(
+                    isGuruRole: client.isGuru,
                     kelasController: KelasController(kelasRepo),
                     pengajarController: PengajarController(pengajarRepo),
+                    kalenderRepository: kalenderRepo,
+                    onOpenAllClasses: () => GoRouter.of(context).go('/kelas'),
+                    onOpenCalendar: () => GoRouter.of(context).go('/kalender'),
                   ),
           ),
           GoRoute(
@@ -109,7 +114,11 @@ GoRouter createRouter({
                     controller: AdminController(adminRepo),
                     kelasRepository: kelasRepo,
                   )
-                : KelasScreen(controller: KelasController(kelasRepo)),
+                : KelasScreen(
+                    controller: KelasController(kelasRepo),
+                    pengajarController: PengajarController(pengajarRepo),
+                    isGuruRole: client.isGuru,
+                  ),
             routes: [
               GoRoute(
                 path: ':kode_kelas/anggota',

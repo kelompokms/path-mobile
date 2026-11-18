@@ -63,20 +63,56 @@ Future<ClassItem?> editKelasWithDialog(
   );
 }
 
-class PengajarScreen extends StatefulWidget {
+class PengajarScreen extends StatelessWidget {
   final PengajarController controller;
 
   const PengajarScreen({super.key, required this.controller});
 
   @override
-  State<PengajarScreen> createState() => _PengajarScreenState();
+  Widget build(BuildContext context) {
+    return PageFrame(
+      breadcrumb: const ['Pengajar'],
+      child: TeachingClassesSection(
+        controller: controller,
+        breadcrumbRoot: 'Pengajar',
+      ),
+    );
+  }
 }
 
-class _PengajarScreenState extends State<PengajarScreen> {
+/// Reusable list/grid of classes where the signed-in user holds a teaching/assistant role (`k.guru`).
+class TeachingClassesSection extends StatefulWidget {
+  final PengajarController controller;
+  final String breadcrumbRoot;
+  final String headerTitle;
+  final bool showHeader;
+  final bool fetchOnInit;
+  final String emptyMessage;
+  final String emptyHint;
+
+  const TeachingClassesSection({
+    super.key,
+    required this.controller,
+    this.breadcrumbRoot = 'Pengajar',
+    this.headerTitle = 'Kelas',
+    this.showHeader = true,
+    this.fetchOnInit = true,
+    this.emptyMessage = 'Anda belum ditugaskan mengampu kelas',
+    this.emptyHint =
+        'Hanya admin yang dapat membuat atau menetapkan pengampu kelas',
+  });
+
+  @override
+  State<TeachingClassesSection> createState() => _TeachingClassesSectionState();
+}
+
+class _TeachingClassesSectionState extends State<TeachingClassesSection> {
   @override
   void initState() {
     super.initState();
-    widget.controller.getListKelas();
+    if (widget.fetchOnInit) {
+      widget.controller.getListKelas();
+    }
   }
 
   List<ClassItem> get _classes {
@@ -91,42 +127,41 @@ class _PengajarScreenState extends State<PengajarScreen> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return PageFrame(
-      breadcrumb: const ['Pengajar'],
-      child: ListenableBuilder(
-        listenable: widget.controller,
-        builder: (context, _) {
-          final classes = _classes;
-          if (widget.controller.isLoading && classes.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (classes.isEmpty) {
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 520),
-                child: const EmptyClassView(
-                  message: 'Anda belum ditugaskan mengampu kelas',
-                  hint: 'Hanya admin yang dapat membuat atau menetapkan pengampu kelas',
-                ),
+    return ListenableBuilder(
+      listenable: widget.controller,
+      builder: (context, _) {
+        final classes = _classes;
+        if (widget.controller.isLoading && classes.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (classes.isEmpty) {
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: EmptyClassView(
+                message: widget.emptyMessage,
+                hint: widget.emptyHint,
               ),
+            ),
+          );
+        }
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final h = responsiveHorizontalInset(
+              width,
+              maxWidth: ResponsiveBreakpoints.wide,
             );
-          }
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final width = constraints.maxWidth;
-              final h = responsiveHorizontalInset(
-                width,
-                maxWidth: ResponsiveBreakpoints.wide,
-              );
 
-              return Column(
-                children: [
+            return Column(
+              children: [
+                if (widget.showHeader)
                   SizedBox(
                     width: double.infinity,
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(h, 12, h, 12),
                       child: Text(
-                        'Kelas',
+                        widget.headerTitle,
                         style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                           color: AppColors.text,
@@ -134,64 +169,64 @@ class _PengajarScreenState extends State<PengajarScreen> {
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: RefreshIndicator(
-                      onRefresh: widget.controller.getListKelas,
-                      child: GridView.builder(
-                        padding: responsiveListPadding(
-                          width,
-                          maxWidth: ResponsiveBreakpoints.wide,
-                          top: 0,
-                          bottom: 16,
-                        ),
-                        gridDelegate: responsiveClassGridDelegate(
-                          context,
-                          width,
-                          maxContentWidth: ResponsiveBreakpoints.wide,
-                        ),
-                        itemCount: classes.length,
-                        itemBuilder: (context, i) {
-                          final item = classes[i];
-                          return ClassCard(
-                            data: item,
-                            onTap: () => openPage(
-                              context,
-                              breadcrumb: ['Pengajar', item.title],
-                              page: PengajarDetailScreen(
-                                classData: item,
-                                controller: widget.controller,
-                              ),
-                              routeName: 'pengajar-detail',
-                            ),
-                            menuItems: [
-                              (
-                                label: 'Edit kelas',
-                                onSelected: () => editKelasWithDialog(
-                                  context,
-                                  item,
-                                  widget.controller,
-                                ),
-                              ),
-                              (
-                                label: 'Salin link undangan kelas',
-                                onSelected: () => _copyText(
-                                  context,
-                                  item.inviteLink,
-                                  'Link undangan kelas disalin',
-                                ),
-                              ),
-                            ],
-                          );
-                        },
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: widget.controller.getListKelas,
+                    child: GridView.builder(
+                      padding: responsiveListPadding(
+                        width,
+                        maxWidth: ResponsiveBreakpoints.wide,
+                        top: 0,
+                        bottom: 16,
                       ),
+                      gridDelegate: responsiveClassGridDelegate(
+                        context,
+                        width,
+                        maxContentWidth: ResponsiveBreakpoints.wide,
+                      ),
+                      itemCount: classes.length,
+                      itemBuilder: (context, i) {
+                        final item = classes[i];
+                        return ClassCard(
+                          data: item,
+                          onTap: () => openPage(
+                            context,
+                            breadcrumb: [widget.breadcrumbRoot, item.title],
+                            page: PengajarDetailScreen(
+                              classData: item,
+                              controller: widget.controller,
+                              breadcrumbRoot: widget.breadcrumbRoot,
+                            ),
+                            routeName: 'pengajar-detail',
+                          ),
+                          menuItems: [
+                            (
+                              label: 'Edit kelas',
+                              onSelected: () => editKelasWithDialog(
+                                context,
+                                item,
+                                widget.controller,
+                              ),
+                            ),
+                            (
+                              label: 'Salin link undangan kelas',
+                              onSelected: () => _copyText(
+                                context,
+                                item.inviteLink,
+                                'Link undangan kelas disalin',
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
-                ],
-              );
-            },
-          );
-        },
-      ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -285,12 +320,14 @@ class PengajarDetailScreen extends StatefulWidget {
   final ClassItem classData;
   final PengajarController? controller;
   final String breadcrumbRoot;
+  final int initialTab;
 
   const PengajarDetailScreen({
     super.key,
     required this.classData,
     this.controller,
     this.breadcrumbRoot = 'Pengajar',
+    this.initialTab = 0,
   });
 
   @override
@@ -536,6 +573,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
+      initialIndex: widget.initialTab.clamp(0, 2),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final h = responsiveHorizontalInset(

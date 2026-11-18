@@ -9,21 +9,180 @@ import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/kelas/kelas_controller.dart';
+import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
+import 'package:path_mobile/ui/pengajar/pengajar_screen.dart';
 import 'package:path_mobile/utils/lampiran_helper.dart';
 
-class KelasScreen extends StatelessWidget {
+/// Role-aware Classes screen:
+/// - Universal `guru` defaults to the `Mengajar` tab with secondary `Diikuti` tab.
+/// - Universal `murid` shows enrolled classes directly, and adaptively reveals
+///   a `Mendampingi` tab when promoted as a class assistant (`k.guru == true`).
+class KelasScreen extends StatefulWidget {
   final KelasController controller;
+  final PengajarController? pengajarController;
+  final bool isGuruRole;
 
-  const KelasScreen({super.key, required this.controller});
+  const KelasScreen({
+    super.key,
+    required this.controller,
+    this.pengajarController,
+    this.isGuruRole = false,
+  });
+
+  @override
+  State<KelasScreen> createState() => _KelasScreenState();
+}
+
+class _KelasScreenState extends State<KelasScreen> {
+  int _selectedTab = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final pengajarCtrl = widget.pengajarController;
+    if (pengajarCtrl != null) {
+      Future<void>.microtask(() {
+        if (mounted) {
+          pengajarCtrl.getListKelas();
+        }
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant KelasScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isGuruRole != widget.isGuruRole) {
+      setState(() => _selectedTab = 0);
+      Future<void>.microtask(() {
+        if (!mounted) return;
+        widget.controller.getListKelas();
+        widget.pengajarController?.getListKelas();
+      });
+    }
+  }
+
+  Widget _buildModeChip({
+    required String label,
+    required int tabIndex,
+    required Key key,
+  }) {
+    final active = _selectedTab == tabIndex;
+    return ChoiceChip(
+      key: key,
+      label: Text(label),
+      selected: active,
+      onSelected: (_) {
+        if (_selectedTab == tabIndex) return;
+        setState(() => _selectedTab = tabIndex);
+        if (widget.isGuruRole) {
+          if (tabIndex == 0) {
+            widget.pengajarController?.getListKelas();
+          } else {
+            widget.controller.getListKelas();
+          }
+        } else {
+          if (tabIndex == 0) {
+            widget.controller.getListKelas();
+          } else {
+            widget.pengajarController?.getListKelas();
+          }
+        }
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final pengajarCtrl = widget.pengajarController;
+    if (pengajarCtrl == null) {
+      return PageFrame(
+        breadcrumb: const ['Kelas'],
+        child: RegisteredClassesSection(
+          controller: widget.controller,
+          breadcrumbRoot: 'Kelas',
+          emptyMessage: 'Anda belum bergabung kelas manapun',
+        ),
+      );
+    }
+
     return PageFrame(
       breadcrumb: const ['Kelas'],
-      child: RegisteredClassesSection(
-        controller: controller,
-        breadcrumbRoot: 'Kelas',
-        emptyMessage: 'Anda belum bergabung kelas manapun',
+      child: ListenableBuilder(
+        listenable: pengajarCtrl,
+        builder: (context, _) {
+          final hasAssistantClasses = pengajarCtrl.listKelas.any((k) => k.guru);
+          final showTeaching =
+              (widget.isGuruRole && _selectedTab == 0) ||
+              (!widget.isGuruRole && hasAssistantClasses && _selectedTab == 1);
+          final showSwitcher = widget.isGuruRole || hasAssistantClasses;
+
+          return Column(
+            children: [
+              if (showSwitcher)
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final h = responsiveHorizontalInset(
+                      constraints.maxWidth,
+                      maxWidth: ResponsiveBreakpoints.wide,
+                    );
+                    return Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.fromLTRB(h, 12, h, 4),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: widget.isGuruRole
+                            ? [
+                                _buildModeChip(
+                                  key: const Key('kelas_tab_mengajar'),
+                                  label: 'Mengajar',
+                                  tabIndex: 0,
+                                ),
+                                _buildModeChip(
+                                  key: const Key('kelas_tab_diikuti'),
+                                  label: 'Diikuti',
+                                  tabIndex: 1,
+                                ),
+                              ]
+                            : [
+                                _buildModeChip(
+                                  key: const Key('kelas_tab_diikuti'),
+                                  label: 'Diikuti',
+                                  tabIndex: 0,
+                                ),
+                                _buildModeChip(
+                                  key: const Key('kelas_tab_mendampingi'),
+                                  label: 'Mendampingi',
+                                  tabIndex: 1,
+                                ),
+                              ],
+                      ),
+                    );
+                  },
+                ),
+              Expanded(
+                child: showTeaching
+                    ? TeachingClassesSection(
+                        controller: pengajarCtrl,
+                        breadcrumbRoot: 'Kelas',
+                        headerTitle: widget.isGuruRole
+                            ? 'Kelas Mengajar'
+                            : 'Kelas Didampingi',
+                        fetchOnInit: false,
+                        emptyMessage: widget.isGuruRole
+                            ? 'Anda belum ditugaskan mengampu kelas'
+                            : 'Belum ada kelas yang Anda dampingi',
+                      )
+                    : RegisteredClassesSection(
+                        controller: widget.controller,
+                        breadcrumbRoot: 'Kelas',
+                        emptyMessage: 'Anda belum bergabung kelas manapun',
+                      ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -351,12 +510,14 @@ class ClassDetailScreen extends StatefulWidget {
   final ClassItem classData;
   final List<String> breadcrumb;
   final KelasController? controller;
+  final int initialTab;
 
   const ClassDetailScreen({
     super.key,
     required this.classData,
     required this.breadcrumb,
     this.controller,
+    this.initialTab = 0,
   });
 
   @override
@@ -417,6 +578,7 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3,
+      initialIndex: widget.initialTab.clamp(0, 2),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final h = responsiveHorizontalInset(

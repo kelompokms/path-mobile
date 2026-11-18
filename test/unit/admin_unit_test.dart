@@ -64,22 +64,31 @@ void main() {
 
       client.setToken(guruJwt);
       expect(client.isAdmin, isFalse);
+      expect(client.isGuru, isTrue);
       expect(client.role, 'guru');
 
       client.setToken(userJwt);
       expect(client.isAdmin, isFalse);
+      expect(client.isGuru, isFalse);
       expect(client.role, 'murid');
+
+      client.setRole('guru');
+      expect(client.isGuru, isTrue);
+      expect(client.role, 'guru');
+      expect(client.isAdmin, isFalse);
 
       var notified = 0;
       client.addListener(() => notified++);
       client.setAdmin(true);
       expect(client.isAdmin, isTrue);
+      expect(client.isGuru, isFalse);
       expect(client.role, 'admin');
       expect(notified, 1);
 
       client.setToken(null);
       expect(client.isAuthenticated, isFalse);
       expect(client.isAdmin, isFalse);
+      expect(client.isGuru, isFalse);
       expect(client.role, isNull);
     });
   });

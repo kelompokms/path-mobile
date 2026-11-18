@@ -11,20 +11,29 @@ class LayoutScreen extends StatelessWidget {
     super.key,
     required this.child,
     this.isAdmin = false,
+    this.userRole,
     this.onOpenProfile,
     this.onLogout,
   });
 
   final Widget child;
   final bool isAdmin;
+  final String? userRole;
   final VoidCallback? onOpenProfile;
   final Future<void> Function()? onLogout;
 
   static const List<({String route, String label, IconData icon})>
-  _userDestinations = [
+  _muridDestinations = [
     (route: '/beranda', label: 'Beranda', icon: Icons.home),
-    (route: '/pengajar', label: 'Pengajar', icon: Icons.engineering),
     (route: '/kelas', label: 'Kelas', icon: Icons.book),
+    (route: '/kalender', label: 'Kalender', icon: Icons.calendar_month),
+    (route: '/profil', label: 'Profil', icon: Icons.person),
+  ];
+
+  static const List<({String route, String label, IconData icon})>
+  _guruDestinations = [
+    (route: '/beranda', label: 'Beranda', icon: Icons.home),
+    (route: '/kelas', label: 'Kelas', icon: Icons.school),
     (route: '/kalender', label: 'Kalender', icon: Icons.calendar_month),
     (route: '/profil', label: 'Profil', icon: Icons.person),
   ];
@@ -37,15 +46,25 @@ class LayoutScreen extends StatelessWidget {
     (route: '/kalender', label: 'Kalender', icon: Icons.calendar_month),
   ];
 
-  List<({String route, String label, IconData icon})> get _destinations =>
-      isAdmin ? _adminDestinations : _userDestinations;
+  List<({String route, String label, IconData icon})> get _destinations {
+    if (isAdmin) return _adminDestinations;
+    if (userRole?.toLowerCase().trim() == 'guru') return _guruDestinations;
+    return _muridDestinations;
+  }
 
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).uri.path;
     final int index = _destinations.indexWhere(
       (dest) => location.startsWith(dest.route),
     );
-    return index < 0 ? 0 : index;
+    if (index >= 0) return index;
+    if (!isAdmin && location.startsWith('/pengajar')) {
+      final kelasIndex = _destinations.indexWhere(
+        (dest) => dest.route == '/kelas',
+      );
+      if (kelasIndex >= 0) return kelasIndex;
+    }
+    return 0;
   }
 
   @override

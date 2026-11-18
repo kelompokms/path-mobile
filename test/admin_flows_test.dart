@@ -451,7 +451,11 @@ void main() {
       final userBottomNav = tester.widget<BottomNavigationBar>(
         find.byType(BottomNavigationBar),
       );
-      expect(userBottomNav.items, hasLength(5));
+      expect(userBottomNav.items, hasLength(4));
+      expect(
+        userBottomNav.items.map((item) => item.label).toList(),
+        ['Beranda', 'Kelas', 'Kalender', 'Profil'],
+      );
     });
 
     testWidgets('admin header logout prompts confirmation and clears auth state', (

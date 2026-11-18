@@ -15,6 +15,7 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
   final TokenStorage? _tokenStorage;
   String? _token;
   bool? _isAdminOverride;
+  String? _roleOverride;
   Future<void> _storageQueue = Future<void>.value();
   bool _disposed = false;
 
@@ -24,10 +25,12 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
     String? baseUrl,
     this._tokenStorage,
     bool? isAdmin,
+    String? role,
   }) : _inner = client ?? http.Client(),
        baseUrl = baseUrl ?? defaultBaseUrl,
        _token = _normalizeToken(token),
-       _isAdminOverride = isAdmin;
+       _isAdminOverride = isAdmin,
+       _roleOverride = role?.trim().toLowerCase();
 
   static String? _normalizeToken(String? token) {
     if (token == null || token.trim().isEmpty) {
@@ -43,8 +46,19 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
   String? get role {
     if (!isAuthenticated) return null;
     if (_isAdminOverride == true) return 'admin';
+    if (_roleOverride != null && _roleOverride!.isNotEmpty) {
+      if (_isAdminOverride == false && _roleOverride == 'admin') {
+        return 'murid';
+      }
+      return _roleOverride;
+    }
     final jwtRole = _token != null ? getJwtRole(_token!) : null;
-    if (jwtRole != null) return jwtRole;
+    if (jwtRole != null) {
+      if (_isAdminOverride == false && jwtRole == 'admin') {
+        return 'murid';
+      }
+      return jwtRole;
+    }
     return isAdmin ? 'admin' : 'murid';
   }
 
@@ -52,10 +66,27 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
       isAuthenticated &&
       (_isAdminOverride ?? (_token != null && isJwtAdmin(_token!)));
 
+  bool get isGuru => isAuthenticated && role == 'guru';
+
   void setAdmin(bool? value) {
     final prev = isAdmin;
+    final prevRole = role;
     _isAdminOverride = value;
-    if (prev != isAdmin && !_disposed) {
+    if ((prev != isAdmin || prevRole != role) && !_disposed) {
+      notifyListeners();
+    }
+  }
+
+  void setRole(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    final next = (normalized == null || normalized.isEmpty) ? null : normalized;
+    final prevRole = role;
+    final prevAdmin = isAdmin;
+    _roleOverride = next;
+    if (next != null) {
+      _isAdminOverride = next == 'admin';
+    }
+    if ((prevRole != role || prevAdmin != isAdmin) && !_disposed) {
       notifyListeners();
     }
   }
@@ -89,6 +120,7 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
     if (_token == normalized) return;
     _token = normalized;
     _isAdminOverride = null;
+    _roleOverride = null;
 
     final storage = _tokenStorage;
     if (storage != null) {
