@@ -30,10 +30,16 @@ void main() {
         'email': 'budi@example.com',
         'phone': '081234',
         'profile_picture': '/uploads/pfp/budi.jpg',
+        'admin': false,
       });
 
-      final fromNama = ProfilModel.fromJson({'id': 4, 'nama': 'Siti'});
+      final fromNama = ProfilModel.fromJson({
+        'id': 4,
+        'nama': 'Siti',
+        'admin': true,
+      });
       expect(fromNama.username, 'Siti');
+      expect(fromNama.admin, isTrue);
       expect(fromNama.copyWith(email: 'siti@example.com').email, 'siti@example.com');
 
       expect(ProfilModel.fromJson({}).username, 'Pengguna PATH');

@@ -56,12 +56,21 @@ class KalenderRepository {
     final (kalenderList, kalErr) = await getKalenderAkademik();
     if (kalenderList != null) {
       for (final item in kalenderList) {
+        final sameDay =
+            item.tanggalMulai.year == item.tanggalSelesai.year &&
+            item.tanggalMulai.month == item.tanggalSelesai.month &&
+            item.tanggalMulai.day == item.tanggalSelesai.day;
+        final timeLabel = sameDay
+            ? 'Seharian'
+            : '${item.tanggalMulai.day}/${item.tanggalMulai.month} - ${item.tanggalSelesai.day}/${item.tanggalSelesai.month}';
         agendas.add(
           AgendaItemModel(
             date: item.tanggalMulai,
+            endDate: item.tanggalSelesai,
             heading: 'Kalender Akademik',
             title: item.namaKegiatan,
-            time: 'Seharian',
+            description: item.keterangan,
+            time: timeLabel,
           ),
         );
       }
@@ -147,6 +156,35 @@ class KalenderRepository {
       return 'Request timed out. Please try again.';
     } catch (e) {
       return 'Network error: $e';
+    }
+  }
+
+  /// Creates a school-wide calendar event visible to all users (admin only).
+  Future<(KalenderAkademikModel?, String?)> createAgenda(
+    CreateAgendaPayload payload,
+  ) async {
+    try {
+      final response = await _client
+          .post(
+            _client.uri('/admin/kalender/agenda'),
+            headers: _client.JSON,
+            body: jsonEncode(payload.toJson()),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal menambahkan agenda'),
+        );
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      return (KalenderAkademikModel.fromJson(decoded), null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
     }
   }
 }

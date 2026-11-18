@@ -65,9 +65,13 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 constraints.maxWidth,
                 maxWidth: 720,
               );
+              final canPop =
+                  (GoRouter.maybeOf(context)?.canPop() ?? false) ||
+                  Navigator.of(context).canPop();
               return Column(
                 children: [
                   _ProfilHeader(
+                    showBack: canPop,
                     onLogout: _handleLogout,
                     horizontalPadding: h,
                   ),

@@ -315,14 +315,16 @@ class EmptyClassView extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: 220,
-              child: FilledButton(
-                onPressed: onJoinClass,
-                child: Text(joinLabel),
+            if (onJoinClass != null) ...[
+              const SizedBox(height: 24),
+              SizedBox(
+                width: 220,
+                child: FilledButton(
+                  onPressed: onJoinClass,
+                  child: Text(joinLabel),
+                ),
               ),
-            ),
+            ],
             if (onAddClass != null) ...[
               const SizedBox(height: 12),
               SizedBox(

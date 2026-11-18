@@ -2,14 +2,94 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 
+/// Supplies admin profile & logout actions to [PageFrame] headers when rendered
+/// inside the 4-tab admin shell (which has no Profil bottom navigation tab).
+class AdminActionScope extends InheritedWidget {
+  final VoidCallback onOpenProfile;
+  final Future<void> Function() onLogout;
+
+  const AdminActionScope({
+    super.key,
+    required this.onOpenProfile,
+    required this.onLogout,
+    required super.child,
+  });
+
+  static AdminActionScope? maybeOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<AdminActionScope>();
+  }
+
+  @override
+  bool updateShouldNotify(AdminActionScope oldWidget) =>
+      onOpenProfile != oldWidget.onOpenProfile ||
+      onLogout != oldWidget.onLogout;
+}
+
 class PageFrame extends StatelessWidget {
   final List<String> breadcrumb;
   final Widget child;
+  final List<Widget>? actions;
 
-  const PageFrame({super.key, required this.breadcrumb, required this.child});
+  const PageFrame({
+    super.key,
+    required this.breadcrumb,
+    required this.child,
+    this.actions,
+  });
+
+  Future<void> _confirmLogout(
+    BuildContext context,
+    AdminActionScope scope,
+  ) async {
+    final yes = await showConfirmDialog(
+      context,
+      title: 'Keluar',
+      message: 'Apakah Anda yakin ingin keluar dari akun?',
+    );
+    if (!yes || !context.mounted) return;
+    await scope.onLogout();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final adminScope = AdminActionScope.maybeOf(context);
+    final trailingActions =
+        actions ??
+        (adminScope != null
+            ? [
+                IconButton(
+                  onPressed: adminScope.onOpenProfile,
+                  tooltip: 'Profil',
+                  icon: const Icon(
+                    Icons.person_outline,
+                    size: 20,
+                    color: AppColors.text,
+                  ),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => _confirmLogout(context, adminScope),
+                  tooltip: 'Keluar',
+                  icon: const Icon(
+                    Icons.logout,
+                    size: 20,
+                    color: AppColors.error,
+                  ),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 36,
+                    minHeight: 36,
+                  ),
+                ),
+              ]
+            : const <Widget>[]);
+
     return Material(
       color: AppColors.card,
       child: SafeArea(
@@ -17,35 +97,47 @@ class PageFrame extends StatelessWidget {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                trailingActions.isEmpty ? 14 : 8,
+                trailingActions.isEmpty ? 16 : 8,
+                8,
+              ),
               child: Row(
                 children: [
-                  const Text(
-                    'PATH',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text,
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Text(
+                          'PATH',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.text,
+                          ),
+                        ),
+                        for (final item in breadcrumb) ...[
+                          const Icon(
+                            Icons.chevron_right,
+                            size: 20,
+                            color: AppColors.secondaryText,
+                          ),
+                          Flexible(
+                            child: Text(
+                              item,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.text,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                  for (final item in breadcrumb) ...[
-                    const Icon(
-                      Icons.chevron_right,
-                      size: 20,
-                      color: AppColors.secondaryText,
-                    ),
-                    Flexible(
-                      child: Text(
-                        item,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.text,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+                  if (trailingActions.isNotEmpty) ...trailingActions,
                 ],
               ),
             ),

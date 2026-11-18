@@ -34,7 +34,11 @@ class ProfilRepository {
       }
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      return (ProfilModel.fromJson(data), null);
+      final profil = ProfilModel.fromJson(data);
+      if (data['admin'] is bool || data['role'] is String) {
+        _client.setAdmin(profil.admin);
+      }
+      return (profil, null);
     } on TimeoutException {
       return (null, 'Request timed out. Please try again.');
     } catch (e) {

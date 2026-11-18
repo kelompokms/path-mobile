@@ -49,4 +49,40 @@ class KalenderController extends ChangeNotifier {
     await loadAgendas();
     return null;
   }
+
+  static String formatApiDate(DateTime date) {
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  Future<String?> createAgenda({
+    required String namaEvent,
+    String keterangan = '',
+    required DateTime tanggalMulai,
+    DateTime? tanggalSelesai,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    final payload = CreateAgendaPayload(
+      namaKegiatan: namaEvent.trim(),
+      keterangan: keterangan.trim(),
+      tanggalMulai: formatApiDate(tanggalMulai),
+      tanggalSelesai: formatApiDate(tanggalSelesai ?? tanggalMulai),
+    );
+
+    final (_, err) = await _repo.createAgenda(payload);
+    if (err != null) {
+      _isLoading = false;
+      _errorMessage = err;
+      notifyListeners();
+      return err;
+    }
+
+    await loadAgendas();
+    return null;
+  }
 }

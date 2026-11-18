@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +15,29 @@ void main() {
   tearDown(LampiranHelper.resetTestOverrides);
 
   group('HttpClient HTTP & 401 handling', () {
+    test(
+      'defaultBaseUrl uses localhost in debug mode and production URL in release mode',
+      () {
+        const hasOverride = bool.hasEnvironment('API_BASE_URL');
+        if (hasOverride) {
+          expect(
+            HttpClient.defaultBaseUrl,
+            const String.fromEnvironment('API_BASE_URL'),
+          );
+        } else if (kDebugMode) {
+          expect(HttpClient.defaultBaseUrl, 'http://localhost:3000');
+        } else {
+          expect(HttpClient.defaultBaseUrl, 'https://api.pathclass.app');
+        }
+
+        final client = HttpClient(
+          client: MockClient((_) async => http.Response('{}', 200)),
+        );
+        addTearDown(client.dispose);
+        expect(client.baseUrl, HttpClient.defaultBaseUrl);
+      },
+    );
+
     test('builds uri against custom baseUrl and attaches Bearer token', () async {
       String? seenAuthHeader;
       Uri? seenUri;

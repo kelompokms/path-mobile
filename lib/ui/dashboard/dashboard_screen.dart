@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
@@ -53,8 +52,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               breadcrumbRoot: 'Beranda',
               emptyMessage:
                   'Anda belum memiliki kelas atau bergabung ke kelas manapun',
-              emptyHint: 'Gabung Kelas atau Tambah Kelas',
-              onAddClass: () => context.go('/pengajar'),
+              emptyHint: 'Gabung Kelas dengan Kode',
               listTopBar: _buildHeader(),
             ),
     );

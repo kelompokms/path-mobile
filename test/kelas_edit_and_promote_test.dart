@@ -18,7 +18,7 @@ import 'package:path_mobile/utils/http_client.dart';
 void main() {
   group('Edit nama & deskripsi kelas', () {
     testWidgets(
-      'creates class with description and edits name & description via PengajarScreen menu and PengajarDetailScreen',
+      'hides Buat Kelas for non-admin and edits name & description via PengajarScreen menu and PengajarDetailScreen',
       (tester) async {
         final isoNow = DateTime(2026, 11, 16, 10, 0).toIso8601String();
         final classes = [
@@ -34,7 +34,6 @@ void main() {
             'dibuat': isoNow,
           },
         ];
-        final createdPayloads = <Map<String, dynamic>>[];
         final updatedPayloads = <Map<String, dynamic>>[];
 
         final client = HttpClient(
@@ -43,25 +42,6 @@ void main() {
             final path = request.url.path;
             if (path == '/kelas' && request.method == 'GET') {
               return http.Response(jsonEncode(classes), 200);
-            }
-            if (path == '/kelas' && request.method == 'POST') {
-              final body = jsonDecode(request.body) as Map<String, dynamic>;
-              createdPayloads.add(body);
-              classes.insert(0, {
-                'id': 2,
-                'nama': body['nama'],
-                'deskripsi': body['deskripsi'] ?? '',
-                'tingkat': body['tingkat'],
-                'tahun_ajaran': body['tahun_ajaran'],
-                'kode_kelas': 'FIS101',
-                'pengampu': 1,
-                'guru': true,
-                'dibuat': isoNow,
-              });
-              return http.Response(
-                jsonEncode({'message': 'Kelas berhasil dibuat'}),
-                201,
-              );
             }
             if (path == '/kelas/MAT202' && request.method == 'PATCH') {
               final body = jsonDecode(request.body) as Map<String, dynamic>;
@@ -95,48 +75,9 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        // 1. Create class with description
-        await tester.tap(find.text('Buat Kelas'));
-        await tester.pumpAndSettle();
-
-        await tester.enterText(
-          find.widgetWithText(TextField, 'Nama Kelas'),
-          'Fisika Dasar',
-        );
-        await tester.enterText(
-          find.widgetWithText(TextField, 'Kelas'),
-          'Kelas X',
-        );
-        final tahunAjaranField = find.widgetWithText(TextField, 'Tahun Ajaran');
-        expect(tahunAjaranField, findsOneWidget);
-        expect(
-          tester.widget<TextField>(tahunAjaranField).controller?.text,
-          PengajarController.defaultTahunAjaran(),
-        );
-
-        await tester.enterText(tahunAjaranField, '   ');
-        await tester.pumpAndSettle();
-        expect(find.text('*Wajib diisi'), findsOneWidget);
-        final disabledBuat = tester.widget<ElevatedButton>(
-          find.widgetWithText(ElevatedButton, 'Buat'),
-        );
-        expect(disabledBuat.onPressed, isNull);
-
-        await tester.enterText(tahunAjaranField, '2025/2026');
-        await tester.enterText(
-          find.widgetWithText(TextField, 'Deskripsi Kelas (opsional)'),
-          'Belajar mekanika klasik',
-        );
-        await tester.pumpAndSettle();
-
-        await tester.tap(find.text('Buat'));
-        await tester.pumpAndSettle();
-
-        expect(createdPayloads, hasLength(1));
-        expect(createdPayloads.first['nama'], 'Fisika Dasar');
-        expect(createdPayloads.first['deskripsi'], 'Belajar mekanika klasik');
-        expect(createdPayloads.first['tahun_ajaran'], '2025/2026');
-        expect(find.text('Fisika Dasar'), findsOneWidget);
+        // 1. Non-admin teachers cannot create classes directly
+        expect(find.text('Buat Kelas'), findsNothing);
+        expect(find.text('Matematika XI'), findsOneWidget);
 
         // 2. Edit via ClassCard popup menu on MAT202
         final matCard = find.ancestor(

@@ -3,21 +3,42 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
+import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 
 class LayoutScreen extends StatelessWidget {
-  const new({super.key, required this.child});
+  const LayoutScreen({
+    super.key,
+    required this.child,
+    this.isAdmin = false,
+    this.onOpenProfile,
+    this.onLogout,
+  });
 
   final Widget child;
+  final bool isAdmin;
+  final VoidCallback? onOpenProfile;
+  final Future<void> Function()? onLogout;
 
   static const List<({String route, String label, IconData icon})>
-  _destinations = [
+  _userDestinations = [
     (route: '/beranda', label: 'Beranda', icon: Icons.home),
     (route: '/pengajar', label: 'Pengajar', icon: Icons.engineering),
     (route: '/kelas', label: 'Kelas', icon: Icons.book),
     (route: '/kalender', label: 'Kalender', icon: Icons.calendar_month),
     (route: '/profil', label: 'Profil', icon: Icons.person),
   ];
+
+  static const List<({String route, String label, IconData icon})>
+  _adminDestinations = [
+    (route: '/beranda', label: 'Beranda', icon: Icons.home),
+    (route: '/admin/pengguna', label: 'Guru & Murid', icon: Icons.groups),
+    (route: '/kelas', label: 'Kelas', icon: Icons.book),
+    (route: '/kalender', label: 'Kalender', icon: Icons.calendar_month),
+  ];
+
+  List<({String route, String label, IconData icon})> get _destinations =>
+      isAdmin ? _adminDestinations : _userDestinations;
 
   int _calculateSelectedIndex(BuildContext context) {
     final String location = GoRouterState.of(context).uri.path;
@@ -30,6 +51,15 @@ class LayoutScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selectedIndex = _calculateSelectedIndex(context);
+    final scopedChild = isAdmin
+        ? AdminActionScope(
+            onOpenProfile:
+                onOpenProfile ?? () => GoRouter.maybeOf(context)?.push('/profil'),
+            onLogout:
+                onLogout ?? () async => GoRouter.maybeOf(context)?.go('/login'),
+            child: child,
+          )
+        : child;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -37,7 +67,7 @@ class LayoutScreen extends StatelessWidget {
         if (width < ResponsiveBreakpoints.compact) {
           final isNarrow = width < ResponsiveBreakpoints.narrow;
           return Scaffold(
-            body: child,
+            body: scopedChild,
             bottomNavigationBar: MediaQuery.withClampedTextScaling(
               maxScaleFactor: 1.25,
               child: BottomNavigationBar(
@@ -117,7 +147,7 @@ class LayoutScreen extends StatelessWidget {
                 thickness: 1,
                 color: Colors.black12,
               ),
-              Expanded(child: child),
+              Expanded(child: scopedChild),
             ],
           ),
         );

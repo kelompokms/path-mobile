@@ -5,13 +5,16 @@ import 'package:path_mobile/utils/token_storage.dart';
 class HttpClient extends http.BaseClient with ChangeNotifier {
   static const String defaultBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://api.pathclass.app',
+    defaultValue: kDebugMode
+        ? 'http://localhost:3000'
+        : 'https://api.pathclass.app',
   );
 
   final String baseUrl;
   final http.Client _inner;
   final TokenStorage? _tokenStorage;
   String? _token;
+  bool? _isAdminOverride;
   Future<void> _storageQueue = Future<void>.value();
   bool _disposed = false;
 
@@ -20,9 +23,11 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
     String? token,
     String? baseUrl,
     this._tokenStorage,
+    bool? isAdmin,
   }) : _inner = client ?? http.Client(),
        baseUrl = baseUrl ?? defaultBaseUrl,
-       _token = _normalizeToken(token);
+       _token = _normalizeToken(token),
+       _isAdminOverride = isAdmin;
 
   static String? _normalizeToken(String? token) {
     if (token == null || token.trim().isEmpty) {
@@ -34,6 +39,26 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
   String? get token => _token;
 
   bool get isAuthenticated => _token != null;
+
+  String? get role {
+    if (!isAuthenticated) return null;
+    if (_isAdminOverride == true) return 'admin';
+    final jwtRole = _token != null ? getJwtRole(_token!) : null;
+    if (jwtRole != null) return jwtRole;
+    return isAdmin ? 'admin' : 'murid';
+  }
+
+  bool get isAdmin =>
+      isAuthenticated &&
+      (_isAdminOverride ?? (_token != null && isJwtAdmin(_token!)));
+
+  void setAdmin(bool? value) {
+    final prev = isAdmin;
+    _isAdminOverride = value;
+    if (prev != isAdmin && !_disposed) {
+      notifyListeners();
+    }
+  }
 
   @visibleForTesting
   Future<void> get pendingPersistence => _storageQueue;
@@ -63,6 +88,7 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
     final normalized = _normalizeToken(token);
     if (_token == normalized) return;
     _token = normalized;
+    _isAdminOverride = null;
 
     final storage = _tokenStorage;
     if (storage != null) {

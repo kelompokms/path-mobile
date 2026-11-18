@@ -4,6 +4,8 @@ class ProfilModel {
   final String email;
   final String phone;
   final String profilePicture;
+  final String role;
+  final bool admin;
 
   const ProfilModel({
     required this.id,
@@ -11,11 +13,18 @@ class ProfilModel {
     required this.email,
     required this.phone,
     required this.profilePicture,
+    this.role = '',
+    this.admin = false,
   });
 
   String get nama => username;
 
   factory ProfilModel.fromJson(Map<String, dynamic> json) {
+    final rawRole = (json['role'] as String?)?.trim().toLowerCase() ?? '';
+    final isAdmin = json['admin'] as bool? ?? (rawRole == 'admin');
+    final effectiveRole = rawRole.isNotEmpty
+        ? rawRole
+        : (isAdmin ? 'admin' : '');
     return ProfilModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
       username:
@@ -25,6 +34,8 @@ class ProfilModel {
       email: json['email'] as String? ?? '',
       phone: json['phone']?.toString() ?? '',
       profilePicture: json['profile_picture']?.toString() ?? '',
+      role: effectiveRole,
+      admin: isAdmin,
     );
   }
 
@@ -35,6 +46,8 @@ class ProfilModel {
     'email': email,
     'phone': phone,
     'profile_picture': profilePicture,
+    if (role.isNotEmpty) 'role': role,
+    'admin': admin,
   };
 
   ProfilModel copyWith({
@@ -43,6 +56,8 @@ class ProfilModel {
     String? email,
     String? phone,
     String? profilePicture,
+    String? role,
+    bool? admin,
   }) {
     return ProfilModel(
       id: id ?? this.id,
@@ -50,6 +65,8 @@ class ProfilModel {
       email: email ?? this.email,
       phone: phone ?? this.phone,
       profilePicture: profilePicture ?? this.profilePicture,
+      role: role ?? this.role,
+      admin: admin ?? this.admin,
     );
   }
 }

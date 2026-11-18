@@ -72,8 +72,6 @@ class PengajarScreen extends StatefulWidget {
 }
 
 class _PengajarScreenState extends State<PengajarScreen> {
-  bool _showForm = false;
-
   @override
   void initState() {
     super.initState();
@@ -88,31 +86,6 @@ class _PengajarScreenState extends State<PengajarScreen> {
     ];
   }
 
-  Future<void> _createClass(
-    String name,
-    String description,
-    String grade,
-    String tahunAjaran,
-  ) async {
-    final err = await widget.controller.createKelas(
-      nama: name,
-      deskripsi: description,
-      gradeInput: grade,
-      tahunAjaran: tahunAjaran,
-    );
-    if (!mounted) return;
-    if (err != null) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(err)));
-      return;
-    }
-    setState(() => _showForm = false);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(const SnackBar(content: Text('Kelas berhasil dibuat')));
-  }
-
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -123,17 +96,6 @@ class _PengajarScreenState extends State<PengajarScreen> {
         listenable: widget.controller,
         builder: (context, _) {
           final classes = _classes;
-          if (_showForm) {
-            return Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 500),
-                child: _CreateClassForm(
-                  onCreate: _createClass,
-                  onCancel: () => setState(() => _showForm = false),
-                ),
-              ),
-            );
-          }
           if (widget.controller.isLoading && classes.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -141,10 +103,9 @@ class _PengajarScreenState extends State<PengajarScreen> {
             return Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 520),
-                child: EmptyClassView(
-                  message: 'Anda belum membuat kelas',
-                  joinLabel: 'Buat Kelas',
-                  onJoinClass: () => setState(() => _showForm = true),
+                child: const EmptyClassView(
+                  message: 'Anda belum ditugaskan mengampu kelas',
+                  hint: 'Hanya admin yang dapat membuat atau menetapkan pengampu kelas',
                 ),
               ),
             );
@@ -163,26 +124,12 @@ class _PengajarScreenState extends State<PengajarScreen> {
                     width: double.infinity,
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(h, 12, h, 12),
-                      child: Wrap(
-                        alignment: WrapAlignment.spaceBetween,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 12,
-                        runSpacing: 8,
-                        children: [
-                          Text(
-                            'Kelas',
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.text,
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            style: AppTheme.softCompactButton,
-                            onPressed: () => setState(() => _showForm = true),
-                            icon: const Icon(Icons.add_box_outlined, size: 18),
-                            label: const Text('Buat Kelas'),
-                          ),
-                        ],
+                      child: Text(
+                        'Kelas',
+                        style: textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.text,
+                        ),
                       ),
                     ),
                   ),
@@ -244,197 +191,6 @@ class _PengajarScreenState extends State<PengajarScreen> {
           );
         },
       ),
-    );
-  }
-}
-
-class _CreateClassForm extends StatefulWidget {
-  final void Function(
-    String name,
-    String description,
-    String grade,
-    String tahunAjaran,
-  )
-  onCreate;
-  final VoidCallback onCancel;
-
-  const _CreateClassForm({required this.onCreate, required this.onCancel});
-
-  @override
-  State<_CreateClassForm> createState() => _CreateClassFormState();
-}
-
-class _CreateClassFormState extends State<_CreateClassForm> {
-  final _nameController = TextEditingController();
-  final _descController = TextEditingController();
-  final _gradeController = TextEditingController();
-  late final TextEditingController _tahunAjaranController;
-
-  bool get _hasName => _nameController.text.trim().isNotEmpty;
-  bool get _hasTahunAjaran => _tahunAjaranController.text.trim().isNotEmpty;
-  bool get _canCreate => _hasName && _hasTahunAjaran;
-
-  @override
-  void initState() {
-    super.initState();
-    _tahunAjaranController = TextEditingController(
-      text: PengajarController.defaultTahunAjaran(),
-    );
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _descController.dispose();
-    _gradeController.dispose();
-    _tahunAjaranController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final hPad = responsiveHorizontalPadding(constraints.maxWidth);
-        return Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Buat Kelas',
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Card(
-                  elevation: 3,
-                  color: AppColors.card,
-                  surfaceTintColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.co_present,
-                              size: 28,
-                              color: AppColors.text,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: TextField(
-                                controller: _nameController,
-                                onChanged: (_) => setState(() {}),
-                                decoration: const InputDecoration(
-                                  hintText: 'Nama Kelas',
-                                  isDense: true,
-                                  border: UnderlineInputBorder(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (!_hasName)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 4),
-                            child: Text(
-                              '*Wajib diisi',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _gradeController,
-                          decoration: const InputDecoration(
-                            hintText: 'Kelas',
-                            isDense: true,
-                            border: UnderlineInputBorder(),
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _tahunAjaranController,
-                          onChanged: (_) => setState(() {}),
-                          decoration: const InputDecoration(
-                            labelText: 'Tahun Ajaran',
-                            hintText: 'Contoh: 2026/2027',
-                            isDense: true,
-                            border: UnderlineInputBorder(),
-                          ),
-                        ),
-                        if (!_hasTahunAjaran)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 4),
-                            child: Text(
-                              '*Wajib diisi',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.secondaryText,
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: _descController,
-                          minLines: 1,
-                          maxLines: 3,
-                          keyboardType: TextInputType.multiline,
-                          decoration: const InputDecoration(
-                            hintText: 'Deskripsi Kelas (opsional)',
-                            isDense: true,
-                            border: UnderlineInputBorder(),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Wrap(
-                  alignment: WrapAlignment.center,
-                  spacing: 16,
-                  runSpacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: widget.onCancel,
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.text,
-                      ),
-                      child: const Text('Batal'),
-                    ),
-                    ElevatedButton(
-                      style: AppTheme.softCompactButton,
-                      onPressed: _canCreate
-                          ? () => widget.onCreate(
-                              _nameController.text.trim(),
-                              _descController.text.trim(),
-                              _gradeController.text.trim(),
-                              _tahunAjaranController.text.trim(),
-                            )
-                          : null,
-                      child: const Text('Buat'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }

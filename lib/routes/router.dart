@@ -5,6 +5,11 @@ import 'package:go_router/go_router.dart';
 import 'package:path_mobile/utils/http_client.dart';
 import 'package:path_mobile/utils/token_storage.dart';
 import 'package:path_mobile/routes/slide_transition.dart';
+import 'package:path_mobile/data/admin/admin_repository.dart';
+import 'package:path_mobile/ui/admin/admin_controller.dart';
+import 'package:path_mobile/ui/admin/admin_dashboard_screen.dart';
+import 'package:path_mobile/ui/admin/admin_kelas_screen.dart';
+import 'package:path_mobile/ui/admin/admin_users_screen.dart';
 import 'package:path_mobile/ui/auth/auth_screen.dart';
 import 'package:path_mobile/ui/auth/oauth_callback_screen.dart';
 import 'package:path_mobile/ui/core/anggota_kelas_tab.dart';
@@ -55,6 +60,7 @@ GoRouter createRouter({
   final kelasRepo = KelasRepository(client);
   final kalenderRepo = KalenderRepository(client);
   final pengajarRepo = PengajarRepository(client);
+  final adminRepo = AdminRepository(client);
   final registerRepo = RegisterRepository(client);
 
   return GoRouter(
@@ -63,24 +69,47 @@ GoRouter createRouter({
     routes: [
       ShellRoute(
         redirect: (context, state) => client.isAuthenticated ? null : '/',
-        builder: (context, state, child) => LayoutScreen(child: child),
+        builder: (context, state, child) => LayoutScreen(
+          isAdmin: client.isAdmin,
+          onOpenProfile: () => GoRouter.of(context).push('/profil'),
+          onLogout: () async {
+            profilRepo.logout();
+            if (context.mounted) {
+              context.go('/login');
+            }
+          },
+          child: child,
+        ),
         routes: [
           GoRoute(
             path: '/beranda',
-            builder: (context, state) => DashboardScreen(
-              kelasController: KelasController(kelasRepo),
-              pengajarController: PengajarController(pengajarRepo),
-            ),
+            builder: (context, state) => client.isAdmin
+                ? const AdminDashboardScreen()
+                : DashboardScreen(
+                    kelasController: KelasController(kelasRepo),
+                    pengajarController: PengajarController(pengajarRepo),
+                  ),
+          ),
+          GoRoute(
+            path: '/admin/pengguna',
+            redirect: (context, state) => client.isAdmin ? null : '/beranda',
+            builder: (context, state) =>
+                AdminUsersScreen(controller: AdminController(adminRepo)),
           ),
           GoRoute(
             path: '/pengajar',
+            redirect: (context, state) => client.isAdmin ? '/beranda' : null,
             builder: (context, state) =>
                 PengajarScreen(controller: PengajarController(pengajarRepo)),
           ),
           GoRoute(
             path: '/kelas',
-            builder: (context, state) =>
-                KelasScreen(controller: KelasController(kelasRepo)),
+            builder: (context, state) => client.isAdmin
+                ? AdminKelasScreen(
+                    controller: AdminController(adminRepo),
+                    kelasRepository: kelasRepo,
+                  )
+                : KelasScreen(controller: KelasController(kelasRepo)),
             routes: [
               GoRoute(
                 path: ':kode_kelas/anggota',
@@ -96,8 +125,10 @@ GoRouter createRouter({
           ),
           GoRoute(
             path: '/kalender',
-            builder: (context, state) =>
-                KalenderScreen(controller: KalenderController(kalenderRepo)),
+            builder: (context, state) => KalenderScreen(
+              controller: KalenderController(kalenderRepo),
+              isAdmin: client.isAdmin,
+            ),
           ),
           GoRoute(
             path: '/profil',

@@ -50,7 +50,12 @@ class ProfilController extends ChangeNotifier {
         return err;
       }
       if (updated != null) {
-        _profil = updated;
+        _profil = updated.copyWith(
+          role: updated.role.isNotEmpty ? updated.role : (_profil?.role ?? ''),
+          admin: updated.role.isNotEmpty
+              ? updated.admin
+              : (_profil?.admin ?? false),
+        );
       }
     }
 
@@ -63,7 +68,12 @@ class ProfilController extends ChangeNotifier {
         return err;
       }
       if (updated != null) {
-        _profil = updated;
+        _profil = updated.copyWith(
+          role: updated.role.isNotEmpty ? updated.role : (_profil?.role ?? ''),
+          admin: updated.role.isNotEmpty
+              ? updated.admin
+              : (_profil?.admin ?? false),
+        );
       }
     }
 
@@ -85,7 +95,12 @@ class ProfilController extends ChangeNotifier {
       return err;
     }
     if (updated != null) {
-      _profil = updated;
+      _profil = updated.copyWith(
+        role: updated.role.isNotEmpty ? updated.role : (_profil?.role ?? ''),
+        admin: updated.role.isNotEmpty
+            ? updated.admin
+            : (_profil?.admin ?? false),
+      );
     }
     notifyListeners();
     return null;

@@ -666,8 +666,7 @@ void main() {
           child: Scaffold(body: PengajarScreen(controller: ctrl)),
         );
 
-        await _tapVisible(tester, find.text('Buat Kelas'));
-        await _tapVisible(tester, find.text('Batal'));
+        expect(find.text('Buat Kelas'), findsNothing);
 
         await _tapVisible(tester, find.byType(ClassCard).first);
         expect(find.text('MAT10A'), findsOneWidget);
