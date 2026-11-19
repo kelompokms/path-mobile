@@ -168,18 +168,42 @@ class AdminUserCard extends StatelessWidget {
             ),
             if (onDelete != null) ...[
               const SizedBox(width: 4),
-              IconButton(
-                key: Key('admin_delete_user_${user.id}'),
-                onPressed: onDelete,
-                icon: Icon(
-                  Icons.delete_outline,
-                  color: Colors.red.shade600,
-                  size: 20,
-                ),
-                tooltip: 'Hapus pengguna',
-                padding: const EdgeInsets.all(6),
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                visualDensity: VisualDensity.compact,
+              PopupMenuButton<String>(
+                key: Key('admin_user_menu_${user.id}'),
+                padding: EdgeInsets.zero,
+                iconSize: 20,
+                icon: const Icon(Icons.more_vert, color: AppColors.text),
+                tooltip: 'Opsi pengguna',
+                elevation: AppTheme.cardElevation,
+                shadowColor: AppTheme.shadowColor,
+                color: AppColors.background,
+                surfaceTintColor: Colors.transparent,
+                shape: AppTheme.cardShape(),
+                onSelected: (value) {
+                  if (value == 'delete') {
+                    onDelete!();
+                  }
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem<String>(
+                    value: 'delete',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.delete_outline,
+                          color: Colors.red.shade600,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Hapus Pengguna',
+                          style: TextStyle(color: Colors.red.shade600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ],

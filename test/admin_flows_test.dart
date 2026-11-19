@@ -870,9 +870,11 @@ void main() {
       expect(ctrl.muridList, hasLength(1));
 
       // Cancel deleting Aji Sasongko (id 5) keeps user intact
-      final deleteMuridBtn = find.byKey(const Key('admin_delete_user_5'));
-      await tester.ensureVisible(deleteMuridBtn);
-      await tester.tap(deleteMuridBtn);
+      final muridMenuBtn = find.byKey(const Key('admin_user_menu_5'));
+      await tester.ensureVisible(muridMenuBtn);
+      await tester.tap(muridMenuBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Hapus Pengguna'));
       await tester.pumpAndSettle();
       expect(find.text('Hapus Pengguna'), findsOneWidget);
       await tester.tap(find.widgetWithText(ElevatedButton, 'Tidak'));
@@ -881,7 +883,9 @@ void main() {
       expect(find.text('Aji Sasongko'), findsOneWidget);
 
       // Confirm deleting Aji Sasongko (id 5)
-      await tester.tap(deleteMuridBtn);
+      await tester.tap(muridMenuBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Hapus Pengguna'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ElevatedButton, 'Ya'));
       await tester.pumpAndSettle();
@@ -892,9 +896,11 @@ void main() {
       expect(find.text('Belum ada murid terdaftar'), findsOneWidget);
 
       // Confirm deleting Eko Kusnandar (id 2)
-      final deleteGuruBtn = find.byKey(const Key('admin_delete_user_2'));
-      await tester.ensureVisible(deleteGuruBtn);
-      await tester.tap(deleteGuruBtn);
+      final guruMenuBtn = find.byKey(const Key('admin_user_menu_2'));
+      await tester.ensureVisible(guruMenuBtn);
+      await tester.tap(guruMenuBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Hapus Pengguna'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ElevatedButton, 'Ya'));
       await tester.pumpAndSettle();
