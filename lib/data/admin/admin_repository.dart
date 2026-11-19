@@ -97,6 +97,37 @@ class AdminRepository {
     }
   }
 
+  Future<String?> createUser({
+    required String nama,
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            _client.uri('/admin/pengguna'),
+            headers: _client.JSON,
+            body: jsonEncode({
+              'nama': nama,
+              'email': email,
+              'password': password,
+              'role': role,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        return _extractMessage(response.body, 'Gagal menambahkan pengguna');
+      }
+      return null;
+    } on TimeoutException {
+      return 'Request timed out. Please try again.';
+    } catch (e) {
+      return 'Network error: $e';
+    }
+  }
+
   Future<String?> updateUserRole(int penggunaId, String role) async {
     try {
       final response = await _client

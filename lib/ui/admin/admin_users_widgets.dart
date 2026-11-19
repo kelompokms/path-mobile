@@ -71,8 +71,6 @@ class AdminUserCard extends StatelessWidget {
   final String roleLabel;
   final String emptyClassLabel;
   final String classPrefix;
-  final String actionLabel;
-  final VoidCallback onToggleRole;
 
   const AdminUserCard({
     super.key,
@@ -81,8 +79,6 @@ class AdminUserCard extends StatelessWidget {
     required this.roleLabel,
     required this.emptyClassLabel,
     required this.classPrefix,
-    required this.actionLabel,
-    required this.onToggleRole,
   });
 
   @override
@@ -117,65 +113,36 @@ class AdminUserCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
-                      Expanded(
-                        child: Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: [
-                            Text(
-                              user.nama.isNotEmpty ? user.nama : 'Tanpa Nama',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.text,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: accentColor,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                roleLabel,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      PopupMenuButton<int>(
-                        key: Key('user_role_menu_${user.id}'),
-                        padding: EdgeInsets.zero,
-                        iconSize: 20,
-                        icon: const Icon(
-                          Icons.more_vert,
+                      Text(
+                        user.nama.isNotEmpty ? user.nama : 'Tanpa Nama',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                           color: AppColors.text,
                         ),
-                        tooltip: 'Ubah role',
-                        elevation: AppTheme.cardElevation,
-                        shadowColor: AppTheme.shadowColor,
-                        color: AppColors.background,
-                        surfaceTintColor: Colors.transparent,
-                        shape: AppTheme.cardShape(),
-                        onSelected: (_) => onToggleRole(),
-                        itemBuilder: (_) => [
-                          PopupMenuItem<int>(
-                            value: 0,
-                            child: Text(actionLabel),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accentColor,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          roleLabel,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
                           ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
@@ -200,6 +167,189 @@ class AdminUserCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class CreateUserDialogResult {
+  final String nama;
+  final String email;
+  final String password;
+  final String role;
+
+  const CreateUserDialogResult({
+    required this.nama,
+    required this.email,
+    required this.password,
+    required this.role,
+  });
+}
+
+class AdminCreateUserDialog extends StatefulWidget {
+  const AdminCreateUserDialog({super.key});
+
+  @override
+  State<AdminCreateUserDialog> createState() => _AdminCreateUserDialogState();
+}
+
+class _AdminCreateUserDialogState extends State<AdminCreateUserDialog> {
+  final _namaCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  String _selectedRole = 'murid';
+  bool _obscurePassword = true;
+  String? _errorText;
+
+  @override
+  void dispose() {
+    _namaCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final nama = _namaCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text;
+
+    if (nama.isEmpty) {
+      setState(() => _errorText = 'Nama lengkap wajib diisi');
+      return;
+    }
+    if (email.isEmpty || !email.contains('@')) {
+      setState(() => _errorText = 'Format email tidak valid');
+      return;
+    }
+    if (password.length < 8) {
+      setState(() => _errorText = 'Password minimal 8 karakter');
+      return;
+    }
+
+    Navigator.pop(
+      context,
+      CreateUserDialogResult(
+        nama: nama,
+        email: email,
+        password: password,
+        role: _selectedRole,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.background,
+      surfaceTintColor: Colors.transparent,
+      shape: AppTheme.cardShape(),
+      title: const Text(
+        'Tambah User Baru',
+        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+      ),
+      content: SizedBox(
+        width: 400,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                key: const Key('admin_create_user_nama'),
+                controller: _namaCtrl,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+                decoration: InputDecoration(
+                  labelText: 'Nama Lengkap *',
+                  hintText: 'Contoh: Budi Santoso',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('admin_create_user_email'),
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+                decoration: InputDecoration(
+                  labelText: 'Email *',
+                  hintText: 'Contoh: budi@sekolah.sch.id',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('admin_create_user_password'),
+                controller: _passwordCtrl,
+                obscureText: _obscurePassword,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
+                decoration: InputDecoration(
+                  labelText: 'Password *',
+                  hintText: 'Minimal 8 karakter',
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      size: 18,
+                    ),
+                    onPressed: () {
+                      setState(() => _obscurePassword = !_obscurePassword);
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: const Key('admin_create_user_role'),
+                initialValue: _selectedRole,
+                decoration: InputDecoration(
+                  labelText: 'Role *',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                  ),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'murid', child: Text('Murid')),
+                  DropdownMenuItem(value: 'guru', child: Text('Guru')),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _selectedRole = value);
+                },
+              ),
+              if (_errorText != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _errorText!,
+                  style: const TextStyle(fontSize: 12, color: Colors.red),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          key: const Key('admin_create_user_submit'),
+          onPressed: _submit,
+          style: FilledButton.styleFrom(backgroundColor: AppColors.color1),
+          child: const Text('Simpan'),
+        ),
+      ],
     );
   }
 }

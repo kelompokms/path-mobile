@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:path_mobile/data/admin/admin_model.dart';
 import 'package:path_mobile/ui/admin/admin_controller.dart';
 import 'package:path_mobile/ui/admin/admin_users_widgets.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
@@ -9,7 +8,7 @@ import 'package:path_mobile/ui/core/responsive.dart';
 export 'admin_users_widgets.dart';
 
 /// Admin page displaying two separate sections (Daftar Guru and Daftar Murid)
-/// in a single scrollable view with search, pull-to-refresh, and role switching.
+/// in a single scrollable view with search, pull-to-refresh, and new user creation.
 class AdminUsersScreen extends StatefulWidget {
   final AdminController controller;
 
@@ -35,28 +34,28 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     super.dispose();
   }
 
-  Future<void> _changeUserRole(
-    AdminPenggunaModel user,
-    String newRole,
-  ) async {
-    final targetLabel = newRole == 'guru' ? 'Guru' : 'Murid';
-    final displayName = user.nama.isNotEmpty ? user.nama : 'pengguna ini';
-    final yes = await showConfirmDialog(
-      context,
-      title: 'Ubah Role Pengguna',
-      message: 'Ubah role universal $displayName menjadi $targetLabel?',
+  Future<void> _openCreateUserDialog() async {
+    final result = await showDialog<CreateUserDialogResult>(
+      context: context,
+      builder: (_) => const AdminCreateUserDialog(),
     );
-    if (!yes || !mounted) return;
+    if (result == null || !mounted) return;
 
-    final err = await widget.controller.updateUserRole(user.id, newRole);
+    final err = await widget.controller.createUser(
+      nama: result.nama,
+      email: result.email,
+      password: result.password,
+      role: result.role,
+    );
     if (!mounted) return;
+    final roleLabel = result.role == 'guru' ? 'Guru' : 'Murid';
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Text(
             err ??
-                '${user.nama.isNotEmpty ? user.nama : "Pengguna"} kini menjadi $targetLabel',
+                'User "${result.nama}" berhasil ditambahkan sebagai $roleLabel',
           ),
         ),
       );
@@ -115,15 +114,33 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   Padding(
                     padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 8),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text(
-                          'Daftar Guru dan Murid',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.text,
-                          ),
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 12,
+                          runSpacing: 8,
+                          children: [
+                            const Text(
+                              'Daftar Guru dan Murid',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.text,
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              key: const Key('admin_add_user_button'),
+                              onPressed: _openCreateUserDialog,
+                              icon: const Icon(
+                                Icons.person_add_alt_1,
+                                size: 18,
+                              ),
+                              label: const Text('Tambah User'),
+                              style: AppTheme.softCompactButton,
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 10),
                         TextField(
@@ -185,9 +202,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                 roleLabel: 'Guru',
                                 emptyClassLabel: 'Belum mengampu kelas',
                                 classPrefix: 'Mengampu: ',
-                                actionLabel: 'Jadikan Murid',
-                                onToggleRole: () =>
-                                    _changeUserRole(guru, 'murid'),
                               ),
                           const SizedBox(height: 20),
                           AdminUserSectionHeader(
@@ -210,9 +224,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                 roleLabel: 'Murid',
                                 emptyClassLabel: 'Belum bergabung kelas',
                                 classPrefix: 'Kelas: ',
-                                actionLabel: 'Jadikan Guru',
-                                onToggleRole: () =>
-                                    _changeUserRole(murid, 'guru'),
                               ),
                         ],
                       ),

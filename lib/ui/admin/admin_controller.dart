@@ -172,6 +172,26 @@ class AdminController extends ChangeNotifier {
   static int parseTingkat(String gradeInput) =>
       PengajarController.parseTingkat(gradeInput);
 
+  Future<String?> createUser({
+    required String nama,
+    required String email,
+    required String password,
+    required String role,
+  }) async {
+    final err = await _repo.createUser(
+      nama: nama.trim(),
+      email: email.trim(),
+      password: password,
+      role: role.trim().toLowerCase(),
+    );
+    if (err != null) return err;
+    await loadUsers();
+    if (_allKelas.isNotEmpty) {
+      await loadAllKelas();
+    }
+    return null;
+  }
+
   Future<String?> updateUserRole(int penggunaId, String role) async {
     final err = await _repo.updateUserRole(penggunaId, role);
     if (err != null) return err;

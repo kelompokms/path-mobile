@@ -134,6 +134,25 @@ HttpClient _createAdminMockClient({
           200,
         );
       }
+      if (path == '/admin/pengguna' && request.method == 'POST') {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        final role = (body['role'] as String? ?? 'murid').toLowerCase();
+        final newUser = <String, dynamic>{
+          'id': guruUsers.length + muridUsers.length + 10,
+          'nama': body['nama'] ?? '',
+          'email': body['email'] ?? '',
+          'phone': '',
+          'profile_picture': '',
+          'role': role,
+          'kelas': <String>[],
+        };
+        if (role == 'guru') {
+          guruUsers.add(newUser);
+        } else {
+          muridUsers.add(newUser);
+        }
+        return http.Response(jsonEncode(newUser), 201);
+      }
       if (path.startsWith('/admin/pengguna/') &&
           path.endsWith('/role') &&
           request.method == 'PATCH') {
@@ -717,7 +736,7 @@ void main() {
       );
     });
 
-    testWidgets('AdminUsersScreen switches user role between Murid and Guru', (
+    testWidgets('AdminUsersScreen removes role-promotion menu and allows creating new user with role selection', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(360, 720);
@@ -739,32 +758,68 @@ void main() {
       expect(ctrl.guruList, hasLength(1));
       expect(ctrl.muridList, hasLength(1));
 
-      // Promote Aji Sasongko (id 5) from Murid to Guru
-      await tester.ensureVisible(find.byKey(const Key('user_role_menu_5')));
-      await tester.tap(find.byKey(const Key('user_role_menu_5')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Jadikan Guru'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Ya'));
+      // Verify old role promotion menu is removed
+      expect(find.byKey(const Key('user_role_menu_5')), findsNothing);
+      expect(find.byKey(const Key('user_role_menu_2')), findsNothing);
+      expect(find.text('Jadikan Guru'), findsNothing);
+      expect(find.text('Jadikan Murid'), findsNothing);
+
+      // Create a new Guru user via Tambah User dialog
+      await tester.tap(find.byKey(const Key('admin_add_user_button')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Aji Sasongko kini menjadi Guru'), findsOneWidget);
-      expect(find.text('Belum ada murid terdaftar'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('admin_create_user_nama')),
+        'Siti Aminah',
+      );
+      await tester.enterText(
+        find.byKey(const Key('admin_create_user_email')),
+        'siti@school.id',
+      );
+      await tester.enterText(
+        find.byKey(const Key('admin_create_user_password')),
+        'password123',
+      );
+      await tester.tap(find.byKey(const Key('admin_create_user_role')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Guru').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('admin_create_user_submit')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('User "Siti Aminah" berhasil ditambahkan sebagai Guru'),
+        findsOneWidget,
+      );
       expect(ctrl.guruList, hasLength(2));
-      expect(ctrl.muridList, isEmpty);
+      expect(find.text('Siti Aminah'), findsOneWidget);
 
-      // Demote Aji Sasongko back to Murid
-      await tester.tap(find.byKey(const Key('user_role_menu_5')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Jadikan Murid'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(ElevatedButton, 'Ya'));
+      // Create a new Murid user and submit via Enter key
+      await tester.tap(find.byKey(const Key('admin_add_user_button')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Aji Sasongko kini menjadi Murid'), findsOneWidget);
-      expect(find.text('Belum ada murid terdaftar'), findsNothing);
-      expect(ctrl.guruList, hasLength(1));
-      expect(ctrl.muridList, hasLength(1));
+      await tester.enterText(
+        find.byKey(const Key('admin_create_user_nama')),
+        'Rina Lestari',
+      );
+      await tester.enterText(
+        find.byKey(const Key('admin_create_user_email')),
+        'rina@school.id',
+      );
+      await tester.enterText(
+        find.byKey(const Key('admin_create_user_password')),
+        'password123',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('User "Rina Lestari" berhasil ditambahkan sebagai Murid'),
+        findsOneWidget,
+      );
+      expect(ctrl.muridList, hasLength(2));
+      expect(find.text('Rina Lestari'), findsOneWidget);
     });
 
     testWidgets('AdminKelasScreen creates class manually, uploads CSV, and changes pengampu without overflow on 320px', (
