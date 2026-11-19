@@ -90,6 +90,9 @@ class _OAuthProviderButton extends StatelessWidget {
         side: BorderSide(
           color: AppColors.secondaryText.withValues(alpha: 0.35),
         ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+        ),
       ),
       child: isLoading
           ? const SizedBox(

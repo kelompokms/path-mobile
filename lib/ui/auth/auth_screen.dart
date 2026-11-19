@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_mobile/data/login/login_repository.dart';
 import 'package:path_mobile/ui/auth/oauth_buttons.dart';
+import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/login/login_controller.dart';
 
@@ -84,6 +85,14 @@ class _AuthScreenState extends State<AuthScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.blue,
                       foregroundColor: Colors.white,
+                      elevation: AppTheme.cardElevation,
+                      shadowColor: AppTheme.shadowColor,
+                      side: AppTheme.thinBorderSide,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.cardRadius,
+                        ),
+                      ),
                       minimumSize: const Size.fromHeight(46),
                     ),
                     onPressed: () => context.go('/login'),
@@ -93,6 +102,11 @@ class _AuthScreenState extends State<AuthScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.blue,
                       side: const BorderSide(color: Colors.blue),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.cardRadius,
+                        ),
+                      ),
                       minimumSize: const Size.fromHeight(46),
                     ),
                     onPressed: () => context.go('/register'),

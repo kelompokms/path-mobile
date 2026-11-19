@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:path_mobile/ui/core/app_theme.dart';
 
 class PathLogo extends StatelessWidget {
   final double width;
@@ -12,16 +13,9 @@ class PathLogo extends StatelessWidget {
       width: width,
       height: height,
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
+      decoration: AppTheme.cardDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x26000000),
-            blurRadius: 3,
-            offset: Offset(0, 2),
-          ),
-        ],
+        radius: AppTheme.dialogRadius,
       ),
       child: Image.asset('assets/images/path_logo.png', fit: BoxFit.contain),
     );

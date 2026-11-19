@@ -127,12 +127,11 @@ class _OAuthCallbackScreenState extends State<OAuthCallbackScreen> {
                 padding: EdgeInsets.all(padding),
                 child: isWide
                     ? Card(
-                        elevation: 2,
+                        elevation: AppTheme.cardElevation,
+                        shadowColor: AppTheme.shadowColor,
                         color: AppColors.card,
                         surfaceTintColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                        ),
+                        shape: AppTheme.cardShape(radius: AppTheme.dialogRadius),
                         child: Padding(
                           padding: const EdgeInsets.all(32),
                           child: content,

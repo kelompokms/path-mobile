@@ -2,15 +2,17 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_mobile/data/admin/admin_model.dart';
-import 'package:path_mobile/data/kelas/kelas_model.dart';
 import 'package:path_mobile/data/kelas/kelas_repository.dart';
 import 'package:path_mobile/ui/admin/admin_controller.dart';
-import 'package:path_mobile/ui/core/anggota_kelas_tab.dart';
+import 'package:path_mobile/ui/admin/admin_kelas_detail_screen.dart';
+import 'package:path_mobile/ui/admin/admin_kelas_dialogs.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
-import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
+
+export 'admin_kelas_detail_screen.dart';
+export 'admin_kelas_dialogs.dart';
 
 /// Admin page listing all school classes with interactive filtering by
 /// academic year (`tahun_ajaran`), grade (`tingkat`), and class name (`nama`),
@@ -60,9 +62,9 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
   }
 
   Future<void> _openCreateKelasDialog() async {
-    final result = await showDialog<_CreateKelasDialogResult>(
+    final result = await showDialog<CreateKelasDialogResult>(
       context: context,
-      builder: (_) => const _AdminCreateKelasDialog(),
+      builder: (_) => const AdminCreateKelasDialog(),
     );
     if (result == null || !mounted) return;
 
@@ -99,7 +101,9 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.background,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        elevation: AppTheme.cardElevation,
+        shadowColor: AppTheme.shadowColor,
+        shape: AppTheme.cardShape(radius: AppTheme.dialogRadius),
         title: const Text(
           'Upload CSV Kelas',
           style: TextStyle(
@@ -172,9 +176,9 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
       if (!mounted) return null;
     }
 
-    final selection = await showDialog<_PengampuSelectionResult>(
+    final selection = await showDialog<PengampuSelectionResult>(
       context: context,
-      builder: (_) => _PilihPengampuDialog(
+      builder: (_) => PilihPengampuDialog(
         kelas: kelas,
         controller: widget.controller,
       ),
@@ -207,7 +211,7 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
     openPage(
       context,
       breadcrumb: trail,
-      page: _AdminKelasDetailScreen(
+      page: AdminKelasDetailScreen(
         kelas: kelas,
         kelasRepository: widget.kelasRepository,
         onChangePengampu: _openChangePengampuDialog,
@@ -293,7 +297,9 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
                                 runSpacing: 6,
                                 children: [
                                   ElevatedButton.icon(
-                                    key: const Key('admin_upload_csv_kelas_button'),
+                                    key: const Key(
+                                      'admin_upload_csv_kelas_button',
+                                    ),
                                     onPressed: _openUploadCsvDialog,
                                     icon: const Icon(
                                       Icons.upload_file_outlined,
@@ -317,11 +323,13 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
                         TextField(
                           key: const Key('admin_filter_nama_kelas'),
                           controller: _nameFilterController,
                           onChanged: ctrl.setNamaKelasFilter,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: ctrl.setNamaKelasFilter,
                           decoration: InputDecoration(
                             hintText: 'Filter nama kelas...',
                             prefixIcon: const Icon(Icons.search, size: 20),
@@ -341,11 +349,13 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
                               vertical: 10,
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.cardRadius,
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 16),
                         LayoutBuilder(
                           builder: (context, filterConstraints) {
                             final sideBySide =
@@ -362,13 +372,10 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
                                   isExpanded: true,
                                   decoration: InputDecoration(
                                     labelText: 'Tahun Ajaran',
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
                                     border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
+                                      borderRadius: BorderRadius.circular(
+                                        AppTheme.cardRadius,
+                                      ),
                                     ),
                                   ),
                                   items: [
@@ -403,13 +410,10 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
                                   isExpanded: true,
                                   decoration: InputDecoration(
                                     labelText: 'Tingkat Kelas',
-                                    isDense: true,
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 10,
-                                    ),
                                     border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
+                                      borderRadius: BorderRadius.circular(
+                                        AppTheme.cardRadius,
+                                      ),
                                     ),
                                   ),
                                   items: [
@@ -450,7 +454,7 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
                             );
                           },
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 16),
                         Wrap(
                           alignment: WrapAlignment.spaceBetween,
                           crossAxisAlignment: WrapCrossAlignment.center,
@@ -546,620 +550,6 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
           );
         },
       ),
-    );
-  }
-}
-
-class _CreateKelasDialogResult {
-  final String nama;
-  final String deskripsi;
-  final int tingkat;
-  final String tahunAjaran;
-
-  const _CreateKelasDialogResult({
-    required this.nama,
-    required this.deskripsi,
-    required this.tingkat,
-    required this.tahunAjaran,
-  });
-}
-
-class _AdminCreateKelasDialog extends StatefulWidget {
-  const _AdminCreateKelasDialog();
-
-  @override
-  State<_AdminCreateKelasDialog> createState() =>
-      _AdminCreateKelasDialogState();
-}
-
-class _AdminCreateKelasDialogState extends State<_AdminCreateKelasDialog> {
-  final _namaController = TextEditingController();
-  final _deskripsiController = TextEditingController();
-  late final TextEditingController _tahunController = TextEditingController(
-    text: AdminController.defaultTahunAjaran(),
-  );
-  int _tingkat = 10;
-  bool _triedSubmit = false;
-
-  bool get _canSubmit =>
-      _namaController.text.trim().isNotEmpty &&
-      _tahunController.text.trim().isNotEmpty;
-
-  @override
-  void dispose() {
-    _namaController.dispose();
-    _deskripsiController.dispose();
-    _tahunController.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    if (!_canSubmit) {
-      setState(() => _triedSubmit = true);
-      return;
-    }
-    Navigator.pop(
-      context,
-      _CreateKelasDialogResult(
-        nama: _namaController.text.trim(),
-        deskripsi: _deskripsiController.text.trim(),
-        tingkat: _tingkat,
-        tahunAjaran: _tahunController.text.trim(),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: AppColors.background,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Tambah Kelas',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text,
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                key: const Key('admin_create_kelas_nama'),
-                controller: _namaController,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: 'Nama Kelas',
-                  hintText: 'Contoh: X PPLG 1',
-                  errorText:
-                      _triedSubmit && _namaController.text.trim().isEmpty
-                      ? 'Nama kelas wajib diisi'
-                      : null,
-                  isDense: true,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<int>(
-                key: const Key('admin_create_kelas_tingkat'),
-                initialValue: _tingkat,
-                isExpanded: true,
-                decoration: const InputDecoration(
-                  labelText: 'Tingkat Kelas',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(
-                    value: 10,
-                    child: Text(
-                      'Kelas X (10)',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  DropdownMenuItem(
-                    value: 11,
-                    child: Text(
-                      'Kelas XI (11)',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  DropdownMenuItem(
-                    value: 12,
-                    child: Text(
-                      'Kelas XII (12)',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() => _tingkat = v);
-                },
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                key: const Key('admin_create_kelas_tahun'),
-                controller: _tahunController,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  labelText: 'Tahun Ajaran',
-                  hintText: 'Contoh: 2026/2027',
-                  errorText:
-                      _triedSubmit && _tahunController.text.trim().isEmpty
-                      ? 'Tahun ajaran wajib diisi'
-                      : null,
-                  isDense: true,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                key: const Key('admin_create_kelas_deskripsi'),
-                controller: _deskripsiController,
-                minLines: 2,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Deskripsi (opsional)',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Pengampu default bernilai kosong (null) dan dapat diubah dari daftar guru setelah kelas dibuat.',
-                style: TextStyle(fontSize: 11, color: AppColors.secondaryText),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Batal'),
-                    ),
-                    FilledButton(
-                      key: const Key('admin_create_kelas_submit'),
-                      onPressed: _submit,
-                      child: const Text('Simpan'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PengampuSelectionResult {
-  final int? pengampuId;
-
-  const _PengampuSelectionResult(this.pengampuId);
-}
-
-class _PilihPengampuDialog extends StatefulWidget {
-  final AdminKelasModel kelas;
-  final AdminController controller;
-
-  const _PilihPengampuDialog({required this.kelas, required this.controller});
-
-  @override
-  State<_PilihPengampuDialog> createState() => _PilihPengampuDialogState();
-}
-
-class _PilihPengampuDialogState extends State<_PilihPengampuDialog> {
-  late int? _selectedGuruId = widget.kelas.pengampu > 0
-      ? widget.kelas.pengampu
-      : null;
-
-  @override
-  Widget build(BuildContext context) {
-    final gurus = widget.controller.guruList;
-
-    return Dialog(
-      backgroundColor: AppColors.background,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 460),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Ubah Pengampu • ${widget.kelas.nama}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Pilih guru pengampu utama untuk kelas ini:',
-                style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
-              ),
-              const SizedBox(height: 8),
-              Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        _selectedGuruId == null
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_unchecked,
-                        color: _selectedGuruId == null
-                            ? AppColors.color1
-                            : AppColors.secondaryText,
-                      ),
-                      title: const Text('Kosongkan Pengampu'),
-                      onTap: () => setState(() => _selectedGuruId = null),
-                    ),
-                    if (gurus.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(
-                          widget.controller.usersError ??
-                              'Belum ada pengguna ber-role Guru.',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.secondaryText,
-                          ),
-                        ),
-                      )
-                    else
-                      for (final guru in gurus)
-                        ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(
-                            _selectedGuruId == guru.id
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_unchecked,
-                            color: _selectedGuruId == guru.id
-                                ? AppColors.color1
-                                : AppColors.secondaryText,
-                          ),
-                          title: Text(guru.nama),
-                          subtitle: guru.email.isNotEmpty
-                              ? Text(
-                                  guru.email,
-                                  style: const TextStyle(fontSize: 11),
-                                )
-                              : null,
-                          onTap: () =>
-                              setState(() => _selectedGuruId = guru.id),
-                        ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Batal'),
-                    ),
-                    FilledButton(
-                      key: const Key('admin_save_pengampu_button'),
-                      onPressed: () => Navigator.pop(
-                        context,
-                        _PengampuSelectionResult(_selectedGuruId),
-                      ),
-                      child: const Text('Simpan'),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AdminKelasDetailScreen extends StatefulWidget {
-  final AdminKelasModel kelas;
-  final KelasRepository? kelasRepository;
-  final Future<AdminKelasModel?> Function(AdminKelasModel kelas)?
-  onChangePengampu;
-
-  const _AdminKelasDetailScreen({
-    required this.kelas,
-    this.kelasRepository,
-    this.onChangePengampu,
-  });
-
-  @override
-  State<_AdminKelasDetailScreen> createState() =>
-      _AdminKelasDetailScreenState();
-}
-
-class _AdminKelasDetailScreenState extends State<_AdminKelasDetailScreen> {
-  late AdminKelasModel _kelas = widget.kelas;
-  int _tabIndex = 0;
-  bool _loadingPosts = false;
-  String? _postsError;
-  List<PostinganModel> _materi = const [];
-  List<PostinganModel> _tugas = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPosts();
-  }
-
-  Future<void> _loadPosts() async {
-    final repo = widget.kelasRepository;
-    if (repo == null) return;
-    setState(() {
-      _loadingPosts = true;
-      _postsError = null;
-    });
-
-    final results = await Future.wait([
-      repo.getListPostingan(
-        _kelas.kodeKelas,
-        tipe: PostinganModel.tipeMateri,
-      ),
-      repo.getListPostingan(
-        _kelas.kodeKelas,
-        tipe: PostinganModel.tipeTugas,
-      ),
-    ]);
-    if (!mounted) return;
-
-    final (materiList, materiErr) = results[0];
-    final (tugasList, tugasErr) = results[1];
-    setState(() {
-      _loadingPosts = false;
-      _postsError = materiErr ?? tugasErr;
-      if (materiList != null) _materi = materiList;
-      if (tugasList != null) _tugas = tugasList;
-    });
-  }
-
-  Future<void> _editPengampu() async {
-    final handler = widget.onChangePengampu;
-    if (handler == null) return;
-    final updated = await handler(_kelas);
-    if (updated != null && mounted) {
-      setState(() => _kelas = updated);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final k = _kelas;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        BackTitleRow(title: k.nama),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${k.gradeLabel} • Tahun Ajaran ${k.tahunAjaran} • Kode: ${k.kodeKelas}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.secondaryText,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  Text(
-                    k.namaPengampu.isNotEmpty
-                        ? 'Pengampu: ${k.namaPengampu}'
-                        : 'Pengampu: Belum ditentukan',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.secondaryText,
-                    ),
-                  ),
-                  if (widget.onChangePengampu != null)
-                    TextButton.icon(
-                      key: const Key('admin_detail_ubah_pengampu_button'),
-                      onPressed: _editPengampu,
-                      icon: const Icon(Icons.edit_outlined, size: 14),
-                      label: const Text('Ubah Pengampu'),
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                      ),
-                    ),
-                ],
-              ),
-              if (k.deskripsi.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  k.deskripsi,
-                  style: const TextStyle(fontSize: 13, color: AppColors.text),
-                ),
-              ],
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChip(
-                label: const Text('Postingan'),
-                selected: _tabIndex == 0,
-                onSelected: (_) => setState(() => _tabIndex = 0),
-              ),
-              ChoiceChip(
-                label: const Text('Anggota'),
-                selected: _tabIndex == 1,
-                onSelected: (_) => setState(() => _tabIndex = 1),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: _tabIndex == 1
-              ? AnggotaKelasTab(
-                  kodeKelas: k.kodeKelas,
-                  horizontalPadding: 16,
-                  loadMembers: widget.kelasRepository != null
-                      ? () => widget.kelasRepository!.getListAnggota(
-                          k.kodeKelas,
-                        )
-                      : null,
-                )
-              : _buildPostsTab(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPostsTab() {
-    if (_loadingPosts && _materi.isEmpty && _tugas.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_postsError != null && _materi.isEmpty && _tugas.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            _postsError!,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.secondaryText),
-          ),
-        ),
-      );
-    }
-
-    final combined = <_AdminPostEntry>[
-      for (final m in _materi) _AdminPostEntry(post: m, isTugas: false),
-      for (final t in _tugas) _AdminPostEntry(post: t, isTugas: true),
-    ]..sort((a, b) => b.post.dibuat.compareTo(a.post.dibuat));
-
-    if (combined.isEmpty) {
-      return const Center(
-        child: Text(
-          'Belum ada postingan di kelas ini',
-          style: TextStyle(color: AppColors.secondaryText),
-        ),
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      itemCount: combined.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, i) {
-        final entry = combined[i];
-        return PostCard(
-          icon: entry.isTugas
-              ? Icons.assignment_outlined
-              : Icons.menu_book_outlined,
-          label: entry.isTugas ? 'Tugas' : 'Materi',
-          title: entry.post.judul,
-          date: entry.post.dibuat,
-          onTap: () => openPage(
-            context,
-            breadcrumb: ['Admin', 'Kelas', _kelas.nama, entry.post.judul],
-            page: _AdminPostDetailScreen(
-              post: entry.post,
-              isTugas: entry.isTugas,
-              baseUrl: widget.kelasRepository?.baseUrl,
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _AdminPostEntry {
-  final PostinganModel post;
-  final bool isTugas;
-
-  const _AdminPostEntry({required this.post, required this.isTugas});
-}
-
-class _AdminPostDetailScreen extends StatelessWidget {
-  final PostinganModel post;
-  final bool isTugas;
-  final String? baseUrl;
-
-  const _AdminPostDetailScreen({
-    required this.post,
-    required this.isTugas,
-    this.baseUrl,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final items = post.lampiranItems;
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      children: [
-        BackTitleRow(title: post.judul),
-        Text(
-          '${isTugas ? 'Tugas' : 'Materi'} • ${formatTanggal(post.dibuat)}',
-          style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
-        ),
-        if (post.deskripsi.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text(
-            post.deskripsi,
-            style: const TextStyle(fontSize: 14, color: AppColors.text),
-          ),
-        ],
-        if (items.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          const Text(
-            'Lampiran',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.text,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final item in items) ...[
-            FileCard.fromItem(item, baseUrl: baseUrl),
-            const SizedBox(height: 8),
-          ],
-        ],
-      ],
     );
   }
 }

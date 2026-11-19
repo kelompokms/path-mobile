@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -485,17 +486,36 @@ void main() {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
+      final client = _createAdminMockClient(today: DateTime.now());
+      final adminCtrl = AdminController(AdminRepository(client));
+      final kalenderRepo = KalenderRepository(client);
+      addTearDown(adminCtrl.dispose);
+
       await tester.pumpWidget(
-        MaterialApp(theme: AppTheme.lightTheme, home: const AdminDashboardScreen()),
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: AdminDashboardScreen(
+            controller: adminCtrl,
+            kalenderRepository: kalenderRepo,
+            random: math.Random(42),
+          ),
+        ),
       );
       await tester.pumpAndSettle();
 
       expect(find.text('Total Guru'), findsOneWidget);
-      expect(find.text('3 Guru'), findsOneWidget);
+      expect(find.text('1 Guru'), findsOneWidget);
       expect(find.text('Total Siswa'), findsOneWidget);
-      expect(find.text('4 Siswa'), findsOneWidget);
+      expect(find.text('1 Siswa'), findsOneWidget);
       expect(find.text('Total Pakai AI (Semua)'), findsOneWidget);
       expect(find.text('Total Event'), findsOneWidget);
+      expect(find.text('1 Event'), findsOneWidget);
+
+      // Verify both real users appear with randomized AI usage and real class details
+      expect(find.text('Eko Kusnandar (Guru)'), findsOneWidget);
+      expect(find.text('Mengampu: X PPLG 1, X PPLG 2'), findsOneWidget);
+      expect(find.text('Aji Sasongko (Siswa)'), findsOneWidget);
+      expect(find.text('Kelas: X PPLG 1'), findsOneWidget);
 
       final guruChip = find.byKey(const Key('admin_ai_filter_guru'));
       final siswaChip = find.byKey(const Key('admin_ai_filter_siswa'));

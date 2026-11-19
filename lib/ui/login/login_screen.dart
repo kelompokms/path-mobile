@@ -24,6 +24,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    if (widget._controller.isBusy) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -71,6 +74,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: ctrl.emailController,
                           enabled: !ctrl.isBusy,
                           keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _handleLogin(),
                           decoration: const InputDecoration(
                             labelText: 'Email',
                           ),
@@ -91,6 +96,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: ctrl.passwordController,
                           enabled: !ctrl.isBusy,
                           obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _handleLogin(),
                           decoration: const InputDecoration(
                             labelText: 'Password',
                           ),

@@ -94,6 +94,52 @@ class AppCustomColors extends ThemeExtension<AppCustomColors> {
 }
 
 abstract final class AppTheme {
+  static const double cardRadius = 6.0;
+  static const double dialogRadius = 8.0;
+  static const double sheetRadius = 12.0;
+  static const double cardElevation = 4.0;
+
+  static const Color borderColor = Colors.black26;
+  static const Color shadowColor = Colors.black26;
+
+  static const BorderSide thinBorderSide = BorderSide(
+    color: borderColor,
+    width: 1,
+  );
+
+  static final Border thinBorder = Border.fromBorderSide(thinBorderSide);
+
+  static const List<BoxShadow> thinShadow = [
+    BoxShadow(
+      color: Color(0x14000000),
+      blurRadius: 4,
+      offset: Offset(0, 1),
+    ),
+  ];
+
+  static RoundedRectangleBorder cardShape({
+    double radius = cardRadius,
+    BorderSide side = thinBorderSide,
+  }) {
+    return RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(radius),
+      side: side,
+    );
+  }
+
+  static BoxDecoration cardDecoration({
+    Color color = AppColors.card,
+    double radius = cardRadius,
+    BoxBorder? border,
+  }) {
+    return BoxDecoration(
+      color: color,
+      borderRadius: BorderRadius.circular(radius),
+      border: border ?? thinBorder,
+      boxShadow: thinShadow,
+    );
+  }
+
   static ThemeData get lightTheme {
     const colorScheme = ColorScheme.light(
       primary: AppColors.color1,
@@ -121,9 +167,26 @@ abstract final class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
       cardColor: AppColors.card,
-      cardTheme: const CardThemeData(
+      cardTheme: CardThemeData(
         color: AppColors.card,
         surfaceTintColor: Colors.transparent,
+        elevation: cardElevation,
+        shadowColor: shadowColor,
+        shape: cardShape(),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: cardElevation,
+        shadowColor: shadowColor,
+        shape: cardShape(radius: dialogRadius),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: AppColors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: cardElevation,
+        shadowColor: shadowColor,
+        shape: cardShape(),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.card,
@@ -149,6 +212,12 @@ abstract final class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.color1,
           foregroundColor: Colors.white,
+          elevation: cardElevation,
+          shadowColor: shadowColor,
+          side: thinBorderSide,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardRadius),
+          ),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -157,6 +226,9 @@ abstract final class AppTheme {
           foregroundColor: Colors.white,
           disabledBackgroundColor: AppColors.color2.withValues(alpha: 0.6),
           disabledForegroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardRadius),
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -164,6 +236,9 @@ abstract final class AppTheme {
           foregroundColor: AppColors.color1,
           side: BorderSide(
             color: AppColors.secondaryText.withValues(alpha: 0.4),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(cardRadius),
           ),
         ),
       ),
@@ -178,8 +253,12 @@ abstract final class AppTheme {
     foregroundColor: AppColors.text,
     disabledBackgroundColor: AppColors.background,
     disabledForegroundColor: AppColors.secondaryText.withValues(alpha: 0.5),
-    elevation: 3,
-    shape: const StadiumBorder(),
+    elevation: cardElevation,
+    shadowColor: shadowColor,
+    side: thinBorderSide,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(cardRadius),
+    ),
     padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
   );
 
@@ -188,8 +267,12 @@ abstract final class AppTheme {
     foregroundColor: AppColors.text,
     disabledBackgroundColor: AppColors.background,
     disabledForegroundColor: AppColors.secondaryText.withValues(alpha: 0.5),
-    elevation: 3,
-    shape: const StadiumBorder(),
+    elevation: cardElevation,
+    shadowColor: shadowColor,
+    side: thinBorderSide,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(cardRadius),
+    ),
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
   );
 }

@@ -9,37 +9,17 @@ import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
+import 'package:path_mobile/ui/dashboard/dashboard_widgets.dart';
+import 'package:path_mobile/ui/dashboard/guru_stats_widgets.dart';
 import 'package:path_mobile/ui/kelas/kelas_controller.dart';
 import 'package:path_mobile/ui/kelas/kelas_screen.dart';
 import 'package:path_mobile/ui/pengajar/list_pengumpulan_screen.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_screen.dart';
+import 'package:path_mobile/utils/date_time_helper.dart';
 
-class _GuruSubmissionSummary {
-  final ClassItem classItem;
-  final km.PostinganModel post;
-  final int submissionCount;
-  final String latestStudentName;
-
-  const _GuruSubmissionSummary({
-    required this.classItem,
-    required this.post,
-    required this.submissionCount,
-    this.latestStudentName = '',
-  });
-}
-
-class _MuridTaskSummary {
-  final ClassItem classItem;
-  final km.PostinganModel post;
-  final bool submitted;
-
-  const _MuridTaskSummary({
-    required this.classItem,
-    required this.post,
-    required this.submitted,
-  });
-}
+export 'dashboard_widgets.dart';
+export 'guru_stats_widgets.dart';
 
 /// Role-specific Home dashboard:
 /// - `isGuruRole == true` (`Beranda Guru`): teaching summary, active assignments &
@@ -71,19 +51,35 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   static const int _maxSummaryClasses = 6;
-  static const int _maxCheckedTasks = 6;
+  static const int _maxCheckedTasks = 8;
+  static const List<String> _weekdayLabels = [
+    'Sen',
+    'Sel',
+    'Rab',
+    'Kam',
+    'Jum',
+    'Sab',
+    'Min',
+  ];
 
   bool _isLoadingSummary = false;
   int _loadSeq = 0;
 
-  int _totalGuruMateri = 0;
-  int _totalGuruTugas = 0;
+  int _totalGuruStudents = 0;
   int _totalGuruSubmissions = 0;
-  List<_GuruSubmissionSummary> _guruSubmissions = const [];
+  int _totalGuruExpected = 0;
+  int _totalGuruMissing = 0;
+  int _recent7DaysSubmissions = 0;
+  int _todaySubmissions = 0;
+  int _withAttachmentCount = 0;
+  int _markAsDoneCount = 0;
+  List<GuruClassProgress> _classProgressList = const [];
+  List<DailySubmissionBucket> _dailySubmissions = const [];
+  List<GuruSubmissionSummary> _guruSubmissions = const [];
 
   int _totalMuridTugas = 0;
   int _pendingMuridTugas = 0;
-  List<_MuridTaskSummary> _muridTasks = const [];
+  List<MuridTaskSummary> _muridTasks = const [];
 
   List<KalenderAkademikModel> _upcomingAgendas = const [];
 
@@ -159,25 +155,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final teaching = pengajarCtrl.listKelas.where((k) => k.guru).toList();
     final scoped = teaching.take(_maxSummaryClasses).toList();
 
-    var materiCount = 0;
-    var tugasCount = 0;
     final allTasks = <({ClassItem item, pm.PostinganModel post})>[];
+    final studentCountByCode = <String, int>{};
+    final taskCountByCode = <String, int>{};
+    final classItemByCode = <String, ClassItem>{};
+    final uniqueStudentIds = <int>{};
+    var anonymousStudents = 0;
 
-    final postBatches = await Future.wait([
+    final classBatches = await Future.wait([
       for (var i = 0; i < scoped.length; i++)
-        Future.wait([
-          pengajarCtrl.getListMateri(scoped[i].kodeKelas),
+        Future.wait<Object?>([
           pengajarCtrl.getListTugas(scoped[i].kodeKelas),
+          pengajarCtrl.getListAnggota(scoped[i].kodeKelas),
         ]),
     ]);
     if (!mounted || seq != _loadSeq) return;
 
     for (var i = 0; i < scoped.length; i++) {
-      final (materiList, _) = postBatches[i][0];
-      final (tugasList, _) = postBatches[i][1];
-      materiCount += materiList?.length ?? 0;
-      tugasCount += tugasList?.length ?? 0;
+      final (tugasList, _) =
+          classBatches[i][0] as (List<pm.PostinganModel>?, String?);
+      final (anggotaList, _) =
+          classBatches[i][1] as (List<pm.AnggotaKelasModel>?, String?);
       final item = scoped[i].toClassItem(coverIndex: i);
+      final code = item.code;
+      classItemByCode[code] = item;
+
+      final students = (anggotaList ?? const <pm.AnggotaKelasModel>[])
+          .where((m) => !m.isGuru)
+          .toList();
+      studentCountByCode[code] = students.length;
+      for (final student in students) {
+        if (student.penggunaId > 0) {
+          uniqueStudentIds.add(student.penggunaId);
+        } else {
+          anonymousStudents++;
+        }
+      }
+
+      taskCountByCode[code] = tugasList?.length ?? 0;
       if (tugasList != null) {
         for (final t in tugasList) {
           allTasks.add((item: item, post: t));
@@ -194,12 +209,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ]);
     if (!mounted || seq != _loadSeq) return;
 
+    final today = DateUtils.dateOnly(nowGmt7());
+    final dailyCounts = List<int>.filled(7, 0);
+
     var submissionTotal = 0;
-    final summaries = <_GuruSubmissionSummary>[];
+    var expectedTotal = 0;
+    var missingTotal = 0;
+    var withAttachment = 0;
+    var markAsDone = 0;
+    final submissionsByCode = <String, int>{};
+    final expectedByCode = <String, int>{};
+    final summaries = <GuruSubmissionSummary>[];
+
     for (var i = 0; i < checkedTasks.length; i++) {
+      final entry = checkedTasks[i];
+      final code = entry.item.code;
       final (items, _) = submissionResults[i];
       final list = items ?? const <pm.PengumpulanMuridModel>[];
-      submissionTotal += list.length;
+      final count = list.length;
+      final classStudents = studentCountByCode[code] ?? 0;
+
+      submissionTotal += count;
+      submissionsByCode[code] = (submissionsByCode[code] ?? 0) + count;
+      if (classStudents > 0) {
+        final effectiveExpected = math.max(classStudents, count);
+        expectedTotal += effectiveExpected;
+        expectedByCode[code] = (expectedByCode[code] ?? 0) + effectiveExpected;
+        missingTotal += math.max(0, classStudents - count);
+      }
+
+      for (final s in list) {
+        if (s.isMarkAsDone) {
+          markAsDone++;
+        } else {
+          withAttachment++;
+        }
+        final submittedAt = s.dibuat;
+        if (submittedAt != null) {
+          final day = DateUtils.dateOnly(submittedAt);
+          final diffDays = today.difference(day).inDays;
+          if (diffDays >= 0 && diffDays < 7) {
+            dailyCounts[6 - diffDays]++;
+          }
+        }
+      }
+
       final sorted = [...list]
         ..sort((a, b) {
           final da = a.dibuat;
@@ -210,26 +264,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return db.compareTo(da);
         });
       summaries.add(
-        _GuruSubmissionSummary(
-          classItem: checkedTasks[i].item,
-          post: checkedTasks[i].post,
-          submissionCount: list.length,
+        GuruSubmissionSummary(
+          classItem: entry.item,
+          post: entry.post,
+          submissionCount: count,
+          totalStudents: classStudents,
           latestStudentName: sorted.isNotEmpty ? sorted.first.nama : '',
         ),
       );
     }
 
     summaries.sort((a, b) {
+      final ra = a.completionRate;
+      final rb = b.completionRate;
+      if (ra != null && rb != null && ra != rb) {
+        return ra.compareTo(rb);
+      }
       if ((b.submissionCount > 0) != (a.submissionCount > 0)) {
         return b.submissionCount.compareTo(a.submissionCount);
       }
       return b.post.dibuat.compareTo(a.post.dibuat);
     });
 
+    final classProgress = [
+      for (final k in scoped)
+        GuruClassProgress(
+          classItem: classItemByCode[k.kodeKelas]!,
+          studentCount: studentCountByCode[k.kodeKelas] ?? 0,
+          taskCount: taskCountByCode[k.kodeKelas] ?? 0,
+          submissionCount: submissionsByCode[k.kodeKelas] ?? 0,
+          expectedSubmissions: expectedByCode[k.kodeKelas] ?? 0,
+        ),
+    ]..sort((a, b) {
+        final ra = a.completionRate;
+        final rb = b.completionRate;
+        if (ra != null && rb != null) return ra.compareTo(rb);
+        if (ra != null) return -1;
+        if (rb != null) return 1;
+        return b.submissionCount.compareTo(a.submissionCount);
+      });
+
+    final dailyBuckets = [
+      for (var i = 0; i < 7; i++)
+        () {
+          final date = today.subtract(Duration(days: 6 - i));
+          return DailySubmissionBucket(
+            date: date,
+            label: _weekdayLabels[date.weekday - 1],
+            count: dailyCounts[i],
+            isToday: i == 6,
+          );
+        }(),
+    ];
+
     setState(() {
-      _totalGuruMateri = materiCount;
-      _totalGuruTugas = tugasCount;
+      _totalGuruStudents = uniqueStudentIds.length + anonymousStudents;
       _totalGuruSubmissions = submissionTotal;
+      _totalGuruExpected = expectedTotal;
+      _totalGuruMissing = missingTotal;
+      _recent7DaysSubmissions = dailyCounts.fold<int>(0, (s, c) => s + c);
+      _todaySubmissions = dailyCounts.last;
+      _withAttachmentCount = withAttachment;
+      _markAsDoneCount = markAsDone;
+      _classProgressList = classProgress;
+      _dailySubmissions = dailyBuckets;
       _guruSubmissions = summaries;
     });
   }
@@ -271,13 +369,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted || seq != _loadSeq) return;
 
     var pending = 0;
-    final summaries = <_MuridTaskSummary>[];
+    final summaries = <MuridTaskSummary>[];
     for (var i = 0; i < checkedTasks.length; i++) {
       final (submission, _) = statusResults[i];
       final submitted = submission?.submitted ?? false;
       if (!submitted) pending++;
       summaries.add(
-        _MuridTaskSummary(
+        MuridTaskSummary(
           classItem: checkedTasks[i].item,
           post: checkedTasks[i].post,
           submitted: submitted,
@@ -379,84 +477,132 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const <km.KelasModel>[];
     final teachingItems = _mapItems(teachingModels);
 
+    final overallRate = _totalGuruExpected > 0
+        ? (_totalGuruSubmissions / _totalGuruExpected).clamp(0.0, 1.0)
+        : null;
+    final rateValue = overallRate != null
+        ? '${(overallRate * 100).round()}%'
+        : (_totalGuruSubmissions > 0 ? '$_totalGuruSubmissions' : '—');
+    final rateSubtitle = overallRate != null
+        ? '$_totalGuruSubmissions/$_totalGuruExpected kiriman'
+        : (_guruSubmissions.isEmpty
+              ? 'Belum ada tugas'
+              : '$_totalGuruSubmissions kiriman masuk');
+
     final stats = [
-      _DashboardStatCard(
-        title: 'Kelas Diampu',
-        value: '${teachingItems.length}',
-        subtitle: teachingItems.isEmpty
-            ? 'Belum ada penugasan'
-            : '${teachingItems.length} kelas aktif',
-        icon: Icons.school_outlined,
-        accentColor: AppColors.color1,
+      DashboardStatCard(
+        title: 'Tingkat Pengumpulan',
+        value: rateValue,
+        subtitle: rateSubtitle,
+        icon: Icons.pie_chart_outline,
+        accentColor: overallRate != null
+            ? guruProgressColor(overallRate)
+            : AppColors.color1,
       ),
-      _DashboardStatCard(
-        title: 'Total Tugas',
-        value: '$_totalGuruTugas',
-        subtitle: 'Pada kelas diampu',
-        icon: Icons.assignment_outlined,
+      DashboardStatCard(
+        title: 'Belum Kumpul',
+        value: '$_totalGuruMissing',
+        subtitle: _totalGuruMissing > 0
+            ? 'Perlu tindak lanjut'
+            : (_totalGuruExpected > 0
+                  ? 'Semua terkumpul'
+                  : 'Belum ada data murid'),
+        icon: Icons.pending_actions_outlined,
+        accentColor: _totalGuruMissing > 0
+            ? AppColors.error
+            : AppColors.success,
+      ),
+      DashboardStatCard(
+        title: 'Kiriman 7 Hari',
+        value: _recent7DaysSubmissions > 0
+            ? '+$_recent7DaysSubmissions'
+            : '0',
+        subtitle: _todaySubmissions > 0
+            ? '$_todaySubmissions masuk hari ini'
+            : 'Minggu terakhir',
+        icon: Icons.trending_up_outlined,
         accentColor: const Color(0xFF8E54E9),
       ),
-      _DashboardStatCard(
-        title: 'Total Materi',
-        value: '$_totalGuruMateri',
-        subtitle: 'Dipublikasikan',
-        icon: Icons.menu_book_outlined,
-        accentColor: AppColors.success,
-      ),
-      _DashboardStatCard(
-        title: 'Pengumpulan',
-        value: '$_totalGuruSubmissions',
-        subtitle: 'Jawaban siswa masuk',
-        icon: Icons.task_alt_outlined,
-        accentColor: const Color(0xFFE09F00),
+      DashboardStatCard(
+        title: 'Total Murid',
+        value: '$_totalGuruStudents',
+        subtitle: teachingItems.isEmpty
+            ? 'Belum ada kelas'
+            : 'Di ${teachingItems.length} kelas diampu',
+        icon: Icons.groups_outlined,
+        accentColor: AppColors.color1,
       ),
     ];
+
+    final showInitialLoader =
+        _isLoadingSummary && teachingItems.isEmpty && _guruSubmissions.isEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _RoleHeader(
+        const RoleHeader(
           title: 'Beranda Guru',
           badgeLabel: 'Guru',
           badgeColor: AppColors.color1,
           subtitle:
-              'Ringkasan kelas yang Anda ampu, pengumpulan tugas terbaru, dan agenda sekolah',
+              'Statistik partisipasi kelas, progres pengumpulan tugas, dan agenda sekolah',
         ),
         const SizedBox(height: 12),
-        if (_isLoadingSummary &&
-            teachingItems.isEmpty &&
-            _guruSubmissions.isEmpty)
+        if (showInitialLoader)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(child: CircularProgressIndicator()),
           )
-        else
-          _StatCardsLayout(cards: stats, width: width),
+        else ...[
+          StatCardsLayout(cards: stats, width: width),
+          if (_classProgressList.isNotEmpty ||
+              _dailySubmissions.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const SectionHeaderRow(title: 'Statistik Pengumpulan'),
+            const SizedBox(height: 8),
+            GuruStatsPanel(
+              width: width,
+              classProgress: _classProgressList,
+              dailySubmissions: _dailySubmissions,
+              withAttachmentCount: _withAttachmentCount,
+              markAsDoneCount: _markAsDoneCount,
+              onTapClass: _openTeachingDetail,
+            ),
+          ],
+        ],
         const SizedBox(height: 20),
-        _SectionHeaderRow(
+        SectionHeaderRow(
           title: 'Monitoring Pengumpulan Tugas',
           actionLabel: widget.onOpenAllClasses != null ? 'Kelola Kelas' : null,
           onAction: widget.onOpenAllClasses,
         ),
         const SizedBox(height: 8),
         if (_guruSubmissions.isEmpty)
-          const _EmptyNoticeBox(
+          const EmptyNoticeBox(
             message: 'Belum ada tugas di kelas yang Anda ampu',
           )
         else
           for (final item in _guruSubmissions)
-            _SummaryListCard(
-              key: ValueKey('guru_submission_${item.classItem.code}_${item.post.id}'),
+            SummaryListCard(
+              key: ValueKey(
+                'guru_submission_${item.classItem.code}_${item.post.id}',
+              ),
               title: item.post.judul,
               subtitle: item.latestStudentName.isNotEmpty
                   ? '${item.classItem.title} • Terbaru: ${item.latestStudentName}'
                   : '${item.classItem.title} • ${formatTanggal(item.post.dibuat)}',
-              badgeLabel: item.submissionCount > 0
-                  ? '${item.submissionCount} kumpul'
-                  : 'Belum ada',
-              badgeColor: item.submissionCount > 0
-                  ? AppColors.success
-                  : AppColors.secondaryText,
+              badgeLabel: item.totalStudents > 0
+                  ? '${item.submissionCount}/${item.totalStudents} murid'
+                  : (item.submissionCount > 0
+                        ? '${item.submissionCount} kumpul'
+                        : 'Belum ada'),
+              badgeColor: item.completionRate != null
+                  ? guruProgressColor(item.completionRate)
+                  : (item.submissionCount > 0
+                        ? AppColors.success
+                        : AppColors.secondaryText),
+              progress: item.completionRate,
+              progressColor: guruProgressColor(item.completionRate),
               icon: Icons.assignment_turned_in_outlined,
               onTap: () => openPage(
                 context,
@@ -471,25 +617,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
         if (widget.kalenderRepository != null) ...[
           const SizedBox(height: 20),
-          _AgendaPreviewBlock(
+          AgendaPreviewBlock(
             agendas: _upcomingAgendas,
             onOpenCalendar: widget.onOpenCalendar,
           ),
         ],
         const SizedBox(height: 20),
-        _SectionHeaderRow(
+        SectionHeaderRow(
           title: 'Kelas yang Diampu',
           actionLabel: widget.onOpenAllClasses != null ? 'Lihat Semua' : null,
           onAction: widget.onOpenAllClasses,
         ),
         const SizedBox(height: 8),
         if (teachingItems.isEmpty)
-          const _EmptyNoticeBox(
+          const EmptyNoticeBox(
             message:
                 'Anda belum ditugaskan mengampu kelas. Admin dapat menunjuk pengampu melalui menu admin.',
           )
         else
-          _EmbeddedClassGrid(
+          EmbeddedClassGrid(
             items: teachingItems,
             width: width,
             onTapItem: _openTeachingDetail,
@@ -511,7 +657,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isAssistant = assistantItems.isNotEmpty;
 
     final stats = [
-      _DashboardStatCard(
+      DashboardStatCard(
         title: 'Kelas Diikuti',
         value: '${enrolledItems.length}',
         subtitle: enrolledItems.isEmpty
@@ -520,14 +666,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         icon: Icons.book_outlined,
         accentColor: AppColors.color1,
       ),
-      _DashboardStatCard(
+      DashboardStatCard(
         title: 'Total Tugas',
         value: '$_totalMuridTugas',
         subtitle: 'Dari kelas diikuti',
         icon: Icons.assignment_outlined,
         accentColor: const Color(0xFF8E54E9),
       ),
-      _DashboardStatCard(
+      DashboardStatCard(
         title: 'Belum Dikumpul',
         value: '$_pendingMuridTugas',
         subtitle: _pendingMuridTugas > 0 ? 'Perlu dikerjakan' : 'Semua aman',
@@ -537,7 +683,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             : AppColors.success,
       ),
       if (isAssistant)
-        _DashboardStatCard(
+        DashboardStatCard(
           title: 'Didampingi',
           value: '${assistantItems.length}',
           subtitle: 'Peran asisten kelas',
@@ -545,7 +691,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           accentColor: const Color(0xFFE09F00),
         )
       else
-        _DashboardStatCard(
+        DashboardStatCard(
           title: 'Agenda Terdekat',
           value: '${_upcomingAgendas.length}',
           subtitle: 'Kalender sekolah',
@@ -557,7 +703,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _RoleHeader(
+        RoleHeader(
           title: 'Beranda Murid',
           badgeLabel: isAssistant ? 'Murid • Asisten' : 'Murid',
           badgeColor: const Color(0xFF8E54E9),
@@ -573,22 +719,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Center(child: CircularProgressIndicator()),
           )
         else
-          _StatCardsLayout(cards: stats, width: width),
+          StatCardsLayout(cards: stats, width: width),
         const SizedBox(height: 20),
-        _SectionHeaderRow(
+        SectionHeaderRow(
           title: 'Tugas Kelas Terbaru',
           actionLabel: widget.onOpenAllClasses != null ? 'Lihat Kelas' : null,
           onAction: widget.onOpenAllClasses,
         ),
         const SizedBox(height: 8),
         if (_muridTasks.isEmpty)
-          const _EmptyNoticeBox(
+          const EmptyNoticeBox(
             message: 'Belum ada tugas dari kelas yang Anda ikuti',
           )
         else
           for (final task in _muridTasks)
-            _SummaryListCard(
-              key: ValueKey('murid_task_${task.classItem.code}_${task.post.id}'),
+            SummaryListCard(
+              key: ValueKey(
+                'murid_task_${task.classItem.code}_${task.post.id}',
+              ),
               title: task.post.judul,
               subtitle:
                   '${task.classItem.title} • ${formatTanggal(task.post.dibuat)}',
@@ -599,531 +747,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
         if (widget.kalenderRepository != null) ...[
           const SizedBox(height: 20),
-          _AgendaPreviewBlock(
+          AgendaPreviewBlock(
             agendas: _upcomingAgendas,
             onOpenCalendar: widget.onOpenCalendar,
           ),
         ],
         if (isAssistant) ...[
           const SizedBox(height: 20),
-          _SectionHeaderRow(
+          SectionHeaderRow(
             title: 'Kelas Didampingi (Asisten)',
             actionLabel: widget.onOpenAllClasses != null ? 'Kelola' : null,
             onAction: widget.onOpenAllClasses,
           ),
           const SizedBox(height: 8),
-          _EmbeddedClassGrid(
+          EmbeddedClassGrid(
             items: assistantItems,
             width: width,
             onTapItem: _openTeachingDetail,
           ),
         ],
         const SizedBox(height: 20),
-        _SectionHeaderRow(
+        SectionHeaderRow(
           title: 'Kelas Diikuti',
           actionLabel: widget.onOpenAllClasses != null ? 'Lihat Semua' : null,
           onAction: widget.onOpenAllClasses,
         ),
         const SizedBox(height: 8),
         if (enrolledItems.isEmpty)
-          const _EmptyNoticeBox(
+          const EmptyNoticeBox(
             message:
                 'Anda belum bergabung ke kelas manapun. Buka tab Kelas untuk bergabung dengan kode kelas.',
           )
         else
-          _EmbeddedClassGrid(
+          EmbeddedClassGrid(
             items: enrolledItems,
             width: width,
             onTapItem: (item) => _openStudentDetail(item),
           ),
       ],
-    );
-  }
-}
-
-class _RoleHeader extends StatelessWidget {
-  final String title;
-  final String badgeLabel;
-  final Color badgeColor;
-  final String subtitle;
-
-  const _RoleHeader({
-    required this.title,
-    required this.badgeLabel,
-    required this.badgeColor,
-    required this.subtitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: AppColors.text,
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                color: badgeColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                badgeLabel,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: badgeColor,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Text(
-          subtitle,
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppColors.secondaryText,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatCardsLayout extends StatelessWidget {
-  final List<_DashboardStatCard> cards;
-  final double width;
-
-  const _StatCardsLayout({required this.cards, required this.width});
-
-  @override
-  Widget build(BuildContext context) {
-    if (width >= 820) {
-      return IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < cards.length; i++) ...[
-              if (i > 0) const SizedBox(width: 12),
-              Expanded(child: cards[i]),
-            ],
-          ],
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: cards[0]),
-              const SizedBox(width: 10),
-              Expanded(child: cards[1]),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: cards[2]),
-              const SizedBox(width: 10),
-              Expanded(child: cards[3]),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DashboardStatCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String subtitle;
-  final IconData icon;
-  final Color accentColor;
-
-  const _DashboardStatCard({
-    required this.title,
-    required this.value,
-    required this.subtitle,
-    required this.icon,
-    required this.accentColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: accentColor),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: accentColor,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.secondaryText,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionHeaderRow extends StatelessWidget {
-  final String title;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  const _SectionHeaderRow({
-    required this.title,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 8,
-        runSpacing: 4,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.text,
-            ),
-          ),
-          if (actionLabel != null && onAction != null)
-            TextButton(
-              onPressed: onAction,
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-              ),
-              child: Text(actionLabel!),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryListCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String badgeLabel;
-  final Color badgeColor;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _SummaryListCard({
-    super.key,
-    required this.title,
-    required this.subtitle,
-    required this.badgeLabel,
-    required this.badgeColor,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Card(
-        margin: EdgeInsets.zero,
-        color: AppColors.card,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: Colors.black12),
-        ),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final badgeWidthEstimate =
-                    MediaQuery.textScalerOf(context).scale(11) *
-                    badgeLabel.length;
-                final stackBadge =
-                    constraints.maxWidth < 300 ||
-                    badgeWidthEstimate > constraints.maxWidth * 0.45;
-
-                final textContent = Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                    if (stackBadge) ...[
-                      const SizedBox(height: 6),
-                      _buildBadge(),
-                    ],
-                  ],
-                );
-
-                return Row(
-                  crossAxisAlignment: stackBadge
-                      ? CrossAxisAlignment.start
-                      : CrossAxisAlignment.center,
-                  children: [
-                    Icon(icon, size: 20, color: AppColors.color1),
-                    const SizedBox(width: 10),
-                    Expanded(child: textContent),
-                    if (!stackBadge) ...[
-                      const SizedBox(width: 8),
-                      _buildBadge(),
-                    ],
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Text(
-        badgeLabel,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: badgeColor,
-        ),
-      ),
-    );
-  }
-}
-
-class _AgendaPreviewBlock extends StatelessWidget {
-  final List<KalenderAkademikModel> agendas;
-  final VoidCallback? onOpenCalendar;
-
-  const _AgendaPreviewBlock({required this.agendas, this.onOpenCalendar});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SectionHeaderRow(
-          title: 'Agenda Sekolah Terdekat',
-          actionLabel: onOpenCalendar != null ? 'Lihat Kalender' : null,
-          onAction: onOpenCalendar,
-        ),
-        const SizedBox(height: 8),
-        if (agendas.isEmpty)
-          const _EmptyNoticeBox(message: 'Belum ada agenda sekolah mendatang')
-        else
-          for (final item in agendas)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.card,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: const Color(0xFFE09F00).withValues(alpha: 0.45),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.warning.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.event_outlined,
-                        size: 16,
-                        color: Color(0xFF7A4F01),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.namaKegiatan,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.text,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            DateUtils.isSameDay(
-                                  item.tanggalMulai,
-                                  item.tanggalSelesai,
-                                )
-                                ? formatTanggal(item.tanggalMulai)
-                                : '${formatTanggal(item.tanggalMulai)} - ${formatTanggal(item.tanggalSelesai)}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.secondaryText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-      ],
-    );
-  }
-}
-
-class _EmbeddedClassGrid extends StatelessWidget {
-  final List<ClassItem> items;
-  final double width;
-  final ValueChanged<ClassItem> onTapItem;
-
-  const _EmbeddedClassGrid({
-    required this.items,
-    required this.width,
-    required this.onTapItem,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final maxWidth = math.min(width, ResponsiveBreakpoints.wide);
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: responsiveClassGridDelegate(
-        context,
-        maxWidth,
-        maxContentWidth: ResponsiveBreakpoints.wide,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, i) => ClassCard(
-        data: items[i],
-        onTap: () => onTapItem(items[i]),
-      ),
-    );
-  }
-}
-
-class _EmptyNoticeBox extends StatelessWidget {
-  final String message;
-
-  const _EmptyNoticeBox({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
-      ),
     );
   }
 }

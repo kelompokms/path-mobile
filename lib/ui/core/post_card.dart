@@ -31,13 +31,14 @@ class PostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
       margin: EdgeInsets.zero,
       color: AppColors.card,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: AppTheme.cardShape(),
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
@@ -97,11 +98,11 @@ class PostCard extends StatelessWidget {
                                 color: AppColors.text,
                               ),
                               tooltip: 'Opsi',
+                              elevation: AppTheme.cardElevation,
+                              shadowColor: AppTheme.shadowColor,
                               color: AppColors.background,
                               surfaceTintColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              shape: AppTheme.cardShape(),
                               onSelected: onMenuItemSelected!,
                               itemBuilder: (_) => [
                                 for (var i = 0; i < menuLabels!.length; i++)
@@ -197,13 +198,14 @@ class FileCard extends StatelessWidget {
         onTap ?? (canAutoOpen ? () => _openItem(context, item) : null);
 
     return Card(
-      elevation: 3,
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
       margin: EdgeInsets.zero,
       color: AppColors.card,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: AppTheme.cardShape(),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
         onTap: effectiveOnTap,
         child: IntrinsicHeight(
           child: Row(
@@ -424,11 +426,12 @@ class _LampiranEditorState extends State<LampiranEditor> {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
       margin: EdgeInsets.zero,
       color: AppColors.card,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: AppTheme.cardShape(),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -527,7 +530,9 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
     return AlertDialog(
       backgroundColor: AppColors.background,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
+      shape: AppTheme.cardShape(radius: AppTheme.dialogRadius),
       title: Text(
         widget.title,
         style: const TextStyle(
@@ -540,7 +545,13 @@ class _AddLinkDialogState extends State<_AddLinkDialog> {
         controller: _controller,
         autofocus: true,
         keyboardType: TextInputType.url,
+        textInputAction: TextInputAction.done,
         onChanged: (_) => setState(() {}),
+        onSubmitted: (_) {
+          if (canAdd) {
+            Navigator.pop(context, normalized);
+          }
+        },
         style: const TextStyle(fontSize: 13, color: AppColors.text),
         decoration: InputDecoration(
           labelText: '${widget.label}*',

@@ -85,7 +85,10 @@ GoRouter createRouter({
           GoRoute(
             path: '/beranda',
             builder: (context, state) => client.isAdmin
-                ? const AdminDashboardScreen()
+                ? AdminDashboardScreen(
+                    controller: AdminController(adminRepo),
+                    kalenderRepository: kalenderRepo,
+                  )
                 : DashboardScreen(
                     isGuruRole: client.isGuru,
                     kelasController: KelasController(kelasRepo),

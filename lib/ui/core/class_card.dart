@@ -92,12 +92,13 @@ class ClassCard extends StatelessWidget {
     final cover = _coverThemes[idx];
 
     return Card(
-      elevation: 3,
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
       margin: EdgeInsets.zero,
       color: AppColors.card,
       surfaceTintColor: Colors.transparent,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: AppTheme.cardShape(),
       child: InkWell(
         onTap: onTap,
         child: Column(
@@ -198,11 +199,11 @@ class ClassCard extends StatelessWidget {
                           color: AppColors.text,
                         ),
                         tooltip: 'Opsi kelas',
+                        elevation: AppTheme.cardElevation,
+                        shadowColor: AppTheme.shadowColor,
                         color: AppColors.background,
                         surfaceTintColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        shape: AppTheme.cardShape(),
                         onSelected: (index) {
                           if (menuItems != null && menuItems!.isNotEmpty) {
                             menuItems![index].onSelected();
@@ -266,12 +267,11 @@ class EmptyClassView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Card(
-              elevation: 3,
+              elevation: AppTheme.cardElevation,
+              shadowColor: AppTheme.shadowColor,
               color: AppColors.card,
               surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+              shape: AppTheme.cardShape(),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -282,7 +282,9 @@ class EmptyClassView extends StatelessWidget {
                       width: double.infinity,
                       decoration: BoxDecoration(
                         color: AppColors.color1.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.cardRadius,
+                        ),
                       ),
                       child: const Center(
                         child: Icon(
@@ -401,12 +403,11 @@ class _JoinClassFormState extends State<JoinClassForm> {
               ),
               const SizedBox(height: 24),
               Card(
-                elevation: 3,
+                elevation: AppTheme.cardElevation,
+                shadowColor: AppTheme.shadowColor,
                 color: AppColors.card,
                 surfaceTintColor: Colors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                shape: AppTheme.cardShape(),
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: Column(
@@ -429,6 +430,12 @@ class _JoinClassFormState extends State<JoinClassForm> {
                       TextField(
                         controller: _codeController,
                         onChanged: (_) => setState(() {}),
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) {
+                          if (_codeController.text.isNotEmpty) {
+                            _submit();
+                          }
+                        },
                         inputFormatters: [
                           FilteringTextInputFormatter.allow(
                             RegExp(r'[a-zA-Z0-9]'),
@@ -542,12 +549,22 @@ class _EditKelasDialogState extends State<_EditKelasDialog> {
     super.dispose();
   }
 
+  void _submit() {
+    if (!_canSave) return;
+    Navigator.pop(context, (
+      nama: _nameController.text.trim(),
+      deskripsi: _descController.text.trim(),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: AppColors.background,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
+      shape: AppTheme.cardShape(radius: AppTheme.dialogRadius),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 520),
         child: SingleChildScrollView(
@@ -572,6 +589,8 @@ class _EditKelasDialogState extends State<_EditKelasDialog> {
               TextField(
                 controller: _nameController,
                 onChanged: (_) => setState(() {}),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
                 style: const TextStyle(fontSize: 16, color: AppColors.text),
                 decoration: InputDecoration(
                   hintText: 'Masukkan nama kelas',
@@ -590,6 +609,8 @@ class _EditKelasDialogState extends State<_EditKelasDialog> {
                 minLines: 3,
                 maxLines: 5,
                 keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _submit(),
                 style: const TextStyle(fontSize: 12, color: AppColors.text),
                 decoration: const InputDecoration(
                   hintText: 'Tambahkan deskripsi kelas (opsional)',
@@ -615,12 +636,7 @@ class _EditKelasDialogState extends State<_EditKelasDialog> {
                       ),
                     ),
                     TextButton(
-                      onPressed: _canSave
-                          ? () => Navigator.pop(context, (
-                              nama: _nameController.text.trim(),
-                              deskripsi: _descController.text.trim(),
-                            ))
-                          : null,
+                      onPressed: _canSave ? _submit : null,
                       child: const Text('Simpan'),
                     ),
                   ],

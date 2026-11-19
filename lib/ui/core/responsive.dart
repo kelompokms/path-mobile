@@ -137,15 +137,10 @@ class ResponsiveAuthSheet extends StatelessWidget {
                     maxHeight: maxHeight,
                   ),
                   decoration: BoxDecoration(
-                    boxShadow: const [
-                      BoxShadow(color: Colors.black12, blurRadius: 16),
-                    ],
+                    boxShadow: AppTheme.thinShadow,
                     color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(32),
-                    border: Border.all(
-                      color: AppColors.secondaryText,
-                      width: 1,
-                    ),
+                    borderRadius: BorderRadius.circular(AppTheme.sheetRadius),
+                    border: AppTheme.thinBorder,
                   ),
                   child: SingleChildScrollView(
                     padding: EdgeInsets.fromLTRB(
@@ -164,7 +159,9 @@ class ResponsiveAuthSheet extends StatelessWidget {
           final horizontalPadding = width < ResponsiveBreakpoints.narrow
               ? 20.0
               : 28.0;
-          final topRadius = width < ResponsiveBreakpoints.narrow ? 32.0 : 48.0;
+          final topRadius = width < ResponsiveBreakpoints.narrow
+              ? AppTheme.dialogRadius
+              : AppTheme.sheetRadius;
           final maxSheetHeight = (keyboardVisible || isShort)
               ? height * 0.96
               : height * 0.82;
@@ -181,19 +178,12 @@ class ResponsiveAuthSheet extends StatelessWidget {
                 maxHeight: maxSheetHeight,
               ),
               decoration: BoxDecoration(
-                boxShadow: const [
-                  BoxShadow(color: Colors.black12, blurRadius: 12),
-                ],
+                boxShadow: AppTheme.thinShadow,
                 color: theme.cardColor,
                 borderRadius: BorderRadius.vertical(
                   top: Radius.circular(topRadius),
                 ),
-                border: const Border.symmetric(
-                  horizontal: BorderSide(
-                    color: AppColors.secondaryText,
-                    width: 1,
-                  ),
-                ),
+                border: AppTheme.thinBorder,
               ),
               child: Center(
                 heightFactor: 1,

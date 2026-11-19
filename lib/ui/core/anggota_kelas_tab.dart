@@ -193,11 +193,12 @@ class _AnggotaSectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 3,
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
       margin: EdgeInsets.zero,
       color: AppColors.card,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: AppTheme.cardShape(),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
         child: Column(
@@ -300,7 +301,9 @@ class _AnggotaSectionCard extends StatelessWidget {
                           color: isTeacherSection
                               ? AppColors.color1.withValues(alpha: 0.12)
                               : AppColors.background,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.cardRadius,
+                          ),
                         ),
                         child: Text(
                           isTeacherSection ? 'Guru' : 'Murid',
@@ -336,11 +339,11 @@ class _AnggotaSectionCard extends StatelessWidget {
                                 color: AppColors.text,
                               ),
                               tooltip: 'Opsi anggota',
+                              elevation: AppTheme.cardElevation,
+                              shadowColor: AppTheme.shadowColor,
                               color: AppColors.background,
                               surfaceTintColor: Colors.transparent,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
+                              shape: AppTheme.cardShape(),
                               enabled: promotingUserId == null,
                               onSelected: (_) => onPromote!(members[i]),
                               itemBuilder: (_) => const [

@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
+import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/utils/date_time_helper.dart';
 import 'package:path_mobile/utils/http_client.dart';
@@ -283,5 +285,60 @@ void main() {
       expect(updated.code, 'BIO10');
       expect(updated.isGuru, isTrue);
     });
+
+    testWidgets(
+      'AppTheme and core shadowed components use consistent thin border, thin shadow, and reduced border radius',
+      (tester) async {
+        final shape = AppTheme.cardShape();
+        expect(
+          shape.borderRadius,
+          BorderRadius.circular(AppTheme.cardRadius),
+        );
+        expect(shape.side, AppTheme.thinBorderSide);
+
+        final decoration = AppTheme.cardDecoration();
+        expect(
+          decoration.borderRadius,
+          BorderRadius.circular(AppTheme.cardRadius),
+        );
+        expect(decoration.border, AppTheme.thinBorder);
+        expect(decoration.boxShadow, AppTheme.thinShadow);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: Scaffold(
+              body: Column(
+                children: [
+                  const ClassCard(
+                    data: ClassItem(title: 'Matematika', grade: 'Kelas X'),
+                  ),
+                  PostCard(
+                    icon: Icons.book,
+                    label: 'Materi',
+                    title: 'Bab 1',
+                    date: DateTime(2026, 11, 19),
+                  ),
+                  const FileCard(fileName: 'Modul.pdf', fileType: 'PDF'),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final cards = tester.widgetList<Card>(find.byType(Card)).toList();
+        expect(cards, hasLength(3));
+        for (final card in cards) {
+          expect(card.elevation, AppTheme.cardElevation);
+          expect(card.shadowColor, AppTheme.shadowColor);
+          final cardShape = card.shape as RoundedRectangleBorder;
+          expect(
+            cardShape.borderRadius,
+            BorderRadius.circular(AppTheme.cardRadius),
+          );
+          expect(cardShape.side, AppTheme.thinBorderSide);
+        }
+      },
+    );
   });
 }

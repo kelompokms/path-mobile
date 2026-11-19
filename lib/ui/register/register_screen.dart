@@ -23,6 +23,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _handleRegister() async {
+    if (widget._controller.isBusy) {
+      return;
+    }
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -69,6 +72,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         TextFormField(
                           controller: ctrl.usernameController,
                           enabled: !ctrl.isBusy,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _handleRegister(),
                           decoration: const InputDecoration(
                             labelText: 'Username',
                           ),
@@ -83,6 +88,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           controller: ctrl.emailController,
                           enabled: !ctrl.isBusy,
                           keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _handleRegister(),
                           decoration: const InputDecoration(
                             labelText: 'Email',
                           ),
@@ -103,6 +110,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           controller: ctrl.passwordController,
                           enabled: !ctrl.isBusy,
                           obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _handleRegister(),
                           decoration: const InputDecoration(
                             labelText: 'Password',
                           ),

@@ -295,6 +295,28 @@ void main() {
       expect(find.byType(DashboardScreen), findsOneWidget);
     });
 
+    testWidgets('login form submits on Enter key action', (tester) async {
+      final client = _createMockHttpClient();
+      final router = createRouter(
+        httpClient: client,
+        initialLocation: '/login',
+      );
+      addTearDown(router.dispose);
+
+      await _pumpAppRouter(tester, router);
+      expect(_currentPath(router), '/login');
+
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), 'rin@example.com');
+      await tester.enterText(fields.at(1), 'password123');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      expect(client.isAuthenticated, isTrue);
+      expect(_currentPath(router), '/beranda');
+      expect(find.byType(DashboardScreen), findsOneWidget);
+    });
+
     testWidgets('register form submission redirects to /beranda', (
       tester,
     ) async {
@@ -313,6 +335,29 @@ void main() {
       await tester.enterText(fields.at(1), 'rin@example.com');
       await tester.enterText(fields.at(2), 'password123');
       await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+      await tester.pumpAndSettle();
+
+      expect(client.isAuthenticated, isTrue);
+      expect(_currentPath(router), '/beranda');
+      expect(find.byType(DashboardScreen), findsOneWidget);
+    });
+
+    testWidgets('register form submits on Enter key action', (tester) async {
+      final client = _createMockHttpClient();
+      final router = createRouter(
+        httpClient: client,
+        initialLocation: '/register',
+      );
+      addTearDown(router.dispose);
+
+      await _pumpAppRouter(tester, router);
+      expect(_currentPath(router), '/register');
+
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), 'rin');
+      await tester.enterText(fields.at(1), 'rin@example.com');
+      await tester.enterText(fields.at(2), 'password123');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pumpAndSettle();
 
       expect(client.isAuthenticated, isTrue);

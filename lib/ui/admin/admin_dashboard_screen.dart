@@ -1,30 +1,35 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:path_mobile/data/admin/admin_model.dart';
+import 'package:path_mobile/data/kalender/kalender_repository.dart';
+import 'package:path_mobile/ui/admin/admin_controller.dart';
+import 'package:path_mobile/ui/admin/admin_dashboard_widgets.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
+import 'package:path_mobile/utils/date_time_helper.dart';
+
+export 'admin_dashboard_widgets.dart';
 
 enum _AiRoleFilter { all, guru, siswa }
 
 enum _AiSortOption { nama, penggunaan }
 
-class _AiUsageItem {
-  final String nama;
-  final bool isGuru;
-  final String detail;
-  final int aiUsage;
-
-  const _AiUsageItem({
-    required this.nama,
-    required this.isGuru,
-    required this.detail,
-    required this.aiUsage,
-  });
-}
-
-/// Placeholder Admin Beranda screen displaying school statistics summary
-/// and AI usage overview styled after `Beranda Admin.png`.
+/// Admin Beranda screen displaying school statistics summary and AI usage
+/// overview backed by real users from `/admin/pengguna` with randomized AI
+/// usage counts until backend AI telemetry is available.
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  final AdminController controller;
+  final KalenderRepository? kalenderRepository;
+  final math.Random? random;
+
+  const AdminDashboardScreen({
+    super.key,
+    required this.controller,
+    this.kalenderRepository,
+    this.random,
+  });
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
@@ -35,56 +40,77 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   static const Color _siswaColor = Color(0xFF8E54E9);
   static const Color _eventColor = Color(0xFF34C759);
 
-  static const List<_AiUsageItem> _placeholderUsage = [
-    _AiUsageItem(
-      nama: 'Eko Kusnandar',
-      isGuru: true,
-      detail: 'Pemrograman Web (Kelas X PPLG 1, X PPLG 2)',
-      aiUsage: 25,
-    ),
-    _AiUsageItem(
-      nama: 'Siti Rahmawati',
-      isGuru: true,
-      detail: 'Basis Data (Kelas XI PPLG 1)',
-      aiUsage: 14,
-    ),
-    _AiUsageItem(
-      nama: 'Budi Santoso',
-      isGuru: true,
-      detail: 'Matematika Wajib (Kelas X PPLG 1)',
-      aiUsage: 8,
-    ),
-    _AiUsageItem(
-      nama: 'Aji Sasongko',
-      isGuru: false,
-      detail: 'Kelas X PPLG 1',
-      aiUsage: 7,
-    ),
-    _AiUsageItem(
-      nama: 'Dewi Lestari',
-      isGuru: false,
-      detail: 'Kelas X PPLG 1',
-      aiUsage: 5,
-    ),
-    _AiUsageItem(
-      nama: 'Rizky Pratama',
-      isGuru: false,
-      detail: 'Kelas X PPLG 2',
-      aiUsage: 3,
-    ),
-    _AiUsageItem(
-      nama: 'Nadia Putri',
-      isGuru: false,
-      detail: 'Kelas X PPLG 2',
-      aiUsage: 2,
-    ),
-  ];
+  late final math.Random _random = widget.random ?? math.Random();
+  final Map<String, int> _aiUsageByUser = {};
+  int _eventCount = 0;
 
   _AiRoleFilter _roleFilter = _AiRoleFilter.all;
   _AiSortOption _sortOption = _AiSortOption.nama;
 
-  List<_AiUsageItem> get _displayedItems {
-    final items = _placeholderUsage.where((item) {
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait([
+      widget.controller.loadUsers(),
+      _loadEvents(),
+    ]);
+  }
+
+  Future<void> _loadEvents() async {
+    final repo = widget.kalenderRepository;
+    if (repo == null) return;
+    final (events, err) = await repo.getKalenderAkademik();
+    if (!mounted || err != null || events == null) return;
+    setState(() {
+      _eventCount = events.length;
+    });
+  }
+
+  int _usageFor(AdminPenggunaModel user) {
+    final key = user.id > 0
+        ? 'id:${user.id}'
+        : '${user.role}:${user.email}:${user.nama}';
+    return _aiUsageByUser.putIfAbsent(key, () => _random.nextInt(30) + 1);
+  }
+
+  String _buildDetail(AdminPenggunaModel user, {required bool isGuru}) {
+    if (user.kelas.isNotEmpty) {
+      return isGuru
+          ? 'Mengampu: ${user.kelas.join(', ')}'
+          : 'Kelas: ${user.kelas.join(', ')}';
+    }
+    if (user.email.isNotEmpty) {
+      return user.email;
+    }
+    return isGuru ? 'Belum mengampu kelas' : 'Belum bergabung kelas';
+  }
+
+  List<AiUsageItem> _buildAllUsageItems() {
+    final ctrl = widget.controller;
+    return [
+      for (final guru in ctrl.guruList)
+        AiUsageItem(
+          nama: guru.nama.isNotEmpty ? guru.nama : 'Tanpa Nama',
+          isGuru: true,
+          detail: _buildDetail(guru, isGuru: true),
+          aiUsage: _usageFor(guru),
+        ),
+      for (final murid in ctrl.muridList)
+        AiUsageItem(
+          nama: murid.nama.isNotEmpty ? murid.nama : 'Tanpa Nama',
+          isGuru: false,
+          detail: _buildDetail(murid, isGuru: false),
+          aiUsage: _usageFor(murid),
+        ),
+    ];
+  }
+
+  List<AiUsageItem> _filterAndSort(List<AiUsageItem> source) {
+    final items = source.where((item) {
       return switch (_roleFilter) {
         _AiRoleFilter.all => true,
         _AiRoleFilter.guru => item.isGuru,
@@ -94,7 +120,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     switch (_sortOption) {
       case _AiSortOption.nama:
-        items.sort((a, b) => a.nama.compareTo(b.nama));
+        items.sort(
+          (a, b) => a.nama.toLowerCase().compareTo(b.nama.toLowerCase()),
+        );
       case _AiSortOption.penggunaan:
         items.sort((a, b) => b.aiUsage.compareTo(a.aiUsage));
     }
@@ -109,384 +137,240 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = _displayedItems;
+    final currentMonthName = formatBulanTahun(nowGmt7()).split(' ').first;
 
     return PageFrame(
       breadcrumb: const ['Admin'],
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final width = constraints.maxWidth;
-          final hPad = responsiveHorizontalInset(width, maxWidth: 900);
-          final fourCol = width >= 820;
+      child: ListenableBuilder(
+        listenable: widget.controller,
+        builder: (context, _) {
+          final ctrl = widget.controller;
+          final allItems = _buildAllUsageItems();
+          final items = _filterAndSort(allItems);
 
-          final statCards = const [
-            _StatSummaryCard(
-              title: 'Total Guru',
-              value: '3 Guru',
-              badgeLabel: 'Pakai AI: 25x',
-              badgeColor: _guruColor,
-            ),
-            _StatSummaryCard(
-              title: 'Total Siswa',
-              value: '4 Siswa',
-              badgeLabel: 'Pakai AI: 17x',
-              badgeColor: _siswaColor,
-            ),
-            _StatSummaryCard(
-              title: 'Total Pakai AI (Semua)',
-              value: '42 Kali',
-              badgeLabel: 'Bulan ini',
-              badgeColor: AppColors.error,
-            ),
-            _StatSummaryCard(
-              title: 'Total Event',
-              value: '3 Event',
-              badgeLabel: 'September',
-              badgeColor: _eventColor,
-            ),
-          ];
+          final guruCount = ctrl.guruList.length;
+          final siswaCount = ctrl.muridList.length;
+          final guruAiTotal = allItems
+              .where((i) => i.isGuru)
+              .fold<int>(0, (sum, item) => sum + item.aiUsage);
+          final siswaAiTotal = allItems
+              .where((i) => !i.isGuru)
+              .fold<int>(0, (sum, item) => sum + item.aiUsage);
+          final totalAiUsage = guruAiTotal + siswaAiTotal;
 
-          return SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-              const Text(
-                'Rangkuman Statistik Sekolah',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final hPad = responsiveHorizontalInset(width, maxWidth: 900);
+              final fourCol = width >= 820;
+
+              final statCards = [
+                StatSummaryCard(
+                  title: 'Total Guru',
+                  value: '$guruCount Guru',
+                  badgeLabel: 'Pakai AI: ${guruAiTotal}x',
+                  badgeColor: _guruColor,
                 ),
-              ),
-              const SizedBox(height: 12),
-              if (fourCol)
-                Row(
-                  children: [
-                    for (var i = 0; i < statCards.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 12),
-                      Expanded(child: statCards[i]),
-                    ],
-                  ],
-                )
-              else ...[
-                _StatRowPair(left: statCards[0], right: statCards[1]),
-                const SizedBox(height: 12),
-                _StatRowPair(left: statCards[2], right: statCards[3]),
-              ],
-              const SizedBox(height: 24),
-              const Text(
-                'Ringkasan Penggunaan AI',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text,
+                StatSummaryCard(
+                  title: 'Total Siswa',
+                  value: '$siswaCount Siswa',
+                  badgeLabel: 'Pakai AI: ${siswaAiTotal}x',
+                  badgeColor: _siswaColor,
                 ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.end,
-                spacing: 12,
-                runSpacing: 10,
-                children: [
-                  SizedBox(
-                    width: 170,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'Urutkan berdasarkan',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppColors.secondaryText,
-                          ),
-                        ),
-                        DropdownButton<_AiSortOption>(
-                          value: _sortOption,
-                          isExpanded: true,
-                          isDense: true,
-                          underline: Container(
-                            height: 1,
-                            color: AppColors.text.withValues(alpha: 0.7),
-                          ),
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.text,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: _AiSortOption.nama,
-                              child: Text('Nama'),
-                            ),
-                            DropdownMenuItem(
-                              value: _AiSortOption.penggunaan,
-                              child: Text('Penggunaan AI'),
-                            ),
-                          ],
-                          onChanged: (v) {
-                            if (v == null) return;
-                            setState(() => _sortOption = v);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
+                StatSummaryCard(
+                  title: 'Total Pakai AI (Semua)',
+                  value: '$totalAiUsage Kali',
+                  badgeLabel: 'Bulan ini',
+                  badgeColor: AppColors.error,
+                ),
+                StatSummaryCard(
+                  title: 'Total Event',
+                  value: '$_eventCount Event',
+                  badgeLabel: currentMonthName,
+                  badgeColor: _eventColor,
+                ),
+              ];
+
+              return RefreshIndicator(
+                onRefresh: _refresh,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _RoleFilterChip(
-                        key: const Key('admin_ai_filter_guru'),
-                        label: 'Guru',
-                        color: _siswaColor,
-                        selected: _roleFilter == _AiRoleFilter.guru,
-                        dimmed: _roleFilter == _AiRoleFilter.siswa,
-                        onTap: () => _toggleRole(_AiRoleFilter.guru),
+                      const Text(
+                        'Rangkuman Statistik Sekolah',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.text,
+                        ),
                       ),
-                      _RoleFilterChip(
-                        key: const Key('admin_ai_filter_siswa'),
-                        label: 'Siswa',
-                        color: _guruColor,
-                        selected: _roleFilter == _AiRoleFilter.siswa,
-                        dimmed: _roleFilter == _AiRoleFilter.guru,
-                        onTap: () => _toggleRole(_AiRoleFilter.siswa),
+                      const SizedBox(height: 12),
+                      if (fourCol)
+                        Row(
+                          children: [
+                            for (var i = 0; i < statCards.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 12),
+                              Expanded(child: statCards[i]),
+                            ],
+                          ],
+                        )
+                      else ...[
+                        StatRowPair(left: statCards[0], right: statCards[1]),
+                        const SizedBox(height: 12),
+                        StatRowPair(left: statCards[2], right: statCards[3]),
+                      ],
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Ringkasan Penggunaan AI',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.text,
+                        ),
                       ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.end,
+                        spacing: 12,
+                        runSpacing: 10,
+                        children: [
+                          SizedBox(
+                            width: 170,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'Urutkan berdasarkan',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.secondaryText,
+                                  ),
+                                ),
+                                DropdownButton<_AiSortOption>(
+                                  value: _sortOption,
+                                  isExpanded: true,
+                                  isDense: true,
+                                  underline: Container(
+                                    height: 1,
+                                    color: AppColors.text.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                  ),
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.text,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  items: const [
+                                    DropdownMenuItem(
+                                      value: _AiSortOption.nama,
+                                      child: Text('Nama'),
+                                    ),
+                                    DropdownMenuItem(
+                                      value: _AiSortOption.penggunaan,
+                                      child: Text('Penggunaan AI'),
+                                    ),
+                                  ],
+                                  onChanged: (v) {
+                                    if (v == null) return;
+                                    setState(() => _sortOption = v);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              RoleFilterChip(
+                                key: const Key('admin_ai_filter_guru'),
+                                label: 'Guru',
+                                color: _siswaColor,
+                                selected: _roleFilter == _AiRoleFilter.guru,
+                                dimmed: _roleFilter == _AiRoleFilter.siswa,
+                                onTap: () => _toggleRole(_AiRoleFilter.guru),
+                              ),
+                              RoleFilterChip(
+                                key: const Key('admin_ai_filter_siswa'),
+                                label: 'Siswa',
+                                color: _guruColor,
+                                selected: _roleFilter == _AiRoleFilter.siswa,
+                                dimmed: _roleFilter == _AiRoleFilter.guru,
+                                onTap: () => _toggleRole(_AiRoleFilter.siswa),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      if (ctrl.isLoadingUsers && allItems.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 28),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      else if (ctrl.usersError != null && allItems.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Column(
+                            children: [
+                              Text(
+                                ctrl.usersError!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppColors.secondaryText,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: _refresh,
+                                style: AppTheme.softCompactButton,
+                                child: const Text('Coba Lagi'),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (items.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Text(
+                            allItems.isEmpty
+                                ? 'Belum ada pengguna terdaftar'
+                                : 'Tidak ada pengguna sesuai filter',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                        )
+                      else
+                        for (var i = 0; i < items.length; i++) ...[
+                          if (i > 0)
+                            const Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: Colors.black26,
+                            ),
+                          AiUsageRow(
+                            item: items[i],
+                            accentColor: items[i].isGuru
+                                ? _guruColor
+                                : _siswaColor,
+                          ),
+                        ],
                     ],
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              for (var i = 0; i < items.length; i++) ...[
-                if (i > 0)
-                  const Divider(height: 1, thickness: 1, color: Colors.black26),
-                _AiUsageRow(
-                  item: items[i],
-                  accentColor: items[i].isGuru ? _guruColor : _siswaColor,
                 ),
-              ],
-            ],
-            ),
+              );
+            },
           );
         },
-      ),
-    );
-  }
-}
-
-class _StatRowPair extends StatelessWidget {
-  final Widget left;
-  final Widget right;
-
-  const _StatRowPair({required this.left, required this.right});
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: left),
-          const SizedBox(width: 12),
-          Expanded(child: right),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatSummaryCard extends StatelessWidget {
-  final String title;
-  final String value;
-  final String badgeLabel;
-  final Color badgeColor;
-
-  const _StatSummaryCard({
-    required this.title,
-    required this.value,
-    required this.badgeLabel,
-    required this.badgeColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.black26),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 3)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.text,
-                ),
-              ),
-              _PillBadge(label: badgeLabel, color: badgeColor),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AppColors.text,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PillBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _PillBadge({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-        ),
-      ),
-    );
-  }
-}
-
-class _RoleFilterChip extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool selected;
-  final bool dimmed;
-  final VoidCallback onTap;
-
-  const _RoleFilterChip({
-    super.key,
-    required this.label,
-    required this.color,
-    required this.selected,
-    required this.dimmed,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: dimmed ? color.withValues(alpha: 0.45) : color,
-      elevation: selected ? 4 : 2,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (selected) ...[
-                const Icon(Icons.check, size: 14, color: Colors.white),
-                const SizedBox(width: 4),
-              ],
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AiUsageRow extends StatelessWidget {
-  final _AiUsageItem item;
-  final Color accentColor;
-
-  const _AiUsageRow({required this.item, required this.accentColor});
-
-  @override
-  Widget build(BuildContext context) {
-    final roleLabel = item.isGuru ? 'Guru' : 'Siswa';
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: accentColor,
-            child: const Icon(
-              Icons.person_outline,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${item.nama} ($roleLabel)',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.detail,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.secondaryText,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          _PillBadge(
-            label: 'Pakai AI: ${item.aiUsage}x',
-            color: accentColor,
-          ),
-        ],
       ),
     );
   }

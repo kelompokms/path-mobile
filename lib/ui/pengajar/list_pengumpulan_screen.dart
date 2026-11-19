@@ -192,11 +192,12 @@ class _ListPengumpulanScreenState extends State<ListPengumpulanScreen> {
 
   Widget _buildSummaryCard() {
     return Card(
-      elevation: 2,
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
       margin: EdgeInsets.zero,
       color: AppColors.card,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: AppTheme.cardShape(),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -229,7 +230,7 @@ class _ListPengumpulanScreenState extends State<ListPengumpulanScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: AppColors.color1.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
               ),
               child: Text(
                 '${_items.length} Murid Mengumpulkan',
@@ -253,11 +254,12 @@ class _ListPengumpulanScreenState extends State<ListPengumpulanScreen> {
         : 'Pengguna #${item.penggunaId}';
 
     return Card(
-      elevation: 2,
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
       margin: EdgeInsets.zero,
       color: AppColors.card,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: AppTheme.cardShape(),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -313,7 +315,7 @@ class _ListPengumpulanScreenState extends State<ListPengumpulanScreen> {
                             ? AppColors.info
                             : AppColors.success)
                         .withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                   ),
                   child: Text(
                     item.isMarkAsDone

@@ -700,5 +700,41 @@ void main() {
         expect(find.text('https://example.org/tugas-baru'), findsNothing);
       },
     );
+
+    testWidgets(
+      'submits Buat Materi form on Enter key action from title or description field',
+      (tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            onGenerateRoute: (_) => MaterialPageRoute<void>(
+              settings: const RouteSettings(name: 'pengajar-detail'),
+              builder: (_) => const Scaffold(
+                body: PengajarDetailScreen(
+                  classData: ClassItem(
+                    title: 'Matematika XI',
+                    grade: 'Kelas XI',
+                    code: 'MAT202',
+                    isGuru: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Buat Materi'));
+        await tester.pumpAndSettle();
+
+        final fields = find.byType(TextField);
+        await tester.enterText(fields.at(0), 'Materi Enter Submit');
+        await tester.enterText(fields.at(1), 'Deskripsi enter submit');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Materi Enter Submit'), findsOneWidget);
+      },
+    );
   });
 }

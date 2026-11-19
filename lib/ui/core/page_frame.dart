@@ -232,7 +232,9 @@ Future<bool> showConfirmDialog(
     builder: (context) => AlertDialog(
       backgroundColor: AppColors.background,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
+      shape: AppTheme.cardShape(radius: AppTheme.dialogRadius),
       title: Text(
         title,
         style: const TextStyle(
@@ -276,7 +278,9 @@ Future<void> showInfoDialog(
     builder: (context) => AlertDialog(
       backgroundColor: AppColors.background,
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      elevation: AppTheme.cardElevation,
+      shadowColor: AppTheme.shadowColor,
+      shape: AppTheme.cardShape(radius: AppTheme.dialogRadius),
       title: Text(
         title,
         style: const TextStyle(

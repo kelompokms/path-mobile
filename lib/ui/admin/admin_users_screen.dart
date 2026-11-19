@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:path_mobile/data/admin/admin_model.dart';
 import 'package:path_mobile/ui/admin/admin_controller.dart';
+import 'package:path_mobile/ui/admin/admin_users_widgets.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
+
+export 'admin_users_widgets.dart';
 
 /// Admin page displaying two separate sections (Daftar Guru and Daftar Murid)
 /// in a single scrollable view with search, pull-to-refresh, and role switching.
@@ -126,6 +129,8 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                         TextField(
                           controller: _searchController,
                           onChanged: (v) => setState(() => _query = v),
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (v) => setState(() => _query = v),
                           decoration: InputDecoration(
                             hintText: 'Cari nama, email, atau kelas...',
                             prefixIcon: const Icon(Icons.search, size: 20),
@@ -145,7 +150,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                               vertical: 10,
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.cardRadius,
+                              ),
                             ),
                           ),
                         ),
@@ -158,21 +165,21 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                       child: ListView(
                         padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 24),
                         children: [
-                          _SectionHeader(
+                          AdminUserSectionHeader(
                             title: 'Daftar Guru',
                             count: guruList.length,
                             color: AppColors.color1,
                           ),
                           const SizedBox(height: 8),
                           if (guruList.isEmpty)
-                            _EmptySectionNotice(
+                            AdminEmptySectionNotice(
                               message: _query.trim().isNotEmpty
                                   ? 'Tidak ada guru yang cocok dengan pencarian'
                                   : 'Belum ada guru terdaftar',
                             )
                           else
                             for (final guru in guruList)
-                              _UserCard(
+                              AdminUserCard(
                                 user: guru,
                                 accentColor: AppColors.color1,
                                 roleLabel: 'Guru',
@@ -183,21 +190,21 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                     _changeUserRole(guru, 'murid'),
                               ),
                           const SizedBox(height: 20),
-                          _SectionHeader(
+                          AdminUserSectionHeader(
                             title: 'Daftar Murid',
                             count: muridList.length,
                             color: const Color(0xFF8E54E9),
                           ),
                           const SizedBox(height: 8),
                           if (muridList.isEmpty)
-                            _EmptySectionNotice(
+                            AdminEmptySectionNotice(
                               message: _query.trim().isNotEmpty
                                   ? 'Tidak ada murid yang cocok dengan pencarian'
                                   : 'Belum ada murid terdaftar',
                             )
                           else
                             for (final murid in muridList)
-                              _UserCard(
+                              AdminUserCard(
                                 user: murid,
                                 accentColor: const Color(0xFF8E54E9),
                                 roleLabel: 'Murid',
@@ -216,212 +223,6 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             },
           );
         },
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final int count;
-  final Color color;
-
-  const _SectionHeader({
-    required this.title,
-    required this.count,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: AppColors.text,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            '$count',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _EmptySectionNotice extends StatelessWidget {
-  final String message;
-
-  const _EmptySectionNotice({required this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black12),
-      ),
-      child: Text(
-        message,
-        style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
-      ),
-    );
-  }
-}
-
-class _UserCard extends StatelessWidget {
-  final AdminPenggunaModel user;
-  final Color accentColor;
-  final String roleLabel;
-  final String emptyClassLabel;
-  final String classPrefix;
-  final String actionLabel;
-  final VoidCallback onToggleRole;
-
-  const _UserCard({
-    required this.user,
-    required this.accentColor,
-    required this.roleLabel,
-    required this.emptyClassLabel,
-    required this.classPrefix,
-    required this.actionLabel,
-    required this.onToggleRole,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final classSummary = user.kelas.isEmpty
-        ? emptyClassLabel
-        : '$classPrefix${user.kelas.join(', ')}';
-
-    return Card(
-      elevation: 1.5,
-      margin: const EdgeInsets.only(bottom: 8),
-      color: AppColors.card,
-      surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: Colors.black12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: accentColor,
-              child: const Icon(
-                Icons.person_outline,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Wrap(
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: [
-                            Text(
-                              user.nama.isNotEmpty ? user.nama : 'Tanpa Nama',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.text,
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: accentColor,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                roleLabel,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      PopupMenuButton<int>(
-                        key: Key('user_role_menu_${user.id}'),
-                        padding: EdgeInsets.zero,
-                        iconSize: 20,
-                        icon: const Icon(
-                          Icons.more_vert,
-                          color: AppColors.text,
-                        ),
-                        tooltip: 'Ubah role',
-                        color: AppColors.background,
-                        surfaceTintColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        onSelected: (_) => onToggleRole(),
-                        itemBuilder: (_) => [
-                          PopupMenuItem<int>(
-                            value: 0,
-                            child: Text(actionLabel),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  if (user.email.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      user.email,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  Text(
-                    classSummary,
-                    style: const TextStyle(fontSize: 11, color: AppColors.text),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

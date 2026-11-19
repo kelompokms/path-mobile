@@ -669,5 +669,161 @@ void main() {
         expect(find.text('Anda belum bergabung kelas manapun'), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'Beranda Guru displays actionable KPIs, per-class participation & 7-day activity stats',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        final now = DateTime.now();
+        final client = HttpClient(
+          token: 'jwt.guru.stats',
+          client: MockClient((request) async {
+            final path = request.url.path;
+            final tipe = request.url.queryParameters['tipe'];
+            if (path == '/kelas') {
+              return http.Response(
+                jsonEncode([
+                  {
+                    'id': 2,
+                    'nama': 'Fisika XI',
+                    'deskripsi': 'Kelas XI IPA',
+                    'tingkat': 11,
+                    'tahun_ajaran': '2026/2027',
+                    'kode_kelas': 'FIS11',
+                    'pengampu': 1,
+                    'guru': true,
+                    'dibuat': now.toIso8601String(),
+                  },
+                ]),
+                200,
+              );
+            }
+            if (path == '/kelas/FIS11/anggota') {
+              return http.Response(
+                jsonEncode([
+                  {
+                    'pengguna_id': 1,
+                    'nama': 'Pak Guru',
+                    'email': 'guru@school.id',
+                    'guru': true,
+                  },
+                  {
+                    'pengguna_id': 5,
+                    'nama': 'Aji Siswa',
+                    'email': 'aji@school.id',
+                    'guru': false,
+                  },
+                  {
+                    'pengguna_id': 6,
+                    'nama': 'Bima Siswa',
+                    'email': 'bima@school.id',
+                    'guru': false,
+                  },
+                  {
+                    'pengguna_id': 7,
+                    'nama': 'Citra Siswa',
+                    'email': 'citra@school.id',
+                    'guru': false,
+                  },
+                  {
+                    'pengguna_id': 8,
+                    'nama': 'Dina Siswa',
+                    'email': 'dina@school.id',
+                    'guru': false,
+                  },
+                ]),
+                200,
+              );
+            }
+            if (path == '/kelas/FIS11/posts' && tipe == '1') {
+              return http.Response(
+                jsonEncode([
+                  {
+                    'id': 202,
+                    'judul': 'Tugas Gerak Lurus',
+                    'deskripsi': 'Soal latihan',
+                    'lampiran': <String>[],
+                    'pengguna_id': 1,
+                    'kelas_id': 2,
+                    'tipe_id': 1,
+                    'dibuat': now.toIso8601String(),
+                  },
+                ]),
+                200,
+              );
+            }
+            if (path == '/kelas/FIS11/postingan/202/pengumpulan') {
+              return http.Response(
+                jsonEncode([
+                  {
+                    'id': 10,
+                    'pengguna_id': 5,
+                    'nama': 'Aji Siswa',
+                    'email': 'aji@school.id',
+                    'lampiran': ['files/jawaban_aji.pdf'],
+                    'dibuat': now.toIso8601String(),
+                  },
+                  {
+                    'id': 11,
+                    'pengguna_id': 6,
+                    'nama': 'Bima Siswa',
+                    'email': 'bima@school.id',
+                    'lampiran': <String>[],
+                    'dibuat': now.subtract(const Duration(days: 1)).toIso8601String(),
+                  },
+                ]),
+                200,
+              );
+            }
+            return http.Response(jsonEncode([]), 200);
+          }),
+        );
+
+        final pCtrl = PengajarController(PengajarRepository(client));
+        final kCtrl = KelasController(KelasRepository(client));
+        addTearDown(pCtrl.dispose);
+        addTearDown(kCtrl.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightTheme,
+            home: Scaffold(
+              body: DashboardScreen(
+                kelasController: kCtrl,
+                pengajarController: pCtrl,
+                isGuruRole: true,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Actionable KPIs replace old raw-count cards
+        expect(find.text('Tingkat Pengumpulan'), findsOneWidget);
+        expect(find.text('50%'), findsOneWidget);
+        expect(find.text('Belum Kumpul'), findsOneWidget);
+        expect(find.text('Kiriman 7 Hari'), findsOneWidget);
+        expect(find.text('+2'), findsOneWidget);
+        expect(find.text('Total Murid'), findsOneWidget);
+        expect(find.text('4'), findsOneWidget);
+
+        // Class participation chart & task progress ratio
+        expect(find.text('Statistik Pengumpulan'), findsOneWidget);
+        expect(find.text('Partisipasi per Kelas'), findsOneWidget);
+        expect(find.text('50% (2/4)'), findsOneWidget);
+        expect(find.text('2/4 murid'), findsOneWidget);
+
+        // Switch mobile stats tab to 7 Hari Terakhir -> shows chart & composition
+        await tester.tap(find.byKey(const Key('guru_stats_tab_aktivitas')));
+        await tester.pumpAndSettle();
+        expect(find.text('Aktivitas 7 Hari Terakhir'), findsOneWidget);
+        expect(find.text('Komposisi Kiriman'), findsOneWidget);
+        expect(find.text('Lampiran: 1'), findsOneWidget);
+        expect(find.text('Tandai Selesai: 1'), findsOneWidget);
+      },
+    );
   });
 }
