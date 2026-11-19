@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:path_mobile/data/admin/admin_model.dart';
 import 'package:path_mobile/ui/admin/admin_controller.dart';
 import 'package:path_mobile/ui/admin/admin_users_widgets.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
@@ -8,7 +9,8 @@ import 'package:path_mobile/ui/core/responsive.dart';
 export 'admin_users_widgets.dart';
 
 /// Admin page displaying two separate sections (Daftar Guru and Daftar Murid)
-/// in a single scrollable view with search, pull-to-refresh, and new user creation.
+/// in a single scrollable view with search, pull-to-refresh, user creation,
+/// and user deactivation.
 class AdminUsersScreen extends StatefulWidget {
   final AdminController controller;
 
@@ -57,6 +59,28 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
             err ??
                 'User "${result.nama}" berhasil ditambahkan sebagai $roleLabel',
           ),
+        ),
+      );
+  }
+
+  Future<void> _confirmDeleteUser(AdminPenggunaModel user) async {
+    final displayName = user.nama.isNotEmpty ? user.nama : 'pengguna ini';
+    final detail = user.email.isNotEmpty ? ' (${user.email})' : '';
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Hapus Pengguna',
+      message:
+          'Apakah Anda yakin ingin menghapus "$displayName"$detail? Akun ini akan dinonaktifkan dan tidak lagi muncul di daftar pengguna aktif.',
+    );
+    if (!confirmed || !mounted) return;
+
+    final err = await widget.controller.deleteUser(user.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(err ?? 'User "$displayName" berhasil dihapus'),
         ),
       );
   }
@@ -202,6 +226,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                 roleLabel: 'Guru',
                                 emptyClassLabel: 'Belum mengampu kelas',
                                 classPrefix: 'Mengampu: ',
+                                onDelete: () => _confirmDeleteUser(guru),
                               ),
                           const SizedBox(height: 20),
                           AdminUserSectionHeader(
@@ -224,6 +249,7 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                 roleLabel: 'Murid',
                                 emptyClassLabel: 'Belum bergabung kelas',
                                 classPrefix: 'Kelas: ',
+                                onDelete: () => _confirmDeleteUser(murid),
                               ),
                         ],
                       ),

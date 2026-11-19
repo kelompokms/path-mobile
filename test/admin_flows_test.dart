@@ -154,6 +154,31 @@ HttpClient _createAdminMockClient({
         return http.Response(jsonEncode(newUser), 201);
       }
       if (path.startsWith('/admin/pengguna/') &&
+          request.url.pathSegments.length == 3 &&
+          request.method == 'DELETE') {
+        final userId = int.parse(request.url.pathSegments[2]);
+        final guruIdx = guruUsers.indexWhere((u) => u['id'] == userId);
+        if (guruIdx != -1) {
+          guruUsers.removeAt(guruIdx);
+          return http.Response(
+            jsonEncode({'message': 'Berhasil menghapus pengguna'}),
+            200,
+          );
+        }
+        final muridIdx = muridUsers.indexWhere((u) => u['id'] == userId);
+        if (muridIdx != -1) {
+          muridUsers.removeAt(muridIdx);
+          return http.Response(
+            jsonEncode({'message': 'Berhasil menghapus pengguna'}),
+            200,
+          );
+        }
+        return http.Response(
+          jsonEncode({'message': 'Pengguna tidak ditemukan'}),
+          404,
+        );
+      }
+      if (path.startsWith('/admin/pengguna/') &&
           path.endsWith('/role') &&
           request.method == 'PATCH') {
         final segments = request.url.pathSegments;
@@ -820,6 +845,67 @@ void main() {
       );
       expect(ctrl.muridList, hasLength(2));
       expect(find.text('Rina Lestari'), findsOneWidget);
+    });
+
+    testWidgets('AdminUsersScreen deletes guru and murid after confirmation without overflow on 320px', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final client = _createAdminMockClient(today: DateTime.now());
+      final ctrl = AdminController(AdminRepository(client));
+      addTearDown(ctrl.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightTheme,
+          home: Scaffold(body: AdminUsersScreen(controller: ctrl)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(ctrl.guruList, hasLength(1));
+      expect(ctrl.muridList, hasLength(1));
+
+      // Cancel deleting Aji Sasongko (id 5) keeps user intact
+      final deleteMuridBtn = find.byKey(const Key('admin_delete_user_5'));
+      await tester.ensureVisible(deleteMuridBtn);
+      await tester.tap(deleteMuridBtn);
+      await tester.pumpAndSettle();
+      expect(find.text('Hapus Pengguna'), findsOneWidget);
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Tidak'));
+      await tester.pumpAndSettle();
+      expect(ctrl.muridList, hasLength(1));
+      expect(find.text('Aji Sasongko'), findsOneWidget);
+
+      // Confirm deleting Aji Sasongko (id 5)
+      await tester.tap(deleteMuridBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Ya'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('User "Aji Sasongko" berhasil dihapus'), findsOneWidget);
+      expect(ctrl.muridList, isEmpty);
+      expect(find.text('Aji Sasongko'), findsNothing);
+      expect(find.text('Belum ada murid terdaftar'), findsOneWidget);
+
+      // Confirm deleting Eko Kusnandar (id 2)
+      final deleteGuruBtn = find.byKey(const Key('admin_delete_user_2'));
+      await tester.ensureVisible(deleteGuruBtn);
+      await tester.tap(deleteGuruBtn);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ElevatedButton, 'Ya'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('User "Eko Kusnandar" berhasil dihapus'),
+        findsOneWidget,
+      );
+      expect(ctrl.guruList, isEmpty);
+      expect(find.text('Eko Kusnandar'), findsNothing);
+      expect(find.text('Belum ada guru terdaftar'), findsOneWidget);
     });
 
     testWidgets('AdminKelasScreen creates class manually, uploads CSV, and changes pengampu without overflow on 320px', (

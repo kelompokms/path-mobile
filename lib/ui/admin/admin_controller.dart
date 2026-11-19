@@ -192,6 +192,16 @@ class AdminController extends ChangeNotifier {
     return null;
   }
 
+  Future<String?> deleteUser(int penggunaId) async {
+    final err = await _repo.deleteUser(penggunaId);
+    if (err != null) return err;
+    await loadUsers();
+    if (_allKelas.isNotEmpty) {
+      await loadAllKelas();
+    }
+    return null;
+  }
+
   Future<String?> updateUserRole(int penggunaId, String role) async {
     final err = await _repo.updateUserRole(penggunaId, role);
     if (err != null) return err;

@@ -71,6 +71,7 @@ class AdminUserCard extends StatelessWidget {
   final String roleLabel;
   final String emptyClassLabel;
   final String classPrefix;
+  final VoidCallback? onDelete;
 
   const AdminUserCard({
     super.key,
@@ -79,6 +80,7 @@ class AdminUserCard extends StatelessWidget {
     required this.roleLabel,
     required this.emptyClassLabel,
     required this.classPrefix,
+    this.onDelete,
   });
 
   @override
@@ -164,6 +166,22 @@ class AdminUserCard extends StatelessWidget {
                 ],
               ),
             ),
+            if (onDelete != null) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                key: Key('admin_delete_user_${user.id}'),
+                onPressed: onDelete,
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: Colors.red.shade600,
+                  size: 20,
+                ),
+                tooltip: 'Hapus pengguna',
+                padding: const EdgeInsets.all(6),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
           ],
         ),
       ),

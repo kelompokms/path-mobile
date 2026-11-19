@@ -128,6 +128,23 @@ class AdminRepository {
     }
   }
 
+  Future<String?> deleteUser(int penggunaId) async {
+    try {
+      final response = await _client
+          .delete(_client.uri('/admin/pengguna/$penggunaId'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        return _extractMessage(response.body, 'Gagal menghapus pengguna');
+      }
+      return null;
+    } on TimeoutException {
+      return 'Request timed out. Please try again.';
+    } catch (e) {
+      return 'Network error: $e';
+    }
+  }
+
   Future<String?> updateUserRole(int penggunaId, String role) async {
     try {
       final response = await _client
