@@ -8,13 +8,13 @@ import 'package:path_mobile/ui/pengajar/pengajar_detail_screen.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_items.dart';
 
 export 'buat_materi_screen.dart';
-export 'cek_jawaban_screen.dart';
 export 'koreksi_ai_screen.dart';
 export 'pengajar_detail_screen.dart';
 export 'pengajar_items.dart';
 export 'pengajar_materi_detail_screen.dart';
 export 'pengajar_tugas_detail_screen.dart';
 export 'pengajar_widgets.dart';
+export 'pengumpulan_penilaian_screen.dart';
 export 'tugas_form_screen.dart';
 
 class PengajarScreen extends StatelessWidget {

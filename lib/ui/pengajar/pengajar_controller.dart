@@ -228,6 +228,18 @@ class PengajarController extends ChangeNotifier {
     return _repo.listPengumpulanTugas(kodeKelas, postinganId);
   }
 
+  Future<(List<PengumpulanMuridModel>?, String?)> simpanNilaiPengumpulan(
+    String kodeKelas,
+    int postinganId,
+    Map<int, int?> nilaiByPenggunaId,
+  ) {
+    return _repo.simpanNilaiPengumpulan(
+      kodeKelas,
+      postinganId,
+      nilaiByPenggunaId,
+    );
+  }
+
   Future<String?> updateRoleGuru(String kodeKelas, bool roleGuru) {
     return _repo.updateRoleGuru(kodeKelas, roleGuru);
   }

@@ -13,7 +13,6 @@ import 'package:path_mobile/ui/dashboard/dashboard_widgets.dart';
 import 'package:path_mobile/ui/dashboard/guru_stats_widgets.dart';
 import 'package:path_mobile/ui/kelas/kelas_controller.dart';
 import 'package:path_mobile/ui/kelas/kelas_screen.dart';
-import 'package:path_mobile/ui/pengajar/list_pengumpulan_screen.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_screen.dart';
 import 'package:path_mobile/utils/date_time_helper.dart';
@@ -120,15 +119,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted || seq != _loadSeq || err != null || list == null) return;
 
     final today = DateUtils.dateOnly(DateTime.now());
-    final upcoming =
-        list.where((e) {
-          final end = DateTime(
-            e.tanggalSelesai.year,
-            e.tanggalSelesai.month,
-            e.tanggalSelesai.day,
-          );
-          return !end.isBefore(today);
-        }).toList()..sort((a, b) => a.tanggalMulai.compareTo(b.tanggalMulai));
+    final upcoming = list.where((e) {
+      final end = DateTime(
+        e.tanggalSelesai.year,
+        e.tanggalSelesai.month,
+        e.tanggalSelesai.day,
+      );
+      return !end.isBefore(today);
+    }).toList()..sort((a, b) => a.tanggalMulai.compareTo(b.tanggalMulai));
 
     setState(() {
       _upcomingAgendas = upcoming.take(3).toList();
@@ -286,23 +284,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return b.post.dibuat.compareTo(a.post.dibuat);
     });
 
-    final classProgress = [
-      for (final k in scoped)
-        GuruClassProgress(
-          classItem: classItemByCode[k.kodeKelas]!,
-          studentCount: studentCountByCode[k.kodeKelas] ?? 0,
-          taskCount: taskCountByCode[k.kodeKelas] ?? 0,
-          submissionCount: submissionsByCode[k.kodeKelas] ?? 0,
-          expectedSubmissions: expectedByCode[k.kodeKelas] ?? 0,
-        ),
-    ]..sort((a, b) {
-        final ra = a.completionRate;
-        final rb = b.completionRate;
-        if (ra != null && rb != null) return ra.compareTo(rb);
-        if (ra != null) return -1;
-        if (rb != null) return 1;
-        return b.submissionCount.compareTo(a.submissionCount);
-      });
+    final classProgress =
+        [
+          for (final k in scoped)
+            GuruClassProgress(
+              classItem: classItemByCode[k.kodeKelas]!,
+              studentCount: studentCountByCode[k.kodeKelas] ?? 0,
+              taskCount: taskCountByCode[k.kodeKelas] ?? 0,
+              submissionCount: submissionsByCode[k.kodeKelas] ?? 0,
+              expectedSubmissions: expectedByCode[k.kodeKelas] ?? 0,
+            ),
+        ]..sort((a, b) {
+          final ra = a.completionRate;
+          final rb = b.completionRate;
+          if (ra != null && rb != null) return ra.compareTo(rb);
+          if (ra != null) return -1;
+          if (rb != null) return 1;
+          return b.submissionCount.compareTo(a.submissionCount);
+        });
 
     final dailyBuckets = [
       for (var i = 0; i < 7; i++)
@@ -514,9 +513,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       DashboardStatCard(
         title: 'Kiriman 7 Hari',
-        value: _recent7DaysSubmissions > 0
-            ? '+$_recent7DaysSubmissions'
-            : '0',
+        value: _recent7DaysSubmissions > 0 ? '+$_recent7DaysSubmissions' : '0',
         subtitle: _todaySubmissions > 0
             ? '$_todaySubmissions masuk hari ini'
             : 'Minggu terakhir',
@@ -542,10 +539,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         const RoleHeader(
           title: 'Beranda Guru',
-          badgeLabel: 'Guru',
-          badgeColor: AppColors.color1,
-          subtitle:
-              'Statistik partisipasi kelas, progres pengumpulan tugas, dan agenda sekolah',
+          subtitle: 'Statistik partisipasi kelas, progres pengumpulan tugas, dan agenda sekolah',
         ),
         const SizedBox(height: 12),
         if (showInitialLoader)
@@ -607,12 +601,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onTap: () => openPage(
                 context,
                 breadcrumb: ['Beranda', item.classItem.title, item.post.judul],
-                page: ListPengumpulanScreen(
+                page: PengumpulanPenilaianScreen(
                   classData: item.classItem,
                   postinganId: item.post.id,
                   tugasTitle: item.post.judul,
                   controller: widget.pengajarController,
                 ),
+                routeName: 'pengumpulan-penilaian',
               ),
             ),
         if (widget.kalenderRepository != null) ...[
@@ -631,8 +626,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 8),
         if (teachingItems.isEmpty)
           const EmptyNoticeBox(
-            message:
-                'Anda belum ditugaskan mengampu kelas. Admin dapat menunjuk pengampu melalui menu admin.',
+            message: 'Anda belum ditugaskan mengampu kelas. Admin dapat menunjuk pengampu melalui menu admin.',
           )
         else
           EmbeddedClassGrid(
@@ -705,15 +699,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         RoleHeader(
           title: 'Beranda Murid',
-          badgeLabel: isAssistant ? 'Murid • Asisten' : 'Murid',
-          badgeColor: const Color(0xFF8E54E9),
-          subtitle:
-              'Pantau tugas yang belum dikumpulkan, jadwal agenda sekolah, dan akses cepat ke kelas Anda',
+          subtitle: 'Pantau tugas yang belum dikumpulkan, jadwal agenda sekolah, dan akses cepat ke kelas Anda',
         ),
         const SizedBox(height: 12),
-        if (_isLoadingSummary &&
-            enrolledItems.isEmpty &&
-            _muridTasks.isEmpty)
+        if (_isLoadingSummary && enrolledItems.isEmpty && _muridTasks.isEmpty)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(child: CircularProgressIndicator()),
@@ -775,8 +764,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         const SizedBox(height: 8),
         if (enrolledItems.isEmpty)
           const EmptyNoticeBox(
-            message:
-                'Anda belum bergabung ke kelas manapun. Buka tab Kelas untuk bergabung dengan kode kelas.',
+            message: 'Anda belum bergabung ke kelas manapun. Buka tab Kelas untuk bergabung dengan kode kelas.',
           )
         else
           EmbeddedClassGrid(

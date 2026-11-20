@@ -200,6 +200,24 @@ HttpClient _mockClient({bool emptyClasses = false}) {
         final body = tipe == '2' ? materiJson : tugasJson;
         return http.Response(jsonEncode(body), 200);
       }
+      if (path.endsWith('/pengumpulan')) {
+        return http.Response(
+          jsonEncode([
+            {
+              'id': 5,
+              'postingan_id': 20,
+              'pengguna_id': 2,
+              'nama': 'Rin Pratama Putra',
+              'email': 'rin.pratama@example.com',
+              'profile_picture': '',
+              'lampiran': ['https://example.com/jawaban-rin'],
+              'nilai': null,
+              'dibuat': isoNow,
+            },
+          ]),
+          200,
+        );
+      }
       if (path == '/kalender') {
         return http.Response(jsonEncode(kalenderJson), 200);
       }
@@ -686,7 +704,7 @@ void main() {
         await _tapVisible(tester, find.byIcon(Icons.arrow_back).first);
 
         await _tapVisible(tester, find.textContaining('Latihan Soal').first);
-        await _tapVisible(tester, find.text('Cek jawaban'));
+        await _tapVisible(tester, find.text('Pengumpulan & Penilaian'));
 
         await _tapVisible(tester, find.text('Koreksi menggunakan AI'));
         await _tapVisible(tester, find.byIcon(Icons.arrow_back).first);

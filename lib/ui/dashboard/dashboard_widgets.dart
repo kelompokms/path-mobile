@@ -44,15 +44,11 @@ class MuridTaskSummary {
 
 class RoleHeader extends StatelessWidget {
   final String title;
-  final String badgeLabel;
-  final Color badgeColor;
   final String subtitle;
 
   const RoleHeader({
     super.key,
     required this.title,
-    required this.badgeLabel,
-    required this.badgeColor,
     required this.subtitle,
   });
 
@@ -72,21 +68,6 @@ class RoleHeader extends StatelessWidget {
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: AppColors.text,
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                color: badgeColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-              ),
-              child: Text(
-                badgeLabel,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: badgeColor,
-                ),
               ),
             ),
           ],

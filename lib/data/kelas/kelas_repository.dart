@@ -454,6 +454,49 @@ class KelasRepository {
     }
   }
 
+  Future<(List<PengumpulanMuridModel>?, String?)> simpanNilaiPengumpulan(
+    String kodeKelas,
+    int postinganId,
+    Map<int, int?> nilaiByPenggunaId,
+  ) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final payload = {
+        'nilai': [
+          for (final entry in nilaiByPenggunaId.entries)
+            {'pengguna_id': entry.key, 'nilai': entry.value},
+        ],
+      };
+      final response = await _client
+          .patch(
+            _client.uri(
+              '/kelas/$encodedCode/postingan/$postinganId/pengumpulan/nilai',
+            ),
+            headers: _client.JSON,
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal menyimpan nilai pengumpulan'),
+        );
+      }
+
+      final decoded = jsonDecode(response.body);
+      final data = (decoded as List<dynamic>?) ?? <dynamic>[];
+      final items = data
+          .map((x) => PengumpulanMuridModel.fromJson(x as Map<String, dynamic>))
+          .toList();
+      return (items, null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
   Future<(PengumpulanTugasModel?, String?)> submitPengumpulanTugas(
     String kodeKelas,
     int postinganId,

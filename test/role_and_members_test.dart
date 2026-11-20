@@ -12,7 +12,6 @@ import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/dashboard/dashboard_screen.dart';
 import 'package:path_mobile/ui/kelas/kelas_controller.dart';
 import 'package:path_mobile/ui/kelas/kelas_screen.dart';
-import 'package:path_mobile/ui/pengajar/list_pengumpulan_screen.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_screen.dart';
 import 'package:path_mobile/utils/http_client.dart';
@@ -167,7 +166,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Beranda Murid'), findsOneWidget);
-        expect(find.text('Murid • Asisten'), findsOneWidget);
+        expect(find.text('Peran asisten kelas'), findsOneWidget);
         expect(find.text('Kelas Diikuti'), findsWidgets);
         expect(find.text('Kelas Didampingi (Asisten)'), findsOneWidget);
         expect(find.text('Kelas Siswa Biologi'), findsOneWidget);
@@ -651,10 +650,10 @@ void main() {
         expect(find.text('2 kumpul'), findsOneWidget);
         expect(find.textContaining('Terbaru: Aji Siswa'), findsOneWidget);
 
-        // Tapping submission card opens ListPengumpulanScreen directly
+        // Tapping submission card opens PengumpulanPenilaianScreen directly
         await tester.tap(find.byKey(const Key('guru_submission_FIS11_202')));
         await tester.pumpAndSettle();
-        expect(find.byType(ListPengumpulanScreen), findsOneWidget);
+        expect(find.byType(PengumpulanPenilaianScreen), findsOneWidget);
         expect(find.text('Aji Siswa'), findsOneWidget);
 
         // Back and open Kelas tab -> Guru defaults directly to Mengajar tab

@@ -298,6 +298,7 @@ class PengumpulanTugasModel {
   final int penggunaId;
   final bool submitted;
   final List<String> lampiran;
+  final int? nilai;
   final DateTime? dibuat;
 
   const PengumpulanTugasModel({
@@ -306,6 +307,7 @@ class PengumpulanTugasModel {
     this.penggunaId = 0,
     required this.submitted,
     this.lampiran = const [],
+    this.nilai,
     this.dibuat,
   });
 
@@ -325,6 +327,7 @@ class PengumpulanTugasModel {
       penggunaId: (json['pengguna_id'] as num?)?.toInt() ?? 0,
       submitted: submitted,
       lampiran: parsedLampiran,
+      nilai: (json['nilai'] as num?)?.toInt(),
       dibuat: parseGmt7DateTime(rawDibuat),
     );
   }
@@ -335,6 +338,7 @@ class PengumpulanTugasModel {
     'pengguna_id': penggunaId,
     'submitted': submitted,
     'lampiran': lampiran,
+    if (nilai != null) 'nilai': nilai,
     if (dibuat != null) 'dibuat': dibuat!.toIso8601String(),
   };
 }
@@ -347,6 +351,7 @@ class PengumpulanMuridModel {
   final String email;
   final String profilePicture;
   final List<String> lampiran;
+  final int? nilai;
   final DateTime? dibuat;
 
   const PengumpulanMuridModel({
@@ -357,6 +362,7 @@ class PengumpulanMuridModel {
     required this.email,
     this.profilePicture = '',
     this.lampiran = const [],
+    this.nilai,
     this.dibuat,
   });
 
@@ -378,6 +384,7 @@ class PengumpulanMuridModel {
       email: json['email'] as String? ?? '',
       profilePicture: json['profile_picture']?.toString() ?? '',
       lampiran: parsedLampiran,
+      nilai: (json['nilai'] as num?)?.toInt(),
       dibuat: parseGmt7DateTime(rawDibuat),
     );
   }
@@ -390,6 +397,7 @@ class PengumpulanMuridModel {
     'email': email,
     'profile_picture': profilePicture,
     'lampiran': lampiran,
+    if (nilai != null) 'nilai': nilai,
     if (dibuat != null) 'dibuat': dibuat!.toIso8601String(),
   };
 }

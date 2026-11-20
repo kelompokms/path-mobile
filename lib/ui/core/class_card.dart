@@ -368,7 +368,7 @@ class _JoinClassFormState extends State<JoinClassForm> {
   }
 
   void _submit() {
-    final code = _codeController.text.trim();
+    final code = _codeController.text.trim().toUpperCase();
     if (!RegExp(r'^[a-zA-Z0-9]{5,8}$').hasMatch(code)) {
       showInfoDialog(
         context,

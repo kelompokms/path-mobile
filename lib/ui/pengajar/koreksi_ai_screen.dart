@@ -94,9 +94,7 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                             ? null
                             : () {
                                 widget.onAccepted(generatedScores);
-                                Navigator.of(context).popUntil(
-                                  ModalRoute.withName('cek-jawaban'),
-                                );
+                                Navigator.of(context).pop();
                                 ScaffoldMessenger.of(context)
                                   ..hideCurrentSnackBar()
                                   ..showSnackBar(
@@ -330,15 +328,15 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
 
   bool _allSelected(List<PengumpulanItem> rows) =>
       rows.isNotEmpty &&
-      rows.every((p) => widget.selected.contains(p.studentName));
+      rows.every((p) => widget.selected.contains(p.keyId));
 
   void _setMany(List<PengumpulanItem> rows, bool value) {
     final next = {...widget.selected};
     for (final p in rows) {
       if (value) {
-        next.add(p.studentName);
+        next.add(p.keyId);
       } else {
-        next.remove(p.studentName);
+        next.remove(p.keyId);
       }
     }
     widget.onChanged(next);
@@ -438,7 +436,7 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
                   child: Row(
                     children: [
                       _box(
-                        widget.selected.contains(rows[i].studentName),
+                        widget.selected.contains(rows[i].keyId),
                         (v) => _setMany([rows[i]], v),
                       ),
                       const SizedBox(width: 8),
@@ -454,7 +452,23 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
                                 color: AppColors.text,
                               ),
                             ),
-                            if (rows[i].fileName != null)
+                            if (rows[i].lampiran.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: Text(
+                                  rows[i].lampiran
+                                      .map((a) => a.name)
+                                      .join(', '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 9,
+                                    color: AppColors.secondaryText,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              )
+                            else if (rows[i].fileName != null)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
                                 child: Text(
@@ -470,7 +484,7 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
                         ),
                       ),
                       Text(
-                        '${widget.scores[rows[i].studentName] ?? rows[i].score ?? '...'}/${widget.maxScore}',
+                        '${widget.scores[rows[i].keyId] ?? rows[i].score ?? '...'}/${widget.maxScore}',
                         style: const TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,

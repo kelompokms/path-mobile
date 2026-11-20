@@ -4,10 +4,9 @@ import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
-import 'package:path_mobile/ui/pengajar/cek_jawaban_screen.dart';
-import 'package:path_mobile/ui/pengajar/list_pengumpulan_screen.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_items.dart';
+import 'package:path_mobile/ui/pengajar/pengumpulan_penilaian_screen.dart';
 import 'package:path_mobile/ui/pengajar/tugas_form_screen.dart';
 
 class PengajarTugasDetailScreen extends StatefulWidget {
@@ -161,73 +160,41 @@ class _PengajarTugasDetailScreenState extends State<PengajarTugasDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 8,
-                        children: [
-                          FilledButton(
-                            onPressed: () => openPage(
-                              context,
-                              breadcrumb: [
-                                'Pengajar',
-                                classData.title,
-                                tugas.title,
-                              ],
-                              page: CekJawabanScreen(
-                                classData: classData,
-                                tugas: tugas,
-                              ),
-                              routeName: 'cek-jawaban',
-                            ),
-                            style: FilledButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppTheme.cardRadius,
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                              ),
-                            ),
-                            child: const Text('Cek jawaban'),
+                      FilledButton.icon(
+                        onPressed: () => openPage(
+                          context,
+                          breadcrumb: [
+                            'Pengajar',
+                            classData.title,
+                            tugas.title,
+                            'Pengumpulan & Penilaian',
+                          ],
+                          page: PengumpulanPenilaianScreen(
+                            classData: classData,
+                            tugas: tugas,
+                            postinganId: tugas.id,
+                            tugasTitle: tugas.title,
+                            controller: widget.controller,
+                            baseUrl: baseUrl,
                           ),
-                          OutlinedButton.icon(
-                            onPressed: () => openPage(
-                              context,
-                              breadcrumb: [
-                                'Pengajar',
-                                classData.title,
-                                tugas.title,
-                                'Daftar Pengumpulan',
-                              ],
-                              page: ListPengumpulanScreen(
-                                classData: classData,
-                                postinganId: tugas.id,
-                                tugasTitle: tugas.title,
-                                controller: widget.controller,
-                                baseUrl: baseUrl,
-                              ),
-                              routeName: 'list-pengumpulan',
+                          routeName: 'pengumpulan-penilaian',
+                        ),
+                        icon: const Icon(
+                          Icons.assignment_turned_in_outlined,
+                          size: 18,
+                        ),
+                        style: FilledButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.cardRadius,
                             ),
-                            icon: const Icon(
-                              Icons.assignment_turned_in_outlined,
-                              size: 18,
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.color1,
-                              side: const BorderSide(color: AppColors.color1),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  AppTheme.cardRadius,
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                            ),
-                            label: const Text('Daftar pengumpulan'),
                           ),
-                        ],
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                        ),
+                        label: const Text('Pengumpulan & Penilaian'),
                       ),
                     ],
                   ],

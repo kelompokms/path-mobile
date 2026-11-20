@@ -102,19 +102,7 @@ class TugasPengajar {
     List<LampiranItem>? lampiran,
     List<PengumpulanItem>? pengumpulan,
   }) : lampiran = lampiran ?? [],
-       pengumpulan =
-           pengumpulan ??
-           [
-             PengumpulanItem(
-               studentName: 'Budi Santoso',
-               fileName: 'Jawaban_Budi.pdf',
-               status: 'Diserahkan',
-             ),
-             PengumpulanItem(
-               studentName: 'Siti Aminah',
-               status: 'Ditugaskan',
-             ),
-           ];
+       pengumpulan = pengumpulan ?? [];
 
   factory TugasPengajar.fromModel(PostinganModel model) {
     return TugasPengajar(
@@ -129,14 +117,31 @@ class TugasPengajar {
 }
 
 class PengumpulanItem {
+  final int? penggunaId;
   final String studentName;
+  final String email;
   final String? fileName;
+  final List<LampiranItem> lampiran;
+  final DateTime? submittedAt;
+  final bool isSubmitted;
   String status;
   int? score;
 
   PengumpulanItem({
+    this.penggunaId,
     required this.studentName,
+    this.email = '',
     this.fileName,
+    List<LampiranItem>? lampiran,
+    this.submittedAt,
+    bool? isSubmitted,
     required this.status,
-  });
+    this.score,
+  }) : lampiran = lampiran ?? const [],
+       isSubmitted = isSubmitted ?? (status != 'Ditugaskan');
+
+  String get keyId =>
+      penggunaId != null && penggunaId! > 0 ? 'u_$penggunaId' : studentName;
+
+  bool get isMarkAsDone => isSubmitted && lampiran.isEmpty && fileName == null;
 }

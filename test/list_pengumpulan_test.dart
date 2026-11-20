@@ -18,9 +18,9 @@ import 'package:url_launcher/url_launcher.dart';
 void main() {
   tearDown(LampiranHelper.resetTestOverrides);
 
-  group('ListPengumpulan repository route distinction', () {
+  group('Pengumpulan & Penilaian repository routes', () {
     test(
-      'getPengumpulanTugas hits /pengumpulan/saya and listPengumpulanTugas hits /pengumpulan',
+      'getPengumpulanTugas hits /pengumpulan/saya, listPengumpulanTugas hits /pengumpulan, and simpanNilaiPengumpulan hits PATCH /pengumpulan/nilai',
       () async {
         final paths = <String>[];
         final client = HttpClient(
@@ -53,6 +53,7 @@ void main() {
                       '/uploads/2026/11/16/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf',
                       'https://example.com/karya-budi',
                     ],
+                    'nilai': 90,
                     'dibuat': '2026-11-17T08:00:00Z',
                   },
                   {
@@ -63,7 +64,33 @@ void main() {
                     'email': 'siti@example.com',
                     'profile_picture': '',
                     'lampiran': <String>[],
+                    'nilai': null,
                     'dibuat': '2026-11-17T08:30:00Z',
+                  },
+                ]),
+                200,
+              );
+            }
+            if (request.url.path ==
+                    '/kelas/MAT202/postingan/20/pengumpulan/nilai' &&
+                request.method == 'PATCH') {
+              final body = jsonDecode(request.body) as Map<String, dynamic>;
+              final nilaiList = body['nilai'] as List<dynamic>;
+              expect(nilaiList, [
+                {'pengguna_id': 2, 'nilai': 95},
+              ]);
+              return http.Response(
+                jsonEncode([
+                  {
+                    'id': 5,
+                    'postingan_id': 20,
+                    'pengguna_id': 2,
+                    'nama': 'Budi Santoso',
+                    'email': 'budi@example.com',
+                    'profile_picture': '',
+                    'lampiran': <String>[],
+                    'nilai': 95,
+                    'dibuat': '2026-11-17T08:00:00Z',
                   },
                 ]),
                 200,
@@ -84,27 +111,44 @@ void main() {
         expect(listErr, isNull);
         expect(items, hasLength(2));
         expect(items![0].nama, 'Budi Santoso');
+        expect(items[0].nilai, 90);
         expect(items[0].lampiran, hasLength(2));
         expect(items[0].isMarkAsDone, isFalse);
         expect(items[1].nama, 'Siti Aminah');
+        expect(items[1].nilai, isNull);
         expect(items[1].isMarkAsDone, isTrue);
+
+        final (graded, gradeErr) = await pengajarRepo.simpanNilaiPengumpulan(
+          'MAT202',
+          20,
+          {2: 95},
+        );
+        expect(gradeErr, isNull);
+        expect(graded, hasLength(1));
+        expect(graded!.first.nilai, 95);
 
         expect(paths, [
           'GET /kelas/MAT202/postingan/20/pengumpulan/saya',
           'GET /kelas/MAT202/postingan/20/pengumpulan',
+          'PATCH /kelas/MAT202/postingan/20/pengumpulan/nilai',
         ]);
       },
     );
   });
 
-  group('ListPengumpulanScreen monitoring page', () {
+  group('PengumpulanPenilaianScreen unified monitoring & grading page', () {
     HttpClient createGuruClient({
       required List<Map<String, dynamic>> submissions,
+      List<Map<String, dynamic>> members = const [],
       bool failFirstFetch = false,
       bool emptyAfterRefresh = false,
+      List<Map<String, dynamic>>? savedPayloads,
     }) {
       final isoNow = DateTime(2026, 11, 17, 8, 0).toIso8601String();
       var listCalls = 0;
+      final currentSubmissions = submissions
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
 
       return HttpClient(
         token: 'jwt.token',
@@ -133,7 +177,7 @@ void main() {
             );
           }
           if (path == '/kelas/MAT202/anggota') {
-            return http.Response(jsonEncode([]), 200);
+            return http.Response(jsonEncode(members), 200);
           }
           if (path == '/kelas/MAT202/postingan/20/pengumpulan' &&
               request.method == 'GET') {
@@ -149,7 +193,44 @@ void main() {
             if (emptyAfterRefresh && listCalls > 1) {
               return http.Response(jsonEncode([]), 200);
             }
-            return http.Response(jsonEncode(submissions), 200);
+            return http.Response(jsonEncode(currentSubmissions), 200);
+          }
+          if (path == '/kelas/MAT202/postingan/20/pengumpulan/nilai' &&
+              request.method == 'PATCH') {
+            final body = jsonDecode(request.body) as Map<String, dynamic>;
+            savedPayloads?.add(body);
+            final updates = (body['nilai'] as List<dynamic>)
+                .cast<Map<String, dynamic>>();
+            for (final u in updates) {
+              final uid = (u['pengguna_id'] as num).toInt();
+              final score = (u['nilai'] as num?)?.toInt();
+              final idx = currentSubmissions.indexWhere(
+                (s) => s['pengguna_id'] == uid,
+              );
+              if (idx != -1) {
+                currentSubmissions[idx] = {
+                  ...currentSubmissions[idx],
+                  'nilai': score,
+                };
+              } else {
+                final member = members.firstWhere(
+                  (m) => m['pengguna_id'] == uid,
+                  orElse: () => {'nama': 'Murid #$uid', 'email': ''},
+                );
+                currentSubmissions.add({
+                  'id': 99 + uid,
+                  'postingan_id': 20,
+                  'pengguna_id': uid,
+                  'nama': member['nama'] ?? 'Murid #$uid',
+                  'email': member['email'] ?? '',
+                  'profile_picture': '',
+                  'lampiran': <String>[],
+                  'nilai': score,
+                  'dibuat': isoNow,
+                });
+              }
+            }
+            return http.Response(jsonEncode(currentSubmissions), 200);
           }
           return http.Response(jsonEncode({'message': 'Not found'}), 404);
         }),
@@ -190,9 +271,10 @@ void main() {
     }
 
     testWidgets(
-      'teacher navigates to ListPengumpulanScreen, sees student submissions, opens attachment, and refreshes',
+      'unified Pengumpulan & Penilaian merges submissions + unsubmitted students, opens attachment, saves grades to API, and refreshes',
       (tester) async {
         final launchedUris = <Uri>[];
+        final savedPayloads = <Map<String, dynamic>>[];
         LampiranHelper.urlLauncherOverride =
             (uri, {mode = LaunchMode.platformDefault}) async {
           launchedUris.add(uri);
@@ -201,6 +283,33 @@ void main() {
 
         final client = createGuruClient(
           emptyAfterRefresh: true,
+          savedPayloads: savedPayloads,
+          members: [
+            {
+              'pengguna_id': 1,
+              'nama': 'Pak Guru',
+              'email': 'guru@example.com',
+              'guru': true,
+            },
+            {
+              'pengguna_id': 2,
+              'nama': 'Budi Santoso',
+              'email': 'budi@example.com',
+              'guru': false,
+            },
+            {
+              'pengguna_id': 3,
+              'nama': 'Siti Aminah',
+              'email': 'siti@example.com',
+              'guru': false,
+            },
+            {
+              'pengguna_id': 4,
+              'nama': 'Rina Belum',
+              'email': 'rina@example.com',
+              'guru': false,
+            },
+          ],
           submissions: [
             {
               'id': 5,
@@ -213,6 +322,7 @@ void main() {
                 'https://example.com/jawaban-budi',
                 '/uploads/2026/11/16/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf',
               ],
+              'nilai': null,
               'dibuat': '2026-11-17T08:00:00Z',
             },
             {
@@ -223,6 +333,7 @@ void main() {
               'email': 'siti@example.com',
               'profile_picture': '',
               'lampiran': <String>[],
+              'nilai': null,
               'dibuat': '2026-11-17T08:30:00Z',
             },
           ],
@@ -230,15 +341,17 @@ void main() {
 
         await openGuruTugasDetail(tester, client);
 
-        expect(find.text('Cek jawaban'), findsOneWidget);
-        expect(find.text('Daftar pengumpulan'), findsOneWidget);
+        // Only the unified button exists (old dual buttons are merged)
+        expect(find.text('Pengumpulan & Penilaian'), findsOneWidget);
+        expect(find.text('Cek jawaban'), findsNothing);
+        expect(find.text('Daftar pengumpulan'), findsNothing);
 
-        await tester.ensureVisible(find.text('Daftar pengumpulan'));
-        await tester.tap(find.text('Daftar pengumpulan'));
+        await tester.ensureVisible(find.text('Pengumpulan & Penilaian'));
+        await tester.tap(find.text('Pengumpulan & Penilaian'));
         await tester.pumpAndSettle();
 
         expect(
-          find.widgetWithText(BackTitleRow, 'Daftar Pengumpulan'),
+          find.widgetWithText(BackTitleRow, 'Pengumpulan & Penilaian'),
           findsOneWidget,
         );
         expect(find.text('2 Murid Mengumpulkan'), findsOneWidget);
@@ -260,14 +373,46 @@ void main() {
         await tester.pumpAndSettle();
         expect(launchedUris, [Uri.parse('https://example.com/jawaban-budi')]);
 
-        // Refresh -> now returns empty state
+        // Enter score for Budi Santoso (user 2) and save to backend
+        final budiScoreField = find.byKey(const ValueKey('nilai_input_u_2'));
+        await tester.ensureVisible(budiScoreField);
+        await tester.enterText(budiScoreField, '94');
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('simpan_nilai_button')),
+          -150,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.byKey(const Key('simpan_nilai_button')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Nilai berhasil disimpan'), findsOneWidget);
+        expect(savedPayloads, hasLength(1));
+        expect(savedPayloads.first['nilai'], [
+          {'pengguna_id': 2, 'nilai': 94},
+        ]);
+
+        // Filter to Ditugaskan -> student who has not submitted yet appears cleanly
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('pengumpulan_status_filter')),
+          -150,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.tap(find.byKey(const Key('pengumpulan_status_filter')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Ditugaskan').last);
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.text('Rina Belum'),
+          150,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(find.text('Rina Belum'), findsOneWidget);
+        expect(find.text('Belum Mengumpulkan'), findsOneWidget);
+
+        // Refresh -> now returns 0 submissions
         await tester.tap(find.byTooltip('Muat ulang'));
         await tester.pumpAndSettle();
         expect(find.text('0 Murid Mengumpulkan'), findsOneWidget);
-        expect(
-          find.text('Belum ada murid yang mengumpulkan tugas'),
-          findsOneWidget,
-        );
       },
     );
 
@@ -291,8 +436,8 @@ void main() {
         );
 
         await openGuruTugasDetail(tester, retryingClient, isGuru: true);
-        await tester.ensureVisible(find.text('Daftar pengumpulan'));
-        await tester.tap(find.text('Daftar pengumpulan'));
+        await tester.ensureVisible(find.text('Pengumpulan & Penilaian'));
+        await tester.tap(find.text('Pengumpulan & Penilaian'));
         await tester.pumpAndSettle();
 
         expect(
@@ -303,9 +448,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Budi Santoso'), findsOneWidget);
 
-        // Non-guru cannot see monitoring button
+        // Non-guru cannot see unified Pengumpulan & Penilaian button
         await openGuruTugasDetail(tester, retryingClient, isGuru: false);
-        expect(find.text('Daftar pengumpulan'), findsNothing);
+        expect(find.text('Pengumpulan & Penilaian'), findsNothing);
       },
     );
   });
