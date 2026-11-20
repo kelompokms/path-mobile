@@ -132,11 +132,13 @@ void main() {
     HttpClient createStudentClient({
       required List<String> initialSubmittedLampiran,
       required bool initiallySubmitted,
+      int? initialNilai,
       bool failTarik = false,
       List<({String method, String path, dynamic body})>? requestLog,
     }) {
       var submitted = initiallySubmitted;
       var storedLampiran = List<String>.from(initialSubmittedLampiran);
+      var storedNilai = initialNilai;
       final isoNow = DateTime(2026, 11, 16, 9, 0).toIso8601String();
       const uploadedPath =
           '/uploads/2026/11/16/11111111111111111111111111111111.pdf';
@@ -221,6 +223,7 @@ void main() {
                 'pengguna_id': 2,
                 'submitted': submitted,
                 'lampiran': storedLampiran,
+                if (storedNilai != null) 'nilai': storedNilai,
                 if (submitted) 'dibuat': isoNow,
               }),
               200,
@@ -254,6 +257,7 @@ void main() {
               }
               final withdrawn = List<String>.from(storedLampiran);
               storedLampiran = [];
+              storedNilai = null;
               submitted = false;
               return http.Response(
                 jsonEncode({
@@ -458,6 +462,47 @@ void main() {
           find.text('11111111111111111111111111111111.pdf'),
           findsOneWidget,
         );
+      },
+    );
+
+    testWidgets(
+      'displays graded nilai (including 0) from server instead of .../100 and resets on withdraw',
+      (tester) async {
+        const uploadedPath =
+            '/uploads/2026/11/16/11111111111111111111111111111111.pdf';
+        final gradedClient = createStudentClient(
+          initiallySubmitted: true,
+          initialSubmittedLampiran: const [uploadedPath],
+          initialNilai: 92,
+        );
+
+        await openTugasDetail(tester, gradedClient);
+        expect(find.byKey(const Key('murid_nilai_text')), findsOneWidget);
+        expect(find.text('92/100'), findsOneWidget);
+        expect(find.text('.../100'), findsNothing);
+        expect(find.text('Dinilai'), findsOneWidget);
+        expect(
+          find.text('11111111111111111111111111111111.pdf'),
+          findsOneWidget,
+        );
+
+        // Pulling submission resets displayed nilai back to .../100
+        await _tapVisible(tester, find.text('Tarik Pengumpulan'));
+        await tester.tap(find.text('Ya'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('.../100'), findsOneWidget);
+        expect(find.text('Ditugaskan'), findsOneWidget);
+
+        // Score of 0 is displayed explicitly as 0/100
+        final zeroClient = createStudentClient(
+          initiallySubmitted: true,
+          initialSubmittedLampiran: const [],
+          initialNilai: 0,
+        );
+        await openTugasDetail(tester, zeroClient);
+        expect(find.text('0/100'), findsOneWidget);
+        expect(find.text('Dinilai'), findsOneWidget);
       },
     );
   });

@@ -39,6 +39,7 @@ class TugasData {
   final int points = 100;
   final String description;
   String status = 'Ditugaskan';
+  int? score;
   final List<LampiranItem> lampiran;
   final List<LampiranItem> submissionLampiran;
   final List<LampiranItem> draftLampiran;
@@ -50,6 +51,7 @@ class TugasData {
     required this.postedAt,
     required this.dueDate,
     required this.description,
+    this.score,
     List<LampiranItem>? lampiran,
     List<LampiranItem>? submissionLampiran,
     List<LampiranItem>? draftLampiran,
@@ -58,7 +60,9 @@ class TugasData {
        draftLampiran = draftLampiran ?? [];
 
   bool get isSubmitted =>
-      status == 'Dikumpulkan' || status == 'Ditandai Sebagai Selesai';
+      status == 'Dikumpulkan' ||
+      status == 'Ditandai Sebagai Selesai' ||
+      status == 'Dinilai';
 
   factory TugasData.fromModel(PostinganModel model, {String? author}) {
     return TugasData(

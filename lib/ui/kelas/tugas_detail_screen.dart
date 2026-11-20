@@ -69,6 +69,7 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
       if (pengumpulan == null) return;
 
       setState(() {
+        _tugas.score = pengumpulan.nilai;
         if (pengumpulan.submitted) {
           final merged = mergeLampiranWithLocal(
             pengumpulan.lampiranItems,
@@ -77,9 +78,13 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
           _tugas.submissionLampiran
             ..clear()
             ..addAll(merged);
-          _tugas.status = merged.isEmpty
-              ? 'Ditandai Sebagai Selesai'
-              : 'Dikumpulkan';
+          if (pengumpulan.nilai != null) {
+            _tugas.status = 'Dinilai';
+          } else {
+            _tugas.status = merged.isEmpty
+                ? 'Ditandai Sebagai Selesai'
+                : 'Dikumpulkan';
+          }
           _drafts.clear();
           _composing = false;
         } else {
@@ -159,6 +164,7 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
     setState(() => _isBusy = true);
     try {
       List<LampiranItem> syncedItems = itemsToSubmit;
+      int? syncedScore;
       if (_canSyncBackend) {
         final paths = isMarkDone
             ? const <String>[]
@@ -174,6 +180,7 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
           return;
         }
         if (result != null) {
+          syncedScore = result.nilai;
           syncedItems = mergeLampiranWithLocal(
             result.lampiranItems,
             itemsToSubmit,
@@ -183,12 +190,17 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
 
       if (!mounted) return;
       setState(() {
+        _tugas.score = syncedScore ?? _tugas.score;
         _tugas.submissionLampiran
           ..clear()
           ..addAll(syncedItems);
-        _tugas.status = syncedItems.isEmpty
-            ? 'Ditandai Sebagai Selesai'
-            : 'Dikumpulkan';
+        if (_tugas.score != null) {
+          _tugas.status = 'Dinilai';
+        } else {
+          _tugas.status = syncedItems.isEmpty
+              ? 'Ditandai Sebagai Selesai'
+              : 'Dikumpulkan';
+        }
         _drafts.clear();
         _composing = false;
       });
@@ -245,6 +257,7 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
           ..clear()
           ..addAll(restoredDrafts);
         _tugas.submissionLampiran.clear();
+        _tugas.score = null;
         _tugas.status = 'Ditugaskan';
         _composing = _drafts.isNotEmpty;
       });
@@ -375,9 +388,13 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
               ),
             ),
             Text(
-              '.../${_tugas.points}',
-              style: const TextStyle(
+              '${_tugas.score ?? '...'}/${_tugas.points}',
+              key: const Key('murid_nilai_text'),
+              style: TextStyle(
                 fontSize: 12,
+                fontWeight: _tugas.score != null
+                    ? FontWeight.w600
+                    : FontWeight.normal,
                 color: AppColors.text,
               ),
             ),

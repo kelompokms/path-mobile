@@ -2,45 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:path_mobile/data/kalender/kalender_model.dart';
-import 'package:path_mobile/data/kelas/kelas_model.dart' as km;
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 
-class GuruSubmissionSummary {
-  final ClassItem classItem;
-  final km.PostinganModel post;
-  final int submissionCount;
-  final int totalStudents;
-  final String latestStudentName;
-
-  const GuruSubmissionSummary({
-    required this.classItem,
-    required this.post,
-    required this.submissionCount,
-    this.totalStudents = 0,
-    this.latestStudentName = '',
-  });
-
-  double? get completionRate {
-    if (totalStudents <= 0) return null;
-    final denom = math.max(totalStudents, submissionCount);
-    return (submissionCount / denom).clamp(0.0, 1.0);
-  }
-}
-
-class MuridTaskSummary {
-  final ClassItem classItem;
-  final km.PostinganModel post;
-  final bool submitted;
-
-  const MuridTaskSummary({
-    required this.classItem,
-    required this.post,
-    required this.submitted,
-  });
-}
+export 'dashboard_models.dart';
 
 class RoleHeader extends StatelessWidget {
   final String title;

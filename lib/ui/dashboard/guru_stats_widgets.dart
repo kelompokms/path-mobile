@@ -3,41 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
+import 'package:path_mobile/ui/dashboard/dashboard_models.dart';
 
-class GuruClassProgress {
-  final ClassItem classItem;
-  final int studentCount;
-  final int taskCount;
-  final int submissionCount;
-  final int expectedSubmissions;
-
-  const GuruClassProgress({
-    required this.classItem,
-    required this.studentCount,
-    required this.taskCount,
-    required this.submissionCount,
-    required this.expectedSubmissions,
-  });
-
-  double? get completionRate {
-    if (expectedSubmissions <= 0) return null;
-    return (submissionCount / expectedSubmissions).clamp(0.0, 1.0);
-  }
-}
-
-class DailySubmissionBucket {
-  final DateTime date;
-  final String label;
-  final int count;
-  final bool isToday;
-
-  const DailySubmissionBucket({
-    required this.date,
-    required this.label,
-    required this.count,
-    required this.isToday,
-  });
-}
+export 'dashboard_models.dart';
 
 Color guruProgressColor(double? rate) {
   if (rate == null) return AppColors.secondaryText;

@@ -14,6 +14,7 @@ import 'package:path_mobile/ui/auth/auth_screen.dart';
 import 'package:path_mobile/ui/auth/oauth_callback_screen.dart';
 import 'package:path_mobile/ui/core/anggota_kelas_tab.dart';
 import 'package:path_mobile/ui/core/layout_screen.dart';
+import 'package:path_mobile/ui/dashboard/dashboard_controller.dart';
 import 'package:path_mobile/ui/dashboard/dashboard_screen.dart';
 
 import 'package:path_mobile/data/kalender/kalender_repository.dart';
@@ -90,10 +91,12 @@ GoRouter createRouter({
                     kalenderRepository: kalenderRepo,
                   )
                 : DashboardScreen(
-                    isGuruRole: client.isGuru,
-                    kelasController: KelasController(kelasRepo),
-                    pengajarController: PengajarController(pengajarRepo),
-                    kalenderRepository: kalenderRepo,
+                    controller: DashboardController(
+                      isGuruRole: client.isGuru,
+                      kelasController: KelasController(kelasRepo),
+                      pengajarController: PengajarController(pengajarRepo),
+                      kalenderRepository: kalenderRepo,
+                    ),
                     onOpenAllClasses: () => GoRouter.of(context).go('/kelas'),
                     onOpenCalendar: () => GoRouter.of(context).go('/kalender'),
                   ),
