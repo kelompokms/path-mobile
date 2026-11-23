@@ -106,26 +106,82 @@ class _MateriDetailScreenState extends State<MateriDetailScreen> {
     });
   }
 
-  Future<void> _ringkasDokumenAi() async {
+  Future<void> _ringkasDokumenAi({String? customPrompt}) async {
     final ctrl = widget.controller;
+    if (ctrl == null || _loadingAi) return;
     final docPaths = _summarizableDocumentPaths;
-    if (ctrl == null || docPaths.isEmpty || _loadingAi) return;
     FocusScope.of(context).unfocus();
+
+    final userMessage = (customPrompt != null && customPrompt.trim().isNotEmpty)
+        ? customPrompt.trim()
+        : (docPaths.isNotEmpty
+              ? 'Ringkas dokumen materi "${widget.materi.title}"'
+              : 'Ringkas materi "${widget.materi.title}"');
 
     setState(() {
       _loadingAi = true;
-      _loadingLabel = 'AI sedang meringkas dokumen materi...';
+      _loadingLabel = docPaths.isNotEmpty
+          ? 'AI sedang meringkas dokumen materi...'
+          : 'AI sedang meringkas materi...';
       _messages.add((
         role: 'user',
-        content: 'Ringkas dokumen materi "${widget.materi.title}"',
+        content: userMessage,
         attachment: null,
       ));
+      if (customPrompt != null) {
+        _textController.clear();
+      }
     });
     _scrollToBottom();
+
+    if (docPaths.isEmpty) {
+      final isiMateri = [
+        widget.materi.title.trim(),
+        widget.materi.description.trim(),
+      ].where((s) => s.isNotEmpty).join('\n\n');
+      final (jawaban, err) = await ctrl.chatAi(
+        pesan: customPrompt?.trim().isNotEmpty == true
+            ? customPrompt!.trim()
+            : 'Ringkas materi "${widget.materi.title}" beserta poin-poin pentingnya secara lengkap.',
+        isiMateri: isiMateri,
+        jenjang: widget.jenjang,
+        gunakanModelGratis: _effectiveFreeModel,
+      );
+      if (!mounted) return;
+      if (err != null || jawaban == null) {
+        setState(() {
+          _loadingAi = false;
+          if (_messages.isNotEmpty && _messages.last.role == 'user') {
+            _messages.removeLast();
+          }
+          if (customPrompt != null) {
+            _textController.text = customPrompt;
+          }
+        });
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text(err ?? 'Gagal meringkas materi dengan AI')),
+          );
+        return;
+      }
+      setState(() {
+        _loadingAi = false;
+        _messages.add((
+          role: 'assistant',
+          content: jawaban,
+          attachment: null,
+        ));
+      });
+      _scrollToBottom();
+      return;
+    }
 
     final (res, err) = await ctrl.ringkasDokumenAi(
       lampiranPaths: docPaths,
       judul: widget.materi.title.trim(),
+      deskripsiMateri: widget.materi.description.trim(),
+      fokus: customPrompt?.trim() ?? '',
       jenjang: widget.jenjang,
       diagram: _selectedModes.contains('Diagram'),
       gunakanModelGratis: _effectiveFreeModel,
@@ -137,6 +193,9 @@ class _MateriDetailScreenState extends State<MateriDetailScreen> {
         _loadingAi = false;
         if (_messages.isNotEmpty && _messages.last.role == 'user') {
           _messages.removeLast();
+        }
+        if (customPrompt != null) {
+          _textController.text = customPrompt;
         }
       });
       ScaffoldMessenger.of(context)
@@ -159,6 +218,13 @@ class _MateriDetailScreenState extends State<MateriDetailScreen> {
       ));
     });
     _scrollToBottom();
+  }
+
+  bool _isSummarizeIntent(String text) {
+    final lower = text.toLowerCase();
+    return RegExp(
+      r'\b(ringkas\w*|rangkum\w*|kesimpulan\w*|inti\s+materi|poin[\s-]+poin\s+penting|pokok\s+bahasan|isi\s+(dokumen|pdf|file|lampiran))\b',
+    ).hasMatch(lower);
   }
 
   String _normalizeChatMarkdown(String raw) {
@@ -196,6 +262,13 @@ class _MateriDetailScreenState extends State<MateriDetailScreen> {
         _textController.clear();
       });
       _scrollToBottom();
+      return;
+    }
+
+    if (!useVisualExplain &&
+        _summarizableDocumentPaths.isNotEmpty &&
+        _isSummarizeIntent(q)) {
+      await _ringkasDokumenAi(customPrompt: q);
       return;
     }
 
@@ -536,8 +609,7 @@ class _MateriDetailScreenState extends State<MateriDetailScreen> {
               ),
           ],
         ),
-        if (_selectedModes.isNotEmpty ||
-            (widget.controller != null && _summarizableDocumentPaths.isNotEmpty)) ...[
+        if (_selectedModes.isNotEmpty || widget.controller != null) ...[
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -560,16 +632,17 @@ class _MateriDetailScreenState extends State<MateriDetailScreen> {
                     ),
                   ),
                 ),
-              if (widget.controller != null &&
-                  _summarizableDocumentPaths.isNotEmpty)
+              if (widget.controller != null)
                 ElevatedButton.icon(
                   key: const Key('ai_ringkas_dokumen_button'),
-                  onPressed: _loadingAi ? null : _ringkasDokumenAi,
+                  onPressed: _loadingAi ? null : () => _ringkasDokumenAi(),
                   style: AppTheme.softCompactButton,
                   icon: const Icon(Icons.summarize_outlined, size: 16),
-                  label: const Text(
-                    'Ringkas Dokumen AI',
-                    style: TextStyle(fontSize: 11),
+                  label: Text(
+                    _summarizableDocumentPaths.isNotEmpty
+                        ? 'Ringkas Dokumen AI'
+                        : 'Ringkas Materi AI',
+                    style: const TextStyle(fontSize: 11),
                   ),
                 ),
             ],

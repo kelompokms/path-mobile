@@ -223,6 +223,7 @@ class KelasController extends ChangeNotifier {
   Future<(ExplainMateriAiResult?, String?)> ringkasDokumenAi({
     required List<String> lampiranPaths,
     String judul = '',
+    String deskripsiMateri = '',
     String fokus = '',
     String jenjang = '',
     bool diagram = false,
@@ -231,6 +232,7 @@ class KelasController extends ChangeNotifier {
     return _repo.ringkasDokumenAi(
       lampiranPaths: lampiranPaths,
       judul: judul,
+      deskripsiMateri: deskripsiMateri,
       fokus: fokus,
       jenjang: jenjang,
       diagram: diagram,

@@ -984,5 +984,87 @@ void main() {
       expect(indRes!.rekapFile!.detail, 'PDF');
       expect(indRes.ringkasan.single, contains('45% (Sedang)'));
     });
+
+    test('chatAi and ringkasDokumenAi handle material summarization without refusal or student 403', () async {
+      var chatCalls = 0;
+      final client = HttpClient(
+        token: 'jwt.token',
+        client: MockClient((request) async {
+          switch (request.url.path) {
+            case '/ai/chat':
+              chatCalls++;
+              final body = jsonDecode(request.body) as Map<String, dynamic>;
+              expect(body['isi_materi'], '');
+              expect(body['pesan'].toString(), contains('HTML Dasar'));
+              if (chatCalls == 1) {
+                return http.Response(
+                  jsonEncode({
+                    'jawaban': 'Halo! Karena kamu belum melampirkan teks materi yang ingin diringkas, silakan tempelkan (paste) teks materinya.',
+                    'model': 'google/gemma-4-26b-a4b-it',
+                    'route': 'paid',
+                    'degraded': false,
+                    'berbasis_materi': true,
+                  }),
+                  200,
+                );
+              }
+              return http.Response(
+                jsonEncode({
+                  'jawaban': 'Ringkasan HTML Dasar: 1. Tag <html>, 2. Tag <head>, 3. Tag <body>.',
+                  'model': 'google/gemma-4-26b-a4b-it',
+                  'route': 'paid',
+                  'degraded': false,
+                  'berbasis_materi': false,
+                }),
+                200,
+              );
+            case '/ai/dokumen/ringkas':
+              return http.Response(
+                jsonEncode({
+                  'message': 'Fitur ini hanya untuk pengajar. Akun pelajar tidak dapat memakainya.',
+                }),
+                502,
+              );
+            case '/ai/materi/explain':
+              return http.Response(
+                jsonEncode({
+                  'judul': 'Ringkasan HTML Dasar',
+                  'jawaban': 'Penjelasan singkat struktur HTML.',
+                  'file': {
+                    'nama': 'ringkasan-html.pdf',
+                    'path': '/uploads/2026/11/23/ringkasan-html.pdf',
+                    'ukuran': 2500,
+                  },
+                }),
+                200,
+              );
+            default:
+              return http.Response('{}', 404);
+          }
+        }),
+      );
+
+      final kelasCtrl = KelasController(KelasRepository(client));
+      addTearDown(kelasCtrl.dispose);
+
+      // 1. Direct chat summarization retries if refusal occurs
+      final (ans, err) = await kelasCtrl.chatAi(
+        pesan: 'Ringkas materi ini',
+        isiMateri: 'HTML Dasar\n\nSilakan baca modul PDF',
+      );
+      expect(err, isNull);
+      expect(ans, contains('Ringkasan HTML Dasar'));
+
+      // 2. ringkasDokumenAi falls back to explainMateriAi + chatAi when /ai/dokumen/ringkas returns 502
+      final (sumRes, sumErr) = await kelasCtrl.ringkasDokumenAi(
+        lampiranPaths: const ['/uploads/2026/11/23/modul.pdf'],
+        judul: 'HTML Dasar',
+        deskripsiMateri: 'Modul pengenalan HTML',
+      );
+      expect(sumErr, isNull);
+      expect(sumRes!.judul, 'Ringkasan HTML Dasar');
+      expect(sumRes.file!.name, 'ringkasan-html.pdf');
+      expect(sumRes.jawaban, contains('Ringkasan HTML Dasar'));
+    });
   });
 }

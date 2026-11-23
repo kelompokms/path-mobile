@@ -601,6 +601,22 @@ class KelasRepository {
     }
   }
 
+  static bool _isRefusalResponse(String jawaban) {
+    final lower = jawaban.toLowerCase();
+    return lower.contains('belum melampirkan') ||
+        lower.contains('tempelkan (paste)') ||
+        lower.contains('tempel (paste)') ||
+        lower.contains('copy-paste') ||
+        lower.contains('tidak ada di materi yang diberikan');
+  }
+
+  static bool _isSummarizeQuery(String text) {
+    final lower = text.toLowerCase();
+    return RegExp(
+      r'\b(ringkas\w*|rangkum\w*|kesimpulan\w*|inti\s+materi|poin[\s-]+poin\s+penting|pokok\s+bahasan)\b',
+    ).hasMatch(lower);
+  }
+
   Future<(String?, String?)> chatAi({
     required String pesan,
     String isiMateri = '',
@@ -611,21 +627,70 @@ class KelasRepository {
     bool gunakanModelGratis = false,
   }) async {
     try {
-      final response = await _client
-          .post(
-            _client.uri('/ai/chat'),
-            headers: _client.JSON,
-            body: jsonEncode({
-              'pesan': pesan,
-              'isi_materi': isiMateri,
-              if (lampiranPaths.isNotEmpty) 'lampiran_paths': lampiranPaths,
-              'jenjang': jenjang,
-              'modes': modes,
-              'riwayat': riwayat,
-              'gunakan_model_gratis': gunakanModelGratis,
-            }),
-          )
-          .timeout(const Duration(seconds: 60));
+      final trimmedMateri = isiMateri.trim();
+      final topicTitle = trimmedMateri.isEmpty
+          ? ''
+          : trimmedMateri.split('\n').first.trim();
+
+      // Avoid sending short post titles/instructions as strict closed-book isi_materi,
+      // which causes ai.pathclass.app /v1/chat to refuse summarization or topic questions.
+      final hasSubstantialMateriText = trimmedMateri.runes.length >= 400;
+      String effectivePesan = pesan.trim();
+      String effectiveIsiMateri = hasSubstantialMateriText ? trimmedMateri : '';
+
+      if (!hasSubstantialMateriText && topicTitle.isNotEmpty) {
+        if (_isSummarizeQuery(effectivePesan)) {
+          effectivePesan =
+              'Buatkan ringkasan materi pembelajaran dan poin-poin penting mengenai topik "$topicTitle"'
+              '${trimmedMateri.length > topicTitle.length ? ' ($trimmedMateri)' : ''} '
+              'untuk bahan belajar siswa.\n\nPermintaan siswa: $effectivePesan';
+        } else {
+          effectivePesan =
+              'Konteks topik materi pembelajaran: $trimmedMateri\n\nPertanyaan: $effectivePesan';
+        }
+      }
+
+      Future<http.Response> postChat({
+        required String promptText,
+        required String materiText,
+        required bool useFree,
+      }) {
+        return _client
+            .post(
+              _client.uri('/ai/chat'),
+              headers: _client.JSON,
+              body: jsonEncode({
+                'pesan': promptText,
+                'isi_materi': materiText,
+                if (lampiranPaths.isNotEmpty) 'lampiran_paths': lampiranPaths,
+                'jenjang': jenjang,
+                'modes': modes,
+                'riwayat': riwayat,
+                'gunakan_model_gratis': useFree,
+              }),
+            )
+            .timeout(const Duration(seconds: 60));
+      }
+
+      var activeFree = gunakanModelGratis;
+      var response = await postChat(
+        promptText: effectivePesan,
+        materiText: effectiveIsiMateri,
+        useFree: activeFree,
+      );
+
+      // Automatic fallback to paid tier if free tier is rate-limited upstream (502/503/429).
+      if (activeFree &&
+          (response.statusCode == 429 ||
+              response.statusCode == 502 ||
+              response.statusCode == 503)) {
+        activeFree = false;
+        response = await postChat(
+          promptText: effectivePesan,
+          materiText: effectiveIsiMateri,
+          useFree: false,
+        );
+      }
 
       if (response.statusCode != 200) {
         return (
@@ -634,8 +699,29 @@ class KelasRepository {
         );
       }
 
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      final jawaban = (decoded['jawaban'] ?? '').toString().trim();
+      var decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      var jawaban = (decoded['jawaban'] ?? '').toString().trim();
+
+      // If upstream LLM still thought no text/PDF was attached, retry with an explicit topic summary prompt.
+      if (_isRefusalResponse(jawaban) && topicTitle.isNotEmpty) {
+        final retryPrompt =
+            'Buatkan ringkasan materi pembelajaran dan penjelasan poin-poin penting mengenai topik "$topicTitle" untuk bahan belajar siswa.\n\nPermintaan siswa: ${pesan.trim()}';
+        final retryResp = await postChat(
+          promptText: retryPrompt,
+          materiText: '',
+          useFree: activeFree,
+        );
+        if (retryResp.statusCode == 200) {
+          final retryDecoded =
+              jsonDecode(retryResp.body) as Map<String, dynamic>;
+          final retryJawaban =
+              (retryDecoded['jawaban'] ?? '').toString().trim();
+          if (retryJawaban.isNotEmpty) {
+            jawaban = retryJawaban;
+          }
+        }
+      }
+
       if (jawaban.isEmpty) {
         return (null, 'Jawaban AI kosong');
       }
@@ -721,6 +807,7 @@ class KelasRepository {
   Future<(ExplainMateriAiResult?, String?)> ringkasDokumenAi({
     required List<String> lampiranPaths,
     String judul = '',
+    String deskripsiMateri = '',
     String fokus = '',
     String jenjang = '',
     bool diagram = false,
@@ -742,35 +829,104 @@ class KelasRepository {
           )
           .timeout(const Duration(seconds: 120));
 
-      if (response.statusCode != 200) {
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+        LampiranItem? fileItem;
+        final rawFile = decoded['file'];
+        if (rawFile is Map<String, dynamic>) {
+          final uploaded = UploadedPostinganFile.fromJson(rawFile);
+          final ext = extractLampiranExtension(
+            uploaded.nama.isNotEmpty ? uploaded.nama : uploaded.path,
+          );
+          fileItem = LampiranItem(
+            name: uploaded.nama.isNotEmpty ? uploaded.nama : 'Ringkasan_AI.pdf',
+            detail: ext.isEmpty ? 'PDF' : ext.toUpperCase(),
+            url: uploaded.path,
+          );
+        }
+
+        var jawaban = (decoded['jawaban'] ?? '').toString().trim();
+        final resJudul = (decoded['judul'] ?? judul).toString().trim();
+
+        // If backend only returned the generic PDF placeholder without summary text,
+        // enrich with a text summary from chatAi so the student sees points immediately.
+        if (jawaban.isEmpty ||
+            jawaban.startsWith('Ringkasan dokumen AI telah selesai dibuat')) {
+          final (chatSummary, _) = await chatAi(
+            pesan: fokus.trim().isNotEmpty
+                ? fokus.trim()
+                : 'Ringkas materi ini beserta poin-poin pentingnya',
+            isiMateri: [judul.trim(), deskripsiMateri.trim()]
+                .where((s) => s.isNotEmpty)
+                .join('\n\n'),
+            lampiranPaths: lampiranPaths,
+            jenjang: jenjang,
+            gunakanModelGratis: gunakanModelGratis,
+          );
+          if (chatSummary != null && chatSummary.trim().isNotEmpty) {
+            jawaban = chatSummary.trim();
+          }
+        }
+
         return (
+          ExplainMateriAiResult(
+            judul: resJudul,
+            jawaban: jawaban,
+            file: fileItem,
+          ),
           null,
-          _extractMessage(response.body, 'Gagal meringkas dokumen dengan AI'),
         );
       }
 
-      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
-      LampiranItem? fileItem;
-      final rawFile = decoded['file'];
-      if (rawFile is Map<String, dynamic>) {
-        final uploaded = UploadedPostinganFile.fromJson(rawFile);
-        final ext = extractLampiranExtension(
-          uploaded.nama.isNotEmpty ? uploaded.nama : uploaded.path,
+      // Fallback: if /ai/dokumen/ringkas fails (e.g. 403/502 forbidden_for_student on older backend
+      // or unsupported attachment), fall back to explainMateriAi which reads berkas_materi for students too.
+      if (lampiranPaths.isNotEmpty) {
+        final topic = judul.trim().isNotEmpty ? judul.trim() : 'materi ini';
+        final prompt = fokus.trim().isNotEmpty
+            ? 'Ringkas dokumen materi "$topic" dengan fokus: ${fokus.trim()}'
+            : 'Ringkas dan jelaskan poin-poin utama dari dokumen materi "$topic" secara lengkap dan terstruktur.';
+        final ( fallbackRes, fallbackErr) = await explainMateriAi(
+          pertanyaan: prompt,
+          deskripsiMateri: deskripsiMateri,
+          isiMateri: [judul.trim(), deskripsiMateri.trim()]
+              .where((s) => s.isNotEmpty)
+              .join('\n\n'),
+          lampiranPaths: lampiranPaths,
+          jenjang: jenjang,
+          tabel: true,
+          diagram: diagram,
+          gunakanModelGratis: gunakanModelGratis,
         );
-        fileItem = LampiranItem(
-          name: uploaded.nama.isNotEmpty ? uploaded.nama : 'Ringkasan_AI.pdf',
-          detail: ext.isEmpty ? 'PDF' : ext.toUpperCase(),
-          url: uploaded.path,
-        );
+        if (fallbackRes != null && fallbackErr == null) {
+          var jawaban = fallbackRes.jawaban;
+          if (jawaban.runes.length < 220) {
+            final (chatSummary, _) = await chatAi(
+              pesan: prompt,
+              isiMateri: [judul.trim(), deskripsiMateri.trim()]
+                  .where((s) => s.isNotEmpty)
+                  .join('\n\n'),
+              lampiranPaths: lampiranPaths,
+              jenjang: jenjang,
+              gunakanModelGratis: gunakanModelGratis,
+            );
+            if (chatSummary != null && chatSummary.trim().isNotEmpty) {
+              jawaban = '${fallbackRes.jawaban}\n\n---\n\n${chatSummary.trim()}';
+            }
+          }
+          return (
+            ExplainMateriAiResult(
+              judul: fallbackRes.judul.isNotEmpty ? fallbackRes.judul : judul,
+              jawaban: jawaban,
+              file: fallbackRes.file,
+            ),
+            null,
+          );
+        }
       }
 
       return (
-        ExplainMateriAiResult(
-          judul: (decoded['judul'] ?? '').toString().trim(),
-          jawaban: (decoded['jawaban'] ?? '').toString().trim(),
-          file: fileItem,
-        ),
         null,
+        _extractMessage(response.body, 'Gagal meringkas dokumen dengan AI'),
       );
     } on TimeoutException {
       return (null, 'Ringkasan dokumen AI melebihi batas waktu. Coba lagi.');

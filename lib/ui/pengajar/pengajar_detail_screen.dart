@@ -558,6 +558,8 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                           page: PengajarMateriDetailScreen(
                             materi: m,
                             isGuru: _isGuru,
+                            controller: widget.controller,
+                            jenjang: _class.grade,
                             baseUrl: widget.controller?.baseUrl,
                             onEdit: _isGuru ? () => _editMateri(m) : null,
                             onDelete: _isGuru ? () => _deleteMateri(m) : null,

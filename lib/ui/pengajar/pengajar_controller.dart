@@ -1,8 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_mobile/data/kelas/kelas_repository.dart'
+    show ExplainMateriAiResult;
 import 'package:path_mobile/data/pengajar/pengajar_model.dart';
 import 'package:path_mobile/data/pengajar/pengajar_repository.dart';
 
+export 'package:path_mobile/data/kelas/kelas_repository.dart'
+    show ExplainMateriAiResult;
 export 'package:path_mobile/data/pengajar/pengajar_repository.dart'
     show AssessmentCheckAiResult, GeneratedMateriAiResult, KoreksiAiResult;
 import 'package:path_mobile/utils/lampiran_helper.dart';
@@ -365,6 +369,72 @@ class PengajarController extends ChangeNotifier {
       postinganId: postinganId,
       penggunaIds: penggunaIds,
       jenjang: jenjang,
+      gunakanModelGratis: gunakanModelGratis,
+    );
+  }
+
+  Future<(String?, String?)> chatAi({
+    required String pesan,
+    String isiMateri = '',
+    List<String> lampiranPaths = const [],
+    String jenjang = '',
+    List<String> modes = const [],
+    List<Map<String, String>> riwayat = const [],
+    bool gunakanModelGratis = false,
+  }) {
+    return _repo.chatAi(
+      pesan: pesan,
+      isiMateri: isiMateri,
+      lampiranPaths: lampiranPaths,
+      jenjang: jenjang,
+      modes: modes,
+      riwayat: riwayat,
+      gunakanModelGratis: gunakanModelGratis,
+    );
+  }
+
+  Future<(ExplainMateriAiResult?, String?)> explainMateriAi({
+    required String pertanyaan,
+    String deskripsiMateri = '',
+    String isiMateri = '',
+    List<String> lampiranPaths = const [],
+    String jenjang = '',
+    bool tabel = false,
+    bool diagram = false,
+    bool ilustrasi = false,
+    bool kombinasi = false,
+    bool gunakanModelGratis = false,
+  }) {
+    return _repo.explainMateriAi(
+      pertanyaan: pertanyaan,
+      deskripsiMateri: deskripsiMateri,
+      isiMateri: isiMateri,
+      lampiranPaths: lampiranPaths,
+      jenjang: jenjang,
+      tabel: tabel,
+      diagram: diagram,
+      ilustrasi: ilustrasi,
+      kombinasi: kombinasi,
+      gunakanModelGratis: gunakanModelGratis,
+    );
+  }
+
+  Future<(ExplainMateriAiResult?, String?)> ringkasDokumenAi({
+    required List<String> lampiranPaths,
+    String judul = '',
+    String deskripsiMateri = '',
+    String fokus = '',
+    String jenjang = '',
+    bool diagram = false,
+    bool gunakanModelGratis = false,
+  }) {
+    return _repo.ringkasDokumenAi(
+      lampiranPaths: lampiranPaths,
+      judul: judul,
+      deskripsiMateri: deskripsiMateri,
+      fokus: fokus,
+      jenjang: jenjang,
+      diagram: diagram,
       gunakanModelGratis: gunakanModelGratis,
     );
   }
