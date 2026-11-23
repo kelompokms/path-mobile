@@ -18,18 +18,44 @@ class TambahAgendaResult {
 
 class TambahAgendaDialog extends StatefulWidget {
   final DateTime initialDate;
+  final DateTime? initialEndDate;
+  final String initialNama;
+  final String initialKeterangan;
+  final String title;
 
-  const TambahAgendaDialog({super.key, required this.initialDate});
+  const TambahAgendaDialog({
+    super.key,
+    required this.initialDate,
+    this.initialEndDate,
+    this.initialNama = '',
+    this.initialKeterangan = '',
+    this.title = 'Tambah Agenda',
+  });
 
   @override
   State<TambahAgendaDialog> createState() => _TambahAgendaDialogState();
 }
 
 class _TambahAgendaDialogState extends State<TambahAgendaDialog> {
-  final _namaController = TextEditingController();
-  final _keteranganController = TextEditingController();
-  late DateTime _tanggalMulai = DateUtils.dateOnly(widget.initialDate);
-  late DateTime _tanggalSelesai = DateUtils.dateOnly(widget.initialDate);
+  static final DateTime _minDate = DateTime(2020);
+  static final DateTime _maxDate = DateTime(2100);
+
+  static DateTime _clampDate(DateTime date) {
+    final normalized = DateUtils.dateOnly(date);
+    if (normalized.isBefore(_minDate)) return _minDate;
+    if (normalized.isAfter(_maxDate)) return _maxDate;
+    return normalized;
+  }
+
+  late final TextEditingController _namaController = TextEditingController(
+    text: widget.initialNama,
+  );
+  late final TextEditingController _keteranganController =
+      TextEditingController(text: widget.initialKeterangan);
+  late DateTime _tanggalMulai = _clampDate(widget.initialDate);
+  late DateTime _tanggalSelesai = _clampDate(
+    widget.initialEndDate ?? widget.initialDate,
+  );
   bool _triedSubmit = false;
 
   bool get _canSave => _namaController.text.trim().isNotEmpty;
@@ -44,13 +70,13 @@ class _TambahAgendaDialogState extends State<TambahAgendaDialog> {
   Future<void> _pickStartDate() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: _tanggalMulai,
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
+      initialDate: _clampDate(_tanggalMulai),
+      firstDate: _minDate,
+      lastDate: _maxDate,
     );
     if (picked == null || !mounted) return;
     setState(() {
-      _tanggalMulai = DateUtils.dateOnly(picked);
+      _tanggalMulai = _clampDate(picked);
       if (_tanggalSelesai.isBefore(_tanggalMulai)) {
         _tanggalSelesai = _tanggalMulai;
       }
@@ -58,17 +84,17 @@ class _TambahAgendaDialogState extends State<TambahAgendaDialog> {
   }
 
   Future<void> _pickEndDate() async {
+    final start = _clampDate(_tanggalMulai);
+    final end = _clampDate(_tanggalSelesai);
     final picked = await showDatePicker(
       context: context,
-      initialDate: _tanggalSelesai.isBefore(_tanggalMulai)
-          ? _tanggalMulai
-          : _tanggalSelesai,
-      firstDate: _tanggalMulai,
-      lastDate: DateTime(2100),
+      initialDate: end.isBefore(start) ? start : end,
+      firstDate: start,
+      lastDate: _maxDate,
     );
     if (picked == null || !mounted) return;
     setState(() {
-      _tanggalSelesai = DateUtils.dateOnly(picked);
+      _tanggalSelesai = _clampDate(picked);
     });
   }
 
@@ -105,9 +131,9 @@ class _TambahAgendaDialogState extends State<TambahAgendaDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Tambah Agenda',
-                style: TextStyle(
+              Text(
+                widget.title,
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: AppColors.text,

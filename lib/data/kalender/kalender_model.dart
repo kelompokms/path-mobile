@@ -42,6 +42,7 @@ class KalenderAkademikModel {
 }
 
 class AgendaItemModel {
+  final int? id;
   final DateTime date;
   final DateTime? endDate;
   final String heading;
@@ -51,6 +52,7 @@ class AgendaItemModel {
   final bool isGlobal;
 
   const AgendaItemModel({
+    this.id,
     required this.date,
     this.endDate,
     required this.heading,

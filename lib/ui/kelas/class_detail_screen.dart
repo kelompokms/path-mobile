@@ -32,6 +32,7 @@ class ClassDetailScreen extends StatefulWidget {
 
 class _ClassDetailScreenState extends State<ClassDetailScreen> {
   bool _isLoading = false;
+  String? _errorMessage;
   List<MateriData> _materiList = [];
   List<TugasData> _tugasList = [];
 
@@ -45,7 +46,10 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     final ctrl = widget.controller;
     if (ctrl == null) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     final results = await Future.wait([
       ctrl.getListMateri(widget.classData.code),
@@ -57,9 +61,11 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     final (materiModels, materiErr) = results[0];
     final (tugasModels, tugasErr) = results[1];
     final author = widget.classData.teacher ?? 'Pengajar';
+    final firstError = materiErr ?? tugasErr;
 
     setState(() {
       _isLoading = false;
+      _errorMessage = firstError;
       if (materiModels != null) {
         _materiList = materiModels
             .map((m) => MateriData.fromModel(m, author: author))
@@ -72,7 +78,6 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
       }
     });
 
-    final firstError = materiErr ?? tugasErr;
     if (firstError != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -136,14 +141,15 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               Expanded(
                 child: TabBarView(
                   children: [
-                    _isLoading
+                    _isLoading && _materiList.isEmpty
                         ? const Center(child: CircularProgressIndicator())
                         : _buildMateriTab(h),
-                    _isLoading
+                    _isLoading && _tugasList.isEmpty
                         ? const Center(child: CircularProgressIndicator())
                         : _buildTugasTab(h),
                     AnggotaKelasTab(
                       kodeKelas: widget.classData.code,
+                      baseUrl: widget.controller?.baseUrl,
                       loadMembers: widget.controller == null
                           ? null
                           : () => widget.controller!.getListAnggota(
@@ -161,22 +167,51 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
     );
   }
 
-  Widget _buildMateriTab(double horizontalPadding) {
-    if (_materiList.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Belum ada materi',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.secondaryText),
+  Widget _buildEmptyRefreshable(String emptyLabel) {
+    return RefreshIndicator(
+      onRefresh: _loadPosts,
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      emptyLabel,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.secondaryText),
+                    ),
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: _loadPosts,
+                        style: AppTheme.softCompactButton,
+                        child: const Text('Coba Lagi'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _buildMateriTab(double horizontalPadding) {
+    if (_materiList.isEmpty) {
+      return _buildEmptyRefreshable('Belum ada materi');
     }
     return RefreshIndicator(
       onRefresh: _loadPosts,
       child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
           horizontalPadding,
           12,
@@ -198,6 +233,8 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
               page: MateriDetailScreen(
                 materi: m,
                 baseUrl: widget.controller?.baseUrl,
+                controller: widget.controller,
+                jenjang: widget.classData.grade,
               ),
             ),
           );
@@ -208,20 +245,12 @@ class _ClassDetailScreenState extends State<ClassDetailScreen> {
 
   Widget _buildTugasTab(double horizontalPadding) {
     if (_tugasList.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Belum ada tugas',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.secondaryText),
-          ),
-        ),
-      );
+      return _buildEmptyRefreshable('Belum ada tugas');
     }
     return RefreshIndicator(
       onRefresh: _loadPosts,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
           horizontalPadding,
           16,

@@ -1,21 +1,48 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
+import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_items.dart';
+import 'package:path_mobile/utils/lampiran_helper.dart';
+
+typedef KoreksiAcceptedCallback = FutureOr<bool> Function(
+  Map<String, int> scores,
+);
+
+/// Document extensions prioritized for AI answer-key upload.
+const List<String> allowedAnswerKeyExtensions = [
+  'pdf',
+  'txt',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'csv',
+  'ppt',
+  'pptx',
+];
 
 class KoreksiAiScreen extends StatefulWidget {
   final ClassItem classData;
   final TugasPengajar tugas;
-  final ValueChanged<Map<String, int>> onAccepted;
+  final PengajarController? controller;
+  final KoreksiAcceptedCallback onAccepted;
+  final Future<PickedLampiranFile?> Function()? onPickKeyFile;
 
   const KoreksiAiScreen({
     super.key,
     required this.classData,
     required this.tugas,
+    this.controller,
     required this.onAccepted,
+    this.onPickKeyFile,
   });
 
   @override
@@ -25,8 +52,15 @@ class KoreksiAiScreen extends StatefulWidget {
 class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
   final _descController = TextEditingController();
   String? _keyFileName;
+  Uint8List? _keyFileBytes;
+  bool _pickingFile = false;
+  bool _grading = false;
   Set<String> _selected = {};
+  Map<String, int>? _aiScores;
+  LampiranItem? _rekapFile;
+  List<String> _analisa = const [];
   bool _confirmedStep = false;
+  bool _submitting = false;
 
   bool get _hasKey =>
       _keyFileName != null || _descController.text.trim().isNotEmpty;
@@ -37,22 +71,150 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
     super.dispose();
   }
 
-  Future<void> _pickKeyFile() async {
-    final name = await showAddLinkDialog(
-      context,
-      title: 'Upload kunci jawaban',
-      label: 'Nama file kunci jawaban',
-      buttonLabel: 'Pilih',
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<PickedLampiranFile?> _defaultPickKeyFile() async {
+    final file = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: allowedAnswerKeyExtensions,
     );
-    if (name == null || !mounted) return;
-    setState(() => _keyFileName = name);
+    if (file == null) return null;
+    return PickedLampiranFile(
+      name: file.name,
+      size: file.lengthSync(),
+      readBytes: file.readAsBytes,
+    );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) {
+      return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    }
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  Future<void> _pickKeyFile() async {
+    if (_pickingFile) return;
+    setState(() => _pickingFile = true);
+    try {
+      final picked = await (widget.onPickKeyFile ?? _defaultPickKeyFile)();
+      if (picked == null || !mounted) return;
+
+      final fileName = picked.name.trim();
+      final ext = extractLampiranExtension(fileName);
+      if (ext.isEmpty || !allowedAnswerKeyExtensions.contains(ext)) {
+        _showSnack(
+          'Format kunci jawaban tidak didukung. Gunakan file dokumen (PDF, TXT, DOC/DOCX, XLS/XLSX, CSV, PPT/PPTX).',
+        );
+        return;
+      }
+
+      final knownSize = picked.size;
+      if (knownSize != null && knownSize > maxPostinganFileSizeBytes) {
+        _showSnack('Ukuran file kunci jawaban terlalu besar (maks. 10 MB)');
+        return;
+      }
+
+      final bytes = await picked.readBytes();
+      if (!mounted) return;
+      if (bytes.isEmpty) {
+        _showSnack('File kunci jawaban kosong');
+        return;
+      }
+      if (bytes.length > maxPostinganFileSizeBytes) {
+        _showSnack('Ukuran file kunci jawaban terlalu besar (maks. 10 MB)');
+        return;
+      }
+
+      setState(() {
+        _keyFileName = fileName;
+        _keyFileBytes = bytes;
+      });
+    } catch (e) {
+      _showSnack('Gagal memilih file kunci jawaban: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _pickingFile = false);
+      }
+    }
+  }
+
+  Future<void> _runKoreksiAi() async {
+    if (!_hasKey || _selected.isEmpty || _grading) return;
+    final ctrl = widget.controller;
+    final postinganId = widget.tugas.id;
+    final kodeKelas = widget.classData.code;
+
+    if (ctrl == null || postinganId == null || postinganId <= 0 || kodeKelas.isEmpty) {
+      setState(() {
+        _aiScores = {for (final key in _selected) key: 90};
+        _confirmedStep = true;
+      });
+      return;
+    }
+
+    final selectedItems = widget.tugas.pengumpulan
+        .where((p) => _selected.contains(p.keyId) && p.penggunaId != null)
+        .toList();
+    final penggunaIds = selectedItems.map((p) => p.penggunaId!).toList();
+    if (penggunaIds.isEmpty) {
+      _showSnack('Pilih minimal satu siswa yang sudah mengumpulkan tugas');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() => _grading = true);
+    final (result, err) = await ctrl.koreksiTugasAi(
+      kodeKelas: kodeKelas,
+      postinganId: postinganId,
+      penggunaIds: penggunaIds,
+      deskripsiKunci: _descController.text.trim(),
+      keyFileName: _keyFileName,
+      keyFileBytes: _keyFileBytes,
+    );
+    if (!mounted) return;
+    setState(() => _grading = false);
+
+    if (err != null || result == null) {
+      _showSnack(err ?? 'Gagal melakukan koreksi AI');
+      return;
+    }
+
+    final mappedScores = <String, int>{};
+    for (final p in selectedItems) {
+      final score = result.scoresByPenggunaId[p.penggunaId!];
+      if (score != null) {
+        mappedScores[p.keyId] = score;
+      }
+    }
+    if (mappedScores.isEmpty) {
+      _showSnack('AI tidak mengembalikan nilai untuk siswa terpilih');
+      return;
+    }
+
+    setState(() {
+      _aiScores = mappedScores;
+      _rekapFile = result.rekapFile;
+      _analisa = result.analisa;
+      _confirmedStep = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final tugas = widget.tugas;
-    final generatedScores = {
-      for (final name in _selected) name: 90,
+    final generatedScores = <String, int>{
+      for (final key in _selected)
+        if (_aiScores?.containsKey(key) == true)
+          key: _aiScores![key]!
+        else if (_aiScores == null)
+          key: 90,
     };
 
     return LayoutBuilder(
@@ -82,26 +244,71 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    FileCard(
-                      fileName: 'Rekap koreksi AI_${tugas.title}',
-                      fileType: 'PDF',
-                    ),
+                    if (_rekapFile != null)
+                      FileCard.fromItem(
+                        _rekapFile!,
+                        baseUrl: widget.controller?.baseUrl,
+                      )
+                    else
+                      FileCard(
+                        fileName: 'Rekap koreksi AI_${tugas.title}',
+                        fileType: 'XLSX',
+                      ),
+                    if (_analisa.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: AppTheme.cardDecoration(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Ringkasan Analisa AI',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.text,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            for (final line in _analisa)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Text(
+                                  '• $line',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.secondaryText,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: FilledButton(
-                        onPressed: _selected.isEmpty
+                        onPressed: _selected.isEmpty || _submitting
                             ? null
-                            : () {
-                                widget.onAccepted(generatedScores);
-                                Navigator.of(context).pop();
-                                ScaffoldMessenger.of(context)
-                                  ..hideCurrentSnackBar()
-                                  ..showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Koreksi AI diterima'),
-                                    ),
+                            : () async {
+                                setState(() => _submitting = true);
+                                try {
+                                  final ok = await widget.onAccepted(
+                                    generatedScores,
                                   );
+                                  if (!context.mounted) return;
+                                  if (ok) {
+                                    Navigator.of(context).pop();
+                                  }
+                                } finally {
+                                  if (mounted) {
+                                    setState(() => _submitting = false);
+                                  }
+                                }
                               },
                         style: FilledButton.styleFrom(
                           shape: RoundedRectangleBorder(
@@ -111,7 +318,16 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                           ),
                           padding: const EdgeInsets.symmetric(horizontal: 24),
                         ),
-                        child: const Text('Terima Koreksi'),
+                        child: _submitting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Terima Koreksi'),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -184,34 +400,54 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'File',
+                    'File (PDF, TXT, DOC/DOCX, XLS/XLSX, CSV, PPT/PPTX • maks. 10 MB)',
                     style: TextStyle(
                       fontSize: 10,
                       color: AppColors.secondaryText,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Wrap(
                     crossAxisAlignment: WrapCrossAlignment.center,
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      ElevatedButton(
+                      ElevatedButton.icon(
+                        key: const Key('koreksi_ai_upload_key_button'),
                         style: AppTheme.softCompactButton,
-                        onPressed: _pickKeyFile,
-                        child: const Text('Upload file'),
+                        onPressed: _pickingFile ? null : _pickKeyFile,
+                        icon: _pickingFile
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.upload_file_outlined, size: 16),
+                        label: Text(
+                          _pickingFile ? 'Memilih...' : 'Upload file',
+                        ),
                       ),
                       if (_keyFileName != null)
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            const Icon(
+                              Icons.description_outlined,
+                              size: 16,
+                              color: AppColors.color1,
+                            ),
+                            const SizedBox(width: 4),
                             Flexible(
                               child: ConstrainedBox(
                                 constraints: const BoxConstraints(
-                                  maxWidth: 240,
+                                  maxWidth: 220,
                                 ),
                                 child: Text(
-                                  _keyFileName!,
+                                  _keyFileBytes != null
+                                      ? '$_keyFileName (${_formatFileSize(_keyFileBytes!.length)})'
+                                      : _keyFileName!,
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: AppColors.text,
@@ -222,8 +458,11 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                               ),
                             ),
                             IconButton(
-                              onPressed: () =>
-                                  setState(() => _keyFileName = null),
+                              tooltip: 'Hapus file kunci jawaban',
+                              onPressed: () => setState(() {
+                                _keyFileName = null;
+                                _keyFileBytes = null;
+                              }),
                               icon: const Icon(Icons.close, size: 16),
                             ),
                           ],
@@ -246,8 +485,8 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                     keyboardType: TextInputType.multiline,
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) {
-                      if (_hasKey && _selected.isNotEmpty) {
-                        setState(() => _confirmedStep = true);
+                      if (_hasKey && _selected.isNotEmpty && !_grading) {
+                        _runKoreksiAi();
                       }
                     },
                     style: const TextStyle(fontSize: 11, color: AppColors.text),
@@ -265,8 +504,8 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                   Align(
                     alignment: Alignment.centerLeft,
                     child: FilledButton(
-                      onPressed: _hasKey && _selected.isNotEmpty
-                          ? () => setState(() => _confirmedStep = true)
+                      onPressed: _hasKey && _selected.isNotEmpty && !_grading
+                          ? _runKoreksiAi
                           : null,
                       style: FilledButton.styleFrom(
                         shape: RoundedRectangleBorder(
@@ -276,7 +515,23 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                         ),
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                       ),
-                      child: const Text('Koreksi menggunakan AI'),
+                      child: _grading
+                          ? const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 15,
+                                  height: 15,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Text('Mengoreksi dengan AI...'),
+                              ],
+                            )
+                          : const Text('Koreksi menggunakan AI'),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -317,8 +572,8 @@ class PengumpulanChecklist extends StatefulWidget {
 }
 
 class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
-  static const _statuses = ['Diserahkan', 'Ditugaskan', 'Dinilai'];
-  static const _filters = ['Semua', 'Diserahkan', 'Ditugaskan', 'Dinilai'];
+  static const _statuses = PengumpulanStatus.all;
+  static const _filters = PengumpulanStatus.filters;
 
   String _filter = 'Semua';
 
@@ -326,13 +581,18 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
       .where((p) => _filter == 'Semua' || p.status == _filter)
       .toList();
 
-  bool _allSelected(List<PengumpulanItem> rows) =>
-      rows.isNotEmpty &&
-      rows.every((p) => widget.selected.contains(p.keyId));
+  List<PengumpulanItem> _selectable(List<PengumpulanItem> rows) =>
+      rows.where((p) => p.isSubmitted).toList();
+
+  bool _allSelected(List<PengumpulanItem> rows) {
+    final eligible = _selectable(rows);
+    return eligible.isNotEmpty &&
+        eligible.every((p) => widget.selected.contains(p.keyId));
+  }
 
   void _setMany(List<PengumpulanItem> rows, bool value) {
     final next = {...widget.selected};
-    for (final p in rows) {
+    for (final p in _selectable(rows)) {
       if (value) {
         next.add(p.keyId);
       } else {
@@ -342,13 +602,13 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
     widget.onChanged(next);
   }
 
-  Widget _box(bool value, ValueChanged<bool> onChanged) {
+  Widget _box(bool value, ValueChanged<bool>? onChanged) {
     return SizedBox(
       width: 28,
       height: 28,
       child: Checkbox(
         value: value,
-        onChanged: (v) => onChanged(v ?? false),
+        onChanged: onChanged == null ? null : (v) => onChanged(v ?? false),
         activeColor: AppColors.text,
         visualDensity: VisualDensity.compact,
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -365,18 +625,30 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
       children: [
         Row(
           children: [
-            _box(_allSelected(visible), (v) => _setMany(visible, v)),
+            _box(
+              _allSelected(visible),
+              _selectable(visible).isEmpty
+                  ? null
+                  : (v) => _setMany(visible, v),
+            ),
             const SizedBox(width: 8),
             Flexible(
-              child: DropdownButton<String>(
-                value: _filter,
-                isDense: true,
-                style: const TextStyle(fontSize: 11, color: AppColors.text),
-                items: [
-                  for (final f in _filters)
-                    DropdownMenuItem(value: f, child: Text(f)),
-                ],
-                onChanged: (v) => setState(() => _filter = v ?? 'Semua'),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 200),
+                child: DropdownButton<String>(
+                  value: _filter,
+                  isDense: true,
+                  isExpanded: true,
+                  style: const TextStyle(fontSize: 11, color: AppColors.text),
+                  items: [
+                    for (final f in _filters)
+                      DropdownMenuItem(
+                        value: f,
+                        child: Text(f, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _filter = v ?? 'Semua'),
+                ),
               ),
             ),
           ],
@@ -408,7 +680,12 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
             children: [
               Row(
                 children: [
-                  _box(_allSelected(rows), (v) => _setMany(rows, v)),
+                  _box(
+                    _allSelected(rows),
+                    _selectable(rows).isEmpty
+                        ? null
+                        : (v) => _setMany(rows, v),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -437,7 +714,9 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
                     children: [
                       _box(
                         widget.selected.contains(rows[i].keyId),
-                        (v) => _setMany([rows[i]], v),
+                        rows[i].isSubmitted
+                            ? (v) => _setMany([rows[i]], v)
+                            : null,
                       ),
                       const SizedBox(width: 8),
                       Expanded(

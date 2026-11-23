@@ -40,6 +40,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
   bool get _isGuru => _class.isGuru;
 
   bool _isLoading = false;
+  String? _errorMessage;
   List<MateriPengajar> _materiList = [];
   List<TugasPengajar> _tugasList = [];
 
@@ -74,7 +75,10 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
     final ctrl = widget.controller;
     if (ctrl == null) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     final results = await Future.wait([
       ctrl.getListMateri(_class.code),
@@ -85,9 +89,11 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
 
     final (materiModels, materiErr) = results[0];
     final (tugasModels, tugasErr) = results[1];
+    final firstError = materiErr ?? tugasErr;
 
     setState(() {
       _isLoading = false;
+      _errorMessage = firstError;
       if (materiModels != null) {
         _materiList = materiModels.map(MateriPengajar.fromModel).toList();
       }
@@ -96,7 +102,6 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
       }
     });
 
-    final firstError = materiErr ?? tugasErr;
     if (firstError != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -110,8 +115,8 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _handleMateriCreated(MateriPengajar materi) async {
-    if (!_isGuru) return;
+  Future<bool> _handleMateriCreated(MateriPengajar materi) async {
+    if (!_isGuru) return false;
     final ctrl = widget.controller;
     if (ctrl != null) {
       final (created, err) = await ctrl.createMateri(
@@ -120,10 +125,10 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         deskripsi: materi.description,
         lampiran: materi.lampiran,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
       if (err != null) {
         _showSnackBar(err);
-        return;
+        return false;
       }
       if (created != null) {
         final createdMateri = MateriPengajar.fromModel(created)
@@ -134,12 +139,13 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         setState(() {
           _materiList.insert(0, createdMateri);
         });
-        return;
+        return true;
       }
     }
     setState(() {
       _materiList.insert(0, materi);
     });
+    return true;
   }
 
   Future<bool> _handleTugasCreated(TugasPengajar tugas) async {
@@ -151,6 +157,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         judul: tugas.title,
         deskripsi: tugas.description,
         lampiran: tugas.lampiran,
+        tenggatWaktu: tugas.dueDate,
       );
       if (!mounted) return false;
       if (err != null) {
@@ -163,6 +170,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
           ..title = created.judul
           ..description = created.deskripsi
           ..postedAt = created.dibuat
+          ..dueDate = created.tenggatWaktu ?? tugas.dueDate
           ..lampiran = mergeLampiranWithLocal(
             created.lampiranItems,
             tugas.lampiran,
@@ -194,6 +202,11 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
         deskripsi: draft.description,
         lampiran: draft.lampiran,
         tipe: PostinganModel.tipeTugas,
+        menerimaKiriman: draft.acceptSubmissions != target.acceptSubmissions
+            ? draft.acceptSubmissions
+            : null,
+        tenggatWaktu: draft.dueDate,
+        hapusTenggat: target.dueDate != null && draft.dueDate == null,
       );
       if (!mounted) return false;
       if (err != null) {
@@ -206,8 +219,9 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
       target
         ..title = savedModel?.judul ?? draft.title
         ..description = savedModel?.deskripsi ?? draft.description
-        ..dueDate = draft.dueDate
-        ..acceptSubmissions = draft.acceptSubmissions
+        ..dueDate = savedModel != null ? savedModel.tenggatWaktu : draft.dueDate
+        ..acceptSubmissions =
+            savedModel?.menerimaKiriman ?? draft.acceptSubmissions
         ..lampiran = savedModel != null
             ? mergeLampiranWithLocal(savedModel.lampiranItems, draft.lampiran)
             : List<LampiranItem>.from(draft.lampiran);
@@ -268,6 +282,57 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
             : List<LampiranItem>.from(result.lampiran);
     });
     _showSnackBar('Materi berhasil diperbarui');
+    return true;
+  }
+
+  Future<bool> _deleteMateri(MateriPengajar m) async {
+    if (!_isGuru) return false;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Hapus Materi',
+      message: 'Apakah Anda yakin ingin menghapus materi "${m.title}"?',
+    );
+    if (!confirmed || !mounted) return false;
+
+    final ctrl = widget.controller;
+    if (ctrl != null && m.id != null) {
+      final err = await ctrl.deletePostingan(_class.code, m.id!);
+      if (!mounted) return false;
+      if (err != null) {
+        _showSnackBar(err);
+        return false;
+      }
+    }
+    setState(() {
+      _materiList.remove(m);
+    });
+    _showSnackBar('Materi berhasil dihapus');
+    return true;
+  }
+
+  Future<bool> _deleteTugas(TugasPengajar t) async {
+    if (!_isGuru) return false;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Hapus Tugas',
+      message:
+          'Apakah Anda yakin ingin menghapus tugas "${t.title}" beserta seluruh pengumpulannya?',
+    );
+    if (!confirmed || !mounted) return false;
+
+    final ctrl = widget.controller;
+    if (ctrl != null && t.id != null) {
+      final err = await ctrl.deletePostingan(_class.code, t.id!);
+      if (!mounted) return false;
+      if (err != null) {
+        _showSnackBar(err);
+        return false;
+      }
+    }
+    setState(() {
+      _tugasList.remove(t);
+    });
+    _showSnackBar('Tugas berhasil dihapus');
     return true;
   }
 
@@ -343,20 +408,29 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
               Expanded(
                 child: TabBarView(
                   children: [
-                    _isLoading
+                    _isLoading && _materiList.isEmpty
                         ? const Center(child: CircularProgressIndicator())
                         : _buildMateriTab(h),
-                    _isLoading
+                    _isLoading && _tugasList.isEmpty
                         ? const Center(child: CircularProgressIndicator())
                         : _buildTugasTab(h),
                     AnggotaKelasTab(
                       kodeKelas: _class.code,
+                      baseUrl: widget.controller?.baseUrl,
+                      currentUserId: widget.controller?.currentUserId,
+                      isAdmin: widget.controller?.isAdmin ?? false,
                       loadMembers: widget.controller == null
                           ? null
                           : () =>
                                 widget.controller!.getListAnggota(_class.code),
                       onPromoteToGuru: _isGuru && widget.controller != null
                           ? (member) => widget.controller!.promoteToGuru(
+                              _class.code,
+                              member.penggunaId,
+                            )
+                          : null,
+                      onDemoteToMurid: _isGuru && widget.controller != null
+                          ? (member) => widget.controller!.demoteToMurid(
                               _class.code,
                               member.penggunaId,
                             )
@@ -369,6 +443,43 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildEmptyRefreshable(String emptyLabel) {
+    return RefreshIndicator(
+      onRefresh: _loadPosts,
+      child: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      emptyLabel,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.secondaryText),
+                    ),
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: _loadPosts,
+                        style: AppTheme.softCompactButton,
+                        child: const Text('Coba Lagi'),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -404,6 +515,7 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                       page: BuatMateriScreen(
                         classData: _class,
                         controller: widget.controller,
+                        breadcrumbRoot: widget.breadcrumbRoot,
                         onCreated: _handleMateriCreated,
                       ),
                     ),
@@ -416,19 +528,11 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
           ),
         Expanded(
           child: _materiList.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
-                      'Belum ada materi',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.secondaryText),
-                    ),
-                  ),
-                )
+              ? _buildEmptyRefreshable('Belum ada materi')
               : RefreshIndicator(
                   onRefresh: _loadPosts,
                   child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: EdgeInsets.fromLTRB(
                       horizontalPadding,
                       _isGuru ? 0 : 12,
@@ -456,11 +560,18 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                             isGuru: _isGuru,
                             baseUrl: widget.controller?.baseUrl,
                             onEdit: _isGuru ? () => _editMateri(m) : null,
+                            onDelete: _isGuru ? () => _deleteMateri(m) : null,
                           ),
                         ),
-                        menuLabels: _isGuru ? const ['Edit'] : null,
+                        menuLabels: _isGuru ? const ['Edit', 'Hapus'] : null,
                         onMenuItemSelected: _isGuru
-                            ? (_) => _editMateri(m)
+                            ? (idx) {
+                                if (idx == 0) {
+                                  _editMateri(m);
+                                } else {
+                                  _deleteMateri(m);
+                                }
+                              }
                             : null,
                       );
                     },
@@ -508,19 +619,11 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
           ),
         Expanded(
           child: _tugasList.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
-                      'Belum ada tugas',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.secondaryText),
-                    ),
-                  ),
-                )
+              ? _buildEmptyRefreshable('Belum ada tugas')
               : RefreshIndicator(
                   onRefresh: _loadPosts,
                   child: ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: EdgeInsets.fromLTRB(
                       horizontalPadding,
                       _isGuru ? 0 : 12,
@@ -552,26 +655,33 @@ class _PengajarDetailScreenState extends State<PengajarDetailScreen> {
                             onEdited: _isGuru
                                 ? (draft) => _handleTugasEdited(t, draft)
                                 : null,
+                            onDelete: _isGuru ? () => _deleteTugas(t) : null,
                           ),
                         ),
-                        menuLabels: _isGuru ? const ['Edit'] : null,
+                        menuLabels: _isGuru ? const ['Edit', 'Hapus'] : null,
                         onMenuItemSelected: _isGuru
-                            ? (_) => openPage(
-                                context,
-                                breadcrumb: [
-                                  widget.breadcrumbRoot,
-                                  _class.title,
-                                  'Tugas',
-                                  'Edit Tugas',
-                                ],
-                                page: TugasFormScreen(
-                                  classData: _class,
-                                  existing: t,
-                                  controller: widget.controller,
-                                  onSaved: (draft) =>
-                                      _handleTugasEdited(t, draft),
-                                ),
-                              )
+                            ? (idx) {
+                                if (idx == 0) {
+                                  openPage(
+                                    context,
+                                    breadcrumb: [
+                                      widget.breadcrumbRoot,
+                                      _class.title,
+                                      'Tugas',
+                                      'Edit Tugas',
+                                    ],
+                                    page: TugasFormScreen(
+                                      classData: _class,
+                                      existing: t,
+                                      controller: widget.controller,
+                                      onSaved: (draft) =>
+                                          _handleTugasEdited(t, draft),
+                                    ),
+                                  );
+                                } else {
+                                  _deleteTugas(t);
+                                }
+                              }
                             : null,
                       );
                     },

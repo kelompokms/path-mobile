@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
+import 'package:path_mobile/ui/core/file_preview_screen.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/utils/lampiran_helper.dart';
 
@@ -180,6 +181,28 @@ class FileCard extends StatelessWidget {
   }
 
   Future<void> _openItem(BuildContext context, LampiranItem item) async {
+    if (!item.isLink) {
+      final uri = resolveLampiranUri(item, baseUrl: baseUrl);
+      if (uri != null) {
+        final ext = extractLampiranExtension(item.name);
+        final resolvedExt = ext.isNotEmpty
+            ? ext
+            : (uri.pathSegments.isNotEmpty
+                  ? extractLampiranExtension(uri.pathSegments.last)
+                  : item.detail.trim().toLowerCase());
+        if (isPreviewableImageExtension(resolvedExt) ||
+            isPreviewableTextExtension(resolvedExt) ||
+            isPreviewableDocumentExtension(resolvedExt)) {
+          await openPage<void>(
+            context,
+            breadcrumb: ['Preview', item.name],
+            page: FilePreviewScreen(item: item, baseUrl: baseUrl),
+            routeName: 'file-preview',
+          );
+          return;
+        }
+      }
+    }
     final err = await openLampiranItem(item, baseUrl: baseUrl);
     if (err != null && context.mounted) {
       ScaffoldMessenger.of(context)

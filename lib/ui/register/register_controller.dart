@@ -17,41 +17,51 @@ class RegisterController extends ChangeNotifier with OAuthControllerMixin {
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
+  bool _disposed = false;
+
+  @override
+  bool get isDisposed => _disposed;
+
   @override
   LoginRepository? get oauthRepository => _loginRepo;
 
   @override
   bool get isFormLoading => _isLoading;
 
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
   Future<bool> register() async {
+    if (_disposed) return false;
     _isLoading = true;
     setErrorMessage(null);
-    notifyListeners();
+    _safeNotify();
 
-    if (usernameController.text.isEmpty ||
-        emailController.text.isEmpty ||
-        passwordController.text.isEmpty) {
+    final username = usernameController.text.trim();
+    final email = emailController.text.trim();
+    final password = passwordController.text;
+
+    if (username.isEmpty || email.isEmpty || password.isEmpty) {
       _isLoading = false;
       setErrorMessage('username, email, atau password tidak boleh kosong');
-      notifyListeners();
+      _safeNotify();
       return false;
     }
 
-    final err = await _repo.register(
-      usernameController.text,
-      emailController.text,
-      passwordController.text,
-    );
+    final err = await _repo.register(username, email, password);
+    if (_disposed) return err == null;
 
     _isLoading = false;
     setErrorMessage(err);
-    notifyListeners();
+    _safeNotify();
 
     return err == null;
   }
 
   @override
   void dispose() {
+    _disposed = true;
     usernameController.dispose();
     emailController.dispose();
     passwordController.dispose();

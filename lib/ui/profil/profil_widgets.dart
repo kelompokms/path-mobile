@@ -1,22 +1,38 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/profil/bantuan_screen.dart';
+import 'package:path_mobile/ui/profil/profil_controller.dart';
 
 class ProfilHeader extends StatelessWidget {
   final bool showBack;
   final VoidCallback? onLogout;
   final double horizontalPadding;
+  final ProfilController? controller;
 
   const ProfilHeader({
     super.key,
     this.showBack = false,
     this.onLogout,
     this.horizontalPadding = 16,
+    this.controller,
   });
+
+  void _handleBack(BuildContext context) {
+    final router = GoRouter.maybeOf(context);
+    if (router != null && router.canPop()) {
+      router.pop();
+      return;
+    }
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +69,7 @@ class ProfilHeader extends StatelessWidget {
               onPressed: () => openPage(
                 context,
                 breadcrumb: const ['Profil', 'Bantuan'],
-                page: const BantuanScreen(),
+                page: BantuanScreen(controller: controller),
               ),
               style: buttonStyle,
               child: const Text('Bantuan'),
@@ -77,7 +93,7 @@ class ProfilHeader extends StatelessWidget {
                       children: [
                         if (showBack)
                           IconButton(
-                            onPressed: () => Navigator.of(context).pop(),
+                            onPressed: () => _handleBack(context),
                             icon: const Icon(
                               Icons.arrow_back,
                               color: AppColors.text,
@@ -105,7 +121,7 @@ class ProfilHeader extends StatelessWidget {
                   children: [
                     if (showBack)
                       IconButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () => _handleBack(context),
                         icon: const Icon(
                           Icons.arrow_back,
                           color: AppColors.text,

@@ -23,11 +23,28 @@ class AdminUsersScreen extends StatefulWidget {
 class _AdminUsersScreenState extends State<AdminUsersScreen> {
   final _searchController = TextEditingController();
   String _query = '';
+  bool _submitting = false;
 
   @override
   void initState() {
     super.initState();
-    widget.controller.loadUsers();
+    Future<void>.microtask(() {
+      if (mounted) {
+        widget.controller.loadUsers();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant AdminUsersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      Future<void>.microtask(() {
+        if (mounted) {
+          widget.controller.loadUsers();
+        }
+      });
+    }
   }
 
   @override
@@ -36,19 +53,41 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
     super.dispose();
   }
 
+  Future<void> _handleRefresh() async {
+    await widget.controller.loadUsers();
+    if (!mounted) return;
+    final err = widget.controller.usersError;
+    if (err != null &&
+        (widget.controller.guruList.isNotEmpty ||
+            widget.controller.muridList.isNotEmpty)) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(err)));
+    }
+  }
+
   Future<void> _openCreateUserDialog() async {
+    if (_submitting) return;
     final result = await showDialog<CreateUserDialogResult>(
       context: context,
       builder: (_) => const AdminCreateUserDialog(),
     );
     if (result == null || !mounted) return;
 
-    final err = await widget.controller.createUser(
-      nama: result.nama,
-      email: result.email,
-      password: result.password,
-      role: result.role,
-    );
+    setState(() => _submitting = true);
+    final String? err;
+    try {
+      err = await widget.controller.createUser(
+        nama: result.nama,
+        email: result.email,
+        password: result.password,
+        role: result.role,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
     if (!mounted) return;
     final roleLabel = result.role == 'guru' ? 'Guru' : 'Murid';
     ScaffoldMessenger.of(context)
@@ -58,6 +97,32 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
           content: Text(
             err ??
                 'User "${result.nama}" berhasil ditambahkan sebagai $roleLabel',
+          ),
+        ),
+      );
+  }
+
+  Future<void> _confirmChangeRole(
+    AdminPenggunaModel user, {
+    required String targetRole,
+  }) async {
+    final displayName = user.nama.isNotEmpty ? user.nama : 'pengguna ini';
+    final targetLabel = targetRole == 'guru' ? 'Guru' : 'Murid';
+    final confirmed = await showConfirmDialog(
+      context,
+      title: 'Ubah Role Pengguna',
+      message: 'Apakah Anda yakin ingin menjadikan "$displayName" sebagai $targetLabel?',
+    );
+    if (!confirmed || !mounted) return;
+
+    final err = await widget.controller.updateUserRole(user.id, targetRole);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            err ?? 'Role "$displayName" berhasil diubah menjadi $targetLabel',
           ),
         ),
       );
@@ -156,7 +221,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                             ),
                             ElevatedButton.icon(
                               key: const Key('admin_add_user_button'),
-                              onPressed: _openCreateUserDialog,
+                              onPressed: _submitting
+                                  ? null
+                                  : _openCreateUserDialog,
                               icon: const Icon(
                                 Icons.person_add_alt_1,
                                 size: 18,
@@ -202,8 +269,9 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                   ),
                   Expanded(
                     child: RefreshIndicator(
-                      onRefresh: ctrl.loadUsers,
+                      onRefresh: _handleRefresh,
                       child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
                         padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 24),
                         children: [
                           AdminUserSectionHeader(
@@ -226,6 +294,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                 roleLabel: 'Guru',
                                 emptyClassLabel: 'Belum mengampu kelas',
                                 classPrefix: 'Mengampu: ',
+                                baseUrl: ctrl.baseUrl,
+                                roleActionLabel: 'Jadikan Murid',
+                                roleActionIcon: Icons.person_outline,
+                                onChangeRole: () => _confirmChangeRole(
+                                  guru,
+                                  targetRole: 'murid',
+                                ),
                                 onDelete: () => _confirmDeleteUser(guru),
                               ),
                           const SizedBox(height: 20),
@@ -249,6 +324,13 @@ class _AdminUsersScreenState extends State<AdminUsersScreen> {
                                 roleLabel: 'Murid',
                                 emptyClassLabel: 'Belum bergabung kelas',
                                 classPrefix: 'Kelas: ',
+                                baseUrl: ctrl.baseUrl,
+                                roleActionLabel: 'Jadikan Guru',
+                                roleActionIcon: Icons.school_outlined,
+                                onChangeRole: () => _confirmChangeRole(
+                                  murid,
+                                  targetRole: 'guru',
+                                ),
                                 onDelete: () => _confirmDeleteUser(murid),
                               ),
                         ],

@@ -10,6 +10,7 @@ class PengajarMateriDetailScreen extends StatefulWidget {
   final bool isGuru;
   final String? baseUrl;
   final Future<bool> Function()? onEdit;
+  final Future<bool> Function()? onDelete;
 
   const PengajarMateriDetailScreen({
     super.key,
@@ -17,6 +18,7 @@ class PengajarMateriDetailScreen extends StatefulWidget {
     this.isGuru = false,
     this.baseUrl,
     this.onEdit,
+    this.onDelete,
   });
 
   @override
@@ -35,6 +37,15 @@ class _PengajarMateriDetailScreenState
     }
   }
 
+  Future<void> _handleDelete() async {
+    final onDelete = widget.onDelete;
+    if (onDelete == null) return;
+    final deleted = await onDelete();
+    if (deleted && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final materi = widget.materi;
@@ -48,6 +59,7 @@ class _PengajarMateriDetailScreenState
           maxWidth: 800,
         );
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
               padding: alignedBackTitlePadding(h),
@@ -55,14 +67,23 @@ class _PengajarMateriDetailScreenState
                 children: [
                   Expanded(child: BackTitleRow(title: materi.title)),
                   if (widget.isGuru && widget.onEdit != null)
+                    IconButton(
+                      tooltip: 'Edit materi',
+                      onPressed: _handleEdit,
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: AppColors.text,
+                      ),
+                    ),
+                  if (widget.isGuru && widget.onDelete != null)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: IconButton(
-                        tooltip: 'Edit materi',
-                        onPressed: _handleEdit,
-                        icon: const Icon(
-                          Icons.edit_outlined,
-                          color: AppColors.text,
+                        tooltip: 'Hapus materi',
+                        onPressed: _handleDelete,
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Colors.red.shade600,
                         ),
                       ),
                     ),

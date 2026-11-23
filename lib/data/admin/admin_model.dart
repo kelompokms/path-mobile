@@ -84,6 +84,7 @@ class AdminGuruMuridData {
 class AdminKelasModel {
   final int id;
   final String nama;
+  final String mapel;
   final String deskripsi;
   final int tingkat;
   final String tahunAjaran;
@@ -95,6 +96,7 @@ class AdminKelasModel {
   const AdminKelasModel({
     required this.id,
     required this.nama,
+    this.mapel = '',
     this.deskripsi = '',
     required this.tingkat,
     required this.tahunAjaran,
@@ -103,6 +105,8 @@ class AdminKelasModel {
     this.namaPengampu = '',
     this.dibuat = '',
   });
+
+  String get displayTitle => mapel.trim().isNotEmpty ? mapel.trim() : nama;
 
   String get gradeLabel {
     switch (tingkat) {
@@ -118,10 +122,17 @@ class AdminKelasModel {
   }
 
   ClassItem toClassItem({int? coverIndex}) {
+    final trimmedMapel = mapel.trim();
+    final trimmedNama = nama.trim();
+    final hasMapel = trimmedMapel.isNotEmpty;
     return ClassItem(
-      title: nama,
+      title: hasMapel ? trimmedMapel : trimmedNama,
       description: deskripsi,
-      grade: tahunAjaran.isNotEmpty ? '$gradeLabel • $tahunAjaran' : gradeLabel,
+      grade: hasMapel
+          ? (trimmedNama.isNotEmpty ? trimmedNama : gradeLabel)
+          : (tahunAjaran.isNotEmpty
+                ? '$gradeLabel • $tahunAjaran'
+                : gradeLabel),
       teacher: namaPengampu.isNotEmpty
           ? 'Pengampu: $namaPengampu'
           : 'Pengampu: Belum ditentukan',
@@ -135,6 +146,7 @@ class AdminKelasModel {
     return AdminKelasModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
       nama: json['nama'] as String? ?? '',
+      mapel: json['mapel'] as String? ?? '',
       deskripsi: json['deskripsi'] as String? ?? '',
       tingkat: (json['tingkat'] as num?)?.toInt() ?? 10,
       tahunAjaran: json['tahun_ajaran'] as String? ?? '',
@@ -148,6 +160,7 @@ class AdminKelasModel {
   Map<String, dynamic> toJson() => {
     'id': id,
     'nama': nama,
+    'mapel': mapel,
     'deskripsi': deskripsi,
     'tingkat': tingkat,
     'tahun_ajaran': tahunAjaran,
@@ -156,4 +169,44 @@ class AdminKelasModel {
     'nama_pengampu': namaPengampu,
     'dibuat': dibuat,
   };
+}
+
+/// Token budget & free-tier quota telemetry returned by `GET /ai/ops/usage`.
+class AdminAiOpsUsageModel {
+  final int budgetLimit;
+  final int budgetUsed;
+  final int budgetRemaining;
+  final double spentUsd;
+  final int freeUsed;
+  final int freeLimit;
+  final int freeRemaining;
+
+  const AdminAiOpsUsageModel({
+    this.budgetLimit = 0,
+    this.budgetUsed = 0,
+    this.budgetRemaining = 0,
+    this.spentUsd = 0,
+    this.freeUsed = 0,
+    this.freeLimit = 0,
+    this.freeRemaining = 0,
+  });
+
+  factory AdminAiOpsUsageModel.fromJson(Map<String, dynamic> json) {
+    final budget = json['budget'] is Map<String, dynamic>
+        ? json['budget'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+    final free = json['free_quota'] is Map<String, dynamic>
+        ? json['free_quota'] as Map<String, dynamic>
+        : const <String, dynamic>{};
+
+    return AdminAiOpsUsageModel(
+      budgetLimit: (budget['limit'] as num?)?.toInt() ?? 0,
+      budgetUsed: (budget['used'] as num?)?.toInt() ?? 0,
+      budgetRemaining: (budget['remaining'] as num?)?.toInt() ?? 0,
+      spentUsd: (budget['spent_usd'] as num?)?.toDouble() ?? 0,
+      freeUsed: (free['used'] as num?)?.toInt() ?? 0,
+      freeLimit: (free['limit'] as num?)?.toInt() ?? 0,
+      freeRemaining: (free['remaining'] as num?)?.toInt() ?? 0,
+    );
+  }
 }

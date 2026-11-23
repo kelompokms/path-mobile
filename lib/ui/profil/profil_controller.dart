@@ -8,6 +8,12 @@ class ProfilController extends ChangeNotifier {
 
   ProfilController(this._repo);
 
+  String get baseUrl => _repo.baseUrl;
+
+  bool get isAdmin => _profil?.admin == true || _repo.isAdmin;
+
+  bool _disposed = false;
+
   ProfilModel? _profil;
   ProfilModel? get profil => _profil;
 
@@ -17,36 +23,44 @@ class ProfilController extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> loadProfil() async {
+    if (_disposed) return;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     final (data, err) = await _repo.getProfil();
+    if (_disposed) return;
     _isLoading = false;
     if (err != null) {
       _errorMessage = err;
-      notifyListeners();
+      _safeNotify();
       return;
     }
     _profil = data;
-    notifyListeners();
+    _safeNotify();
   }
 
   Future<String?> updateProfil({String? email, String? phone}) async {
+    if (_disposed) return null;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     final currentEmail = _profil?.email ?? '';
     final currentPhone = _profil?.phone ?? '';
 
     if (email != null && email.isNotEmpty && email != currentEmail) {
       final (updated, err) = await _repo.updateEmail(email);
+      if (_disposed) return err;
       if (err != null) {
         _isLoading = false;
         _errorMessage = err;
-        notifyListeners();
+        _safeNotify();
         return err;
       }
       if (updated != null) {
@@ -61,10 +75,11 @@ class ProfilController extends ChangeNotifier {
 
     if (phone != null && phone.isNotEmpty && phone != currentPhone) {
       final (updated, err) = await _repo.updatePhone(phone);
+      if (_disposed) return err;
       if (err != null) {
         _isLoading = false;
         _errorMessage = err;
-        notifyListeners();
+        _safeNotify();
         return err;
       }
       if (updated != null) {
@@ -78,20 +93,22 @@ class ProfilController extends ChangeNotifier {
     }
 
     _isLoading = false;
-    notifyListeners();
+    _safeNotify();
     return null;
   }
 
   Future<String?> updateProfilePicture(http.MultipartFile file) async {
+    if (_disposed) return null;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     final (updated, err) = await _repo.updateProfilePicture(file);
+    if (_disposed) return err;
     _isLoading = false;
     if (err != null) {
       _errorMessage = err;
-      notifyListeners();
+      _safeNotify();
       return err;
     }
     if (updated != null) {
@@ -102,29 +119,47 @@ class ProfilController extends ChangeNotifier {
             : (_profil?.admin ?? false),
       );
     }
-    notifyListeners();
+    _safeNotify();
     return null;
   }
 
   Future<String?> resetPassword(String oldPassword, String newPassword) async {
+    if (_disposed) return null;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     final err = await _repo.resetPassword(oldPassword, newPassword);
+    if (_disposed) return err;
     _isLoading = false;
     if (err != null) {
       _errorMessage = err;
-      notifyListeners();
+      _safeNotify();
       return err;
     }
-    notifyListeners();
+    _safeNotify();
     return null;
   }
+
+  Future<(List<BantuanKontenModel>?, String?)> getBantuan() =>
+      _repo.getBantuan();
+
+  Future<(BantuanKontenModel?, String?)> updateBantuan(
+    String kunci,
+    String isi,
+  ) => _repo.updateBantuan(kunci, isi);
 
   void logout() {
     _repo.logout();
     _profil = null;
-    notifyListeners();
+    _safeNotify();
+  }
+
+  Future<void> flushPersistence() => _repo.flushPersistence();
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

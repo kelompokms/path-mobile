@@ -127,3 +127,36 @@ class ResetPasswordRequest {
     'new_password': newPassword,
   };
 }
+
+class BantuanKontenModel {
+  final String kunci;
+  final String judul;
+  final String isi;
+  final bool editable;
+
+  const BantuanKontenModel({
+    required this.kunci,
+    required this.judul,
+    required this.isi,
+    this.editable = false,
+  });
+
+  BantuanKontenModel copyWith({String? isi}) => BantuanKontenModel(
+    kunci: kunci,
+    judul: judul,
+    isi: isi ?? this.isi,
+    editable: editable,
+  );
+
+  factory BantuanKontenModel.fromJson(Map<String, dynamic> json) {
+    final kunci = json['kunci'] as String? ?? '';
+    return BantuanKontenModel(
+      kunci: kunci,
+      judul: json['judul'] as String? ?? '',
+      isi: json['isi'] as String? ?? '',
+      editable:
+          json['editable'] as bool? ??
+          (kunci == 'panduan_ai' || kunci == 'kontak_kami'),
+    );
+  }
+}

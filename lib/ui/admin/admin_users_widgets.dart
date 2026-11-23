@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:path_mobile/data/admin/admin_model.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
+import 'package:path_mobile/ui/core/user_avatar.dart';
+import 'package:path_mobile/utils/api_error_helper.dart';
 
 class AdminUserSectionHeader extends StatelessWidget {
   final String title;
@@ -71,6 +75,10 @@ class AdminUserCard extends StatelessWidget {
   final String roleLabel;
   final String emptyClassLabel;
   final String classPrefix;
+  final String? baseUrl;
+  final String? roleActionLabel;
+  final IconData? roleActionIcon;
+  final VoidCallback? onChangeRole;
   final VoidCallback? onDelete;
 
   const AdminUserCard({
@@ -80,6 +88,10 @@ class AdminUserCard extends StatelessWidget {
     required this.roleLabel,
     required this.emptyClassLabel,
     required this.classPrefix,
+    this.baseUrl,
+    this.roleActionLabel,
+    this.roleActionIcon,
+    this.onChangeRole,
     this.onDelete,
   });
 
@@ -88,6 +100,7 @@ class AdminUserCard extends StatelessWidget {
     final classSummary = user.kelas.isEmpty
         ? emptyClassLabel
         : '$classPrefix${user.kelas.join(', ')}';
+    final hasMenu = onChangeRole != null || onDelete != null;
 
     return Card(
       elevation: AppTheme.cardElevation,
@@ -101,10 +114,12 @@ class AdminUserCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
+            UserAvatar(
+              picturePath: user.profilePicture,
+              baseUrl: baseUrl,
               radius: 20,
               backgroundColor: accentColor,
-              child: const Icon(
+              fallback: const Icon(
                 Icons.person_outline,
                 color: Colors.white,
                 size: 20,
@@ -166,7 +181,7 @@ class AdminUserCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (onDelete != null) ...[
+            if (hasMenu) ...[
               const SizedBox(width: 4),
               PopupMenuButton<String>(
                 key: Key('admin_user_menu_${user.id}'),
@@ -180,29 +195,51 @@ class AdminUserCard extends StatelessWidget {
                 surfaceTintColor: Colors.transparent,
                 shape: AppTheme.cardShape(),
                 onSelected: (value) {
-                  if (value == 'delete') {
-                    onDelete!();
+                  if (value == 'change_role') {
+                    onChangeRole?.call();
+                  } else if (value == 'delete') {
+                    onDelete?.call();
                   }
                 },
                 itemBuilder: (_) => [
-                  PopupMenuItem<String>(
-                    value: 'delete',
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.delete_outline,
-                          color: Colors.red.shade600,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Hapus Pengguna',
-                          style: TextStyle(color: Colors.red.shade600),
-                        ),
-                      ],
+                  if (onChangeRole != null && roleActionLabel != null)
+                    PopupMenuItem<String>(
+                      value: 'change_role',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            roleActionIcon ?? Icons.swap_horiz,
+                            color: AppColors.color1,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            roleActionLabel!,
+                            style: const TextStyle(color: AppColors.text),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  if (onDelete != null)
+                    PopupMenuItem<String>(
+                      value: 'delete',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.delete_outline,
+                            color: Colors.red.shade600,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Hapus Pengguna',
+                            style: TextStyle(color: Colors.red.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ],
@@ -259,12 +296,16 @@ class _AdminCreateUserDialogState extends State<AdminCreateUserDialog> {
       setState(() => _errorText = 'Nama lengkap wajib diisi');
       return;
     }
-    if (email.isEmpty || !email.contains('@')) {
+    if (!isValidEmailAddress(email)) {
       setState(() => _errorText = 'Format email tidak valid');
       return;
     }
-    if (password.length < 8) {
+    if (password.trim().isEmpty || password.length < 8) {
       setState(() => _errorText = 'Password minimal 8 karakter');
+      return;
+    }
+    if (utf8.encode(password).length > 72) {
+      setState(() => _errorText = 'Password maksimal 72 byte');
       return;
     }
 

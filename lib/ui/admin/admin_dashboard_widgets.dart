@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
+import 'package:path_mobile/ui/core/user_avatar.dart';
 
 class AiUsageItem {
   final String nama;
   final bool isGuru;
   final String detail;
   final int aiUsage;
+  final String profilePicture;
 
   const AiUsageItem({
     required this.nama,
     required this.isGuru,
     required this.detail,
     required this.aiUsage,
+    this.profilePicture = '',
   });
 }
 
@@ -172,8 +175,14 @@ class RoleFilterChip extends StatelessWidget {
 class AiUsageRow extends StatelessWidget {
   final AiUsageItem item;
   final Color accentColor;
+  final String? baseUrl;
 
-  const AiUsageRow({super.key, required this.item, required this.accentColor});
+  const AiUsageRow({
+    super.key,
+    required this.item,
+    required this.accentColor,
+    this.baseUrl,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -183,10 +192,12 @@ class AiUsageRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          CircleAvatar(
+          UserAvatar(
+            picturePath: item.profilePicture,
+            baseUrl: baseUrl,
             radius: 20,
             backgroundColor: accentColor,
-            child: const Icon(
+            fallback: const Icon(
               Icons.person_outline,
               color: Colors.white,
               size: 20,

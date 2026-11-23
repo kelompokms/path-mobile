@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:path_mobile/data/profil/profil_model.dart';
+import 'package:path_mobile/utils/api_error_helper.dart';
 import 'package:path_mobile/utils/http_client.dart';
 
 class ProfilRepository {
@@ -10,15 +11,14 @@ class ProfilRepository {
 
   ProfilRepository(this._client);
 
-  String? _extractMessage(String body, String fallback) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded['message'] as String? ?? fallback;
-      }
-    } catch (_) {}
-    return fallback;
-  }
+  String get baseUrl => _client.baseUrl;
+
+  bool get isAdmin => _client.isAdmin;
+
+  Future<void> flushPersistence() => _client.flushPersistence();
+
+  String _extractMessage(String body, String fallback) =>
+      extractApiErrorMessage(body, fallback);
 
   Future<(ProfilModel?, String?)> getProfil() async {
     try {
@@ -159,6 +159,61 @@ class ProfilRepository {
       return 'Request timed out. Please try again.';
     } catch (e) {
       return 'Network error: $e';
+    }
+  }
+
+  Future<(List<BantuanKontenModel>?, String?)> getBantuan() async {
+    try {
+      final response = await _client
+          .get(_client.uri('/bantuan'))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal memuat konten bantuan'),
+        );
+      }
+      final decoded = jsonDecode(response.body);
+      final list = (decoded as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map<String, dynamic>>()
+          .map(BantuanKontenModel.fromJson)
+          .toList();
+      return (list, null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  Future<(BantuanKontenModel?, String?)> updateBantuan(
+    String kunci,
+    String isi,
+  ) async {
+    try {
+      final encoded = Uri.encodeComponent(kunci);
+      final response = await _client
+          .patch(
+            _client.uri('/admin/bantuan/$encoded'),
+            headers: _client.JSON,
+            body: jsonEncode({'isi': isi}),
+          )
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal memperbarui konten bantuan'),
+        );
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return (BantuanKontenModel.fromJson(decoded), null);
+      }
+      return (null, null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
     }
   }
 

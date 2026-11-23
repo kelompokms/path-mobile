@@ -42,3 +42,11 @@ DateTime _wallClockFromUtc(DateTime utcPlus7) {
     utcPlus7.microsecond,
   );
 }
+
+/// Formats a GMT+7 wall-clock [DateTime] as RFC3339 with explicit `+07:00` offset.
+String formatIsoGmt7(DateTime dt) {
+  final wib = toGmt7(dt);
+  String p2(int v) => v.toString().padLeft(2, '0');
+  final y = wib.year.toString().padLeft(4, '0');
+  return '$y-${p2(wib.month)}-${p2(wib.day)}T${p2(wib.hour)}:${p2(wib.minute)}:${p2(wib.second)}+07:00';
+}

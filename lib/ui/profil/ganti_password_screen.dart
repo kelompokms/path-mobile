@@ -120,6 +120,7 @@ class _GantiPasswordScreenState extends State<GantiPasswordScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _oldController,
+                      enabled: !_saving,
                       obscureText: true,
                       textInputAction: TextInputAction.done,
                       onChanged: (_) => setState(() {}),
@@ -154,6 +155,7 @@ class _GantiPasswordScreenState extends State<GantiPasswordScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: _newController,
+                      enabled: !_saving,
                       obscureText: true,
                       textInputAction: TextInputAction.done,
                       onChanged: (_) => setState(() {}),

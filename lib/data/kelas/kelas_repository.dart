@@ -3,7 +3,9 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:path_mobile/data/kelas/kelas_model.dart';
+import 'package:path_mobile/utils/api_error_helper.dart';
 import 'package:path_mobile/utils/http_client.dart';
+import 'package:path_mobile/utils/lampiran_helper.dart';
 
 class KelasRepository {
   final HttpClient _client;
@@ -12,15 +14,12 @@ class KelasRepository {
 
   String get baseUrl => _client.baseUrl;
 
-  String? _extractMessage(String body, String fallback) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded['message'] as String? ?? fallback;
-      }
-    } catch (_) {}
-    return fallback;
-  }
+  int? get currentUserId => _client.userId;
+
+  bool get isAdmin => _client.isAdmin;
+
+  String _extractMessage(String body, String fallback) =>
+      extractApiErrorMessage(body, fallback);
 
   Future<(List<KelasModel>?, String?)> getListKelas({bool? guru}) async {
     try {
@@ -163,7 +162,6 @@ class KelasRepository {
       final response = await _client
           .patch(
             _client.uri('/kelas/$encodedCode/anggota/$penggunaId/guru'),
-            headers: _client.JSON,
           )
           .timeout(const Duration(seconds: 10));
 
@@ -182,14 +180,35 @@ class KelasRepository {
     }
   }
 
+  Future<String?> demoteToMurid(String kodeKelas, int penggunaId) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final response = await _client
+          .patch(
+            _client.uri('/kelas/$encodedCode/anggota/$penggunaId/murid'),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        return _extractMessage(
+          response.body,
+          'Gagal menurunkan guru menjadi murid',
+        );
+      }
+
+      return null;
+    } on TimeoutException {
+      return 'Request timed out. Please try again.';
+    } catch (e) {
+      return 'Network error: $e';
+    }
+  }
+
   Future<String?> joinKelas(String kodeKelas) async {
     try {
       final encodedCode = Uri.encodeComponent(kodeKelas);
       final response = await _client
-          .post(
-            _client.uri('/kelas/$encodedCode/gabung'),
-            headers: _client.JSON,
-          )
+          .post(_client.uri('/kelas/$encodedCode/gabung'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200 && response.statusCode != 201) {
@@ -208,10 +227,7 @@ class KelasRepository {
     try {
       final encodedCode = Uri.encodeComponent(kodeKelas);
       final response = await _client
-          .post(
-            _client.uri('/kelas/$encodedCode/keluar'),
-            headers: _client.JSON,
-          )
+          .post(_client.uri('/kelas/$encodedCode/keluar'))
           .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
@@ -320,6 +336,24 @@ class KelasRepository {
       return (null, 'Request timed out. Please try again.');
     } catch (e) {
       return (null, 'Network error: $e');
+    }
+  }
+
+  Future<String?> deletePostingan(String kodeKelas, int postinganId) async {
+    try {
+      final encodedCode = Uri.encodeComponent(kodeKelas);
+      final response = await _client
+          .delete(_client.uri('/kelas/$encodedCode/postingan/$postinganId'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        return _extractMessage(response.body, 'Gagal menghapus postingan');
+      }
+      return null;
+    } on TimeoutException {
+      return 'Request timed out. Please try again.';
+    } catch (e) {
+      return 'Network error: $e';
     }
   }
 
@@ -566,4 +600,192 @@ class KelasRepository {
       return (null, 'Network error: $e');
     }
   }
+
+  Future<(String?, String?)> chatAi({
+    required String pesan,
+    String isiMateri = '',
+    String jenjang = '',
+    List<String> modes = const [],
+    List<Map<String, String>> riwayat = const [],
+    bool gunakanModelGratis = false,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            _client.uri('/ai/chat'),
+            headers: _client.JSON,
+            body: jsonEncode({
+              'pesan': pesan,
+              'isi_materi': isiMateri,
+              'jenjang': jenjang,
+              'modes': modes,
+              'riwayat': riwayat,
+              'gunakan_model_gratis': gunakanModelGratis,
+            }),
+          )
+          .timeout(const Duration(seconds: 60));
+
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal mendapatkan jawaban AI'),
+        );
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final jawaban = (decoded['jawaban'] ?? '').toString().trim();
+      if (jawaban.isEmpty) {
+        return (null, 'Jawaban AI kosong');
+      }
+      return (jawaban, null);
+    } on TimeoutException {
+      return (null, 'Permintaan AI melebihi batas waktu. Coba lagi.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  Future<(ExplainMateriAiResult?, String?)> explainMateriAi({
+    required String pertanyaan,
+    String deskripsiMateri = '',
+    String isiMateri = '',
+    List<String> lampiranPaths = const [],
+    String jenjang = '',
+    bool tabel = false,
+    bool diagram = false,
+    bool ilustrasi = false,
+    bool kombinasi = false,
+    bool gunakanModelGratis = false,
+  }) async {
+    try {
+      // Image generation on ai.pathclass.app cannot use the free model tier.
+      final effectiveFree = gunakanModelGratis && !ilustrasi && !kombinasi;
+      final response = await _client
+          .post(
+            _client.uri('/ai/materi/explain'),
+            headers: _client.JSON,
+            body: jsonEncode({
+              'pertanyaan': pertanyaan,
+              'deskripsi_materi': deskripsiMateri,
+              'isi_materi': isiMateri,
+              'lampiran_paths': lampiranPaths,
+              'jenjang': jenjang,
+              'tabel': tabel,
+              'diagram': diagram,
+              'ilustrasi': ilustrasi,
+              'kombinasi': kombinasi,
+              'gunakan_model_gratis': effectiveFree,
+            }),
+          )
+          .timeout(const Duration(seconds: 120));
+
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal membuat penjelasan visual AI'),
+        );
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      LampiranItem? fileItem;
+      final rawFile = decoded['file'];
+      if (rawFile is Map<String, dynamic>) {
+        final uploaded = UploadedPostinganFile.fromJson(rawFile);
+        final ext = extractLampiranExtension(
+          uploaded.nama.isNotEmpty ? uploaded.nama : uploaded.path,
+        );
+        fileItem = LampiranItem(
+          name: uploaded.nama.isNotEmpty ? uploaded.nama : 'Penjelasan_AI.pdf',
+          detail: ext.isEmpty ? 'PDF' : ext.toUpperCase(),
+          url: uploaded.path,
+        );
+      }
+
+      return (
+        ExplainMateriAiResult(
+          judul: (decoded['judul'] ?? '').toString().trim(),
+          jawaban: (decoded['jawaban'] ?? '').toString().trim(),
+          file: fileItem,
+        ),
+        null,
+      );
+    } on TimeoutException {
+      return (null, 'Pembuatan penjelasan AI melebihi batas waktu. Coba lagi.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  Future<(ExplainMateriAiResult?, String?)> ringkasDokumenAi({
+    required List<String> lampiranPaths,
+    String judul = '',
+    String fokus = '',
+    String jenjang = '',
+    bool diagram = false,
+    bool gunakanModelGratis = false,
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            _client.uri('/ai/dokumen/ringkas'),
+            headers: _client.JSON,
+            body: jsonEncode({
+              'lampiran_paths': lampiranPaths,
+              'judul': judul,
+              'fokus': fokus,
+              'jenjang': jenjang,
+              'diagram': diagram,
+              'gunakan_model_gratis': gunakanModelGratis,
+            }),
+          )
+          .timeout(const Duration(seconds: 120));
+
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal meringkas dokumen dengan AI'),
+        );
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      LampiranItem? fileItem;
+      final rawFile = decoded['file'];
+      if (rawFile is Map<String, dynamic>) {
+        final uploaded = UploadedPostinganFile.fromJson(rawFile);
+        final ext = extractLampiranExtension(
+          uploaded.nama.isNotEmpty ? uploaded.nama : uploaded.path,
+        );
+        fileItem = LampiranItem(
+          name: uploaded.nama.isNotEmpty ? uploaded.nama : 'Ringkasan_AI.pdf',
+          detail: ext.isEmpty ? 'PDF' : ext.toUpperCase(),
+          url: uploaded.path,
+        );
+      }
+
+      return (
+        ExplainMateriAiResult(
+          judul: (decoded['judul'] ?? '').toString().trim(),
+          jawaban: (decoded['jawaban'] ?? '').toString().trim(),
+          file: fileItem,
+        ),
+        null,
+      );
+    } on TimeoutException {
+      return (null, 'Ringkasan dokumen AI melebihi batas waktu. Coba lagi.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+}
+
+class ExplainMateriAiResult {
+  final String judul;
+  final String jawaban;
+  final LampiranItem? file;
+
+  const ExplainMateriAiResult({
+    required this.judul,
+    required this.jawaban,
+    this.file,
+  });
 }

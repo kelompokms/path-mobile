@@ -388,7 +388,8 @@ class DashboardController extends ChangeNotifier {
     var pending = 0;
     final summaries = <MuridTaskSummary>[];
     for (var i = 0; i < checkedTasks.length; i++) {
-      final (submission, _) = statusResults[i];
+      final (submission, err) = statusResults[i];
+      if (err != null && submission == null) continue;
       final submitted = submission?.submitted ?? false;
       if (!submitted) pending++;
       summaries.add(

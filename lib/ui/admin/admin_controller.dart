@@ -10,6 +10,14 @@ class AdminController extends ChangeNotifier {
 
   AdminController(this._repo);
 
+  String get baseUrl => _repo.baseUrl;
+
+  Map<int, int> _aiUsageByUserId = const {};
+  Map<int, int> get aiUsageByUserId => _aiUsageByUserId;
+
+  AdminAiOpsUsageModel? _aiOpsUsage;
+  AdminAiOpsUsageModel? get aiOpsUsage => _aiOpsUsage;
+
   List<AdminPenggunaModel> _guruList = [];
   List<AdminPenggunaModel> get guruList => _guruList;
 
@@ -72,7 +80,9 @@ class AdminController extends ChangeNotifier {
       if (_selectedTingkat != null && k.tingkat != _selectedTingkat) {
         return false;
       }
-      if (query.isNotEmpty && !k.nama.toLowerCase().contains(query)) {
+      if (query.isNotEmpty &&
+          !k.nama.toLowerCase().contains(query) &&
+          !k.mapel.toLowerCase().contains(query)) {
         return false;
       }
       return true;
@@ -94,22 +104,49 @@ class AdminController extends ChangeNotifier {
     }).toList();
   }
 
+  bool _disposed = false;
+  int _usersLoadSeq = 0;
+  int _kelasLoadSeq = 0;
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
   Future<void> loadUsers() async {
+    if (_disposed) return;
+    final seq = ++_usersLoadSeq;
     _isLoadingUsers = true;
     _usersError = null;
-    notifyListeners();
+    _safeNotify();
 
     final (data, err) = await _repo.getGuruDanMurid();
+    if (_disposed || seq != _usersLoadSeq) return;
     _isLoadingUsers = false;
     if (err != null) {
       _usersError = err;
-      notifyListeners();
+      _safeNotify();
       return;
     }
 
     _guruList = data?.guru ?? [];
     _muridList = data?.murid ?? [];
-    notifyListeners();
+    _safeNotify();
+  }
+
+  Future<void> loadAiUsage({int? bulan, int? tahun}) async {
+    if (_disposed) return;
+    final (usage, err) = await _repo.getAiUsage(bulan: bulan, tahun: tahun);
+    if (_disposed || err != null || usage == null) return;
+    _aiUsageByUserId = usage;
+    _safeNotify();
+  }
+
+  Future<void> loadAiOpsUsage() async {
+    if (_disposed) return;
+    final (ops, _) = await _repo.getAiOpsUsage();
+    if (_disposed || ops == null) return;
+    _aiOpsUsage = ops;
+    _safeNotify();
   }
 
   Future<void> loadAllKelas({
@@ -117,24 +154,35 @@ class AdminController extends ChangeNotifier {
     int? tingkat,
     String? nama,
   }) async {
+    if (_disposed) return;
+    final seq = ++_kelasLoadSeq;
     _isLoadingKelas = true;
     _kelasError = null;
-    notifyListeners();
+    _safeNotify();
 
     final (list, err) = await _repo.getAllKelas(
       tahunAjaran: tahunAjaran,
       tingkat: tingkat,
       nama: nama,
     );
+    if (_disposed || seq != _kelasLoadSeq) return;
     _isLoadingKelas = false;
     if (err != null) {
       _kelasError = err;
-      notifyListeners();
+      _safeNotify();
       return;
     }
 
     _allKelas = list ?? [];
-    notifyListeners();
+    if (_selectedTahunAjaran != null &&
+        !tahunAjaranOptions.contains(_selectedTahunAjaran)) {
+      _selectedTahunAjaran = null;
+    }
+    if (_selectedTingkat != null &&
+        !tingkatOptions.contains(_selectedTingkat)) {
+      _selectedTingkat = null;
+    }
+    _safeNotify();
   }
 
   void setTahunAjaranFilter(String? value) {
@@ -143,19 +191,19 @@ class AdminController extends ChangeNotifier {
         : value.trim();
     if (_selectedTahunAjaran == normalized) return;
     _selectedTahunAjaran = normalized;
-    notifyListeners();
+    _safeNotify();
   }
 
   void setTingkatFilter(int? value) {
     if (_selectedTingkat == value) return;
     _selectedTingkat = value;
-    notifyListeners();
+    _safeNotify();
   }
 
   void setNamaKelasFilter(String value) {
     if (_searchNamaKelas == value) return;
     _searchNamaKelas = value;
-    notifyListeners();
+    _safeNotify();
   }
 
   void resetKelasFilters() {
@@ -163,7 +211,13 @@ class AdminController extends ChangeNotifier {
     _selectedTahunAjaran = null;
     _selectedTingkat = null;
     _searchNamaKelas = '';
-    notifyListeners();
+    _safeNotify();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   static String defaultTahunAjaran([DateTime? now]) =>
@@ -214,18 +268,22 @@ class AdminController extends ChangeNotifier {
 
   Future<String?> createKelas({
     required String nama,
+    String mapel = '',
     String deskripsi = '',
     required String gradeInput,
     String? tahunAjaran,
+    int? pengampuId,
   }) async {
     final normalizedYear = (tahunAjaran ?? '').trim();
     final err = await _repo.createKelas(
       nama: nama.trim(),
+      mapel: mapel.trim(),
       deskripsi: deskripsi.trim(),
       tingkat: parseTingkat(gradeInput),
       tahunAjaran: normalizedYear.isEmpty
           ? defaultTahunAjaran()
           : normalizedYear,
+      pengampuId: pengampuId,
     );
     if (err != null) return err;
     await loadAllKelas();

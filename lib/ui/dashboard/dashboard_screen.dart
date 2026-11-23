@@ -67,7 +67,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (widget.controller == null) {
       _ownedController = _createOwnedController();
     }
-    _controller.refreshSummary();
+    Future<void>.microtask(() {
+      if (mounted) {
+        _controller.refreshSummary();
+      }
+    });
   }
 
   @override
@@ -107,8 +111,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  void _openTeachingDetail(ClassItem item) {
-    openPage(
+  Future<void> _openTeachingDetail(ClassItem item) async {
+    await openPage(
       context,
       breadcrumb: ['Beranda', item.title],
       page: PengajarDetailScreen(
@@ -118,10 +122,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       routeName: 'pengajar-detail',
     );
+    if (mounted) {
+      _controller.refreshSummary();
+    }
   }
 
-  void _openStudentDetail(ClassItem item, {int initialTab = 0}) {
-    openPage(
+  Future<void> _openStudentDetail(ClassItem item, {int initialTab = 0}) async {
+    await openPage(
       context,
       breadcrumb: ['Beranda', item.title],
       page: ClassDetailScreen(
@@ -131,6 +138,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         initialTab: initialTab,
       ),
     );
+    if (mounted) {
+      _controller.refreshSummary();
+    }
   }
 
   @override
@@ -293,17 +303,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
               progress: item.completionRate,
               progressColor: guruProgressColor(item.completionRate),
               icon: Icons.assignment_turned_in_outlined,
-              onTap: () => openPage(
-                context,
-                breadcrumb: ['Beranda', item.classItem.title, item.post.judul],
-                page: PengumpulanPenilaianScreen(
-                  classData: item.classItem,
-                  postinganId: item.post.id,
-                  tugasTitle: item.post.judul,
-                  controller: ctrl.pengajarController,
-                ),
-                routeName: 'pengumpulan-penilaian',
-              ),
+              onTap: () async {
+                await openPage(
+                  context,
+                  breadcrumb: ['Beranda', item.classItem.title, item.post.judul],
+                  page: PengumpulanPenilaianScreen(
+                    classData: item.classItem,
+                    postinganId: item.post.id,
+                    tugasTitle: item.post.judul,
+                    controller: ctrl.pengajarController,
+                  ),
+                  routeName: 'pengumpulan-penilaian',
+                );
+                if (mounted) {
+                  ctrl.refreshSummary();
+                }
+              },
             ),
         if (ctrl.hasKalender) ...[
           const SizedBox(height: 20),

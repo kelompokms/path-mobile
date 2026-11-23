@@ -52,8 +52,14 @@ class _KelasScreenState extends State<KelasScreen> {
   @override
   void didUpdateWidget(covariant KelasScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.isGuruRole != widget.isGuruRole) {
-      setState(() => _selectedTab = 0);
+    final roleChanged = oldWidget.isGuruRole != widget.isGuruRole;
+    final controllersChanged =
+        oldWidget.controller != widget.controller ||
+        oldWidget.pengajarController != widget.pengajarController;
+    if (roleChanged || controllersChanged) {
+      if (roleChanged) {
+        setState(() => _selectedTab = 0);
+      }
       Future<void>.microtask(() {
         if (!mounted) return;
         widget.controller.getListKelas();
@@ -78,13 +84,9 @@ class _KelasScreenState extends State<KelasScreen> {
         if (widget.isGuruRole) {
           if (tabIndex == 0) {
             widget.pengajarController?.getListKelas();
-          } else {
-            widget.controller.getListKelas();
           }
         } else {
-          if (tabIndex == 0) {
-            widget.controller.getListKelas();
-          } else {
+          if (tabIndex == 1) {
             widget.pengajarController?.getListKelas();
           }
         }
@@ -218,7 +220,23 @@ class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
   @override
   void initState() {
     super.initState();
-    widget.controller?.getListKelas();
+    Future<void>.microtask(() {
+      if (mounted) {
+        widget.controller?.getListKelas();
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant RegisteredClassesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      Future<void>.microtask(() {
+        if (mounted) {
+          widget.controller?.getListKelas();
+        }
+      });
+    }
   }
 
   List<ClassItem> get _classes {
@@ -329,6 +347,37 @@ class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
 
     final classes = _classes;
 
+    if (ctrl != null && ctrl.errorMessage != null && classes.isEmpty) {
+      return Column(
+        children: [
+          if (widget.listTopBar != null) widget.listTopBar!,
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      ctrl.errorMessage!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.secondaryText),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: ctrl.getListKelas,
+                      style: AppTheme.softCompactButton,
+                      child: const Text('Coba Lagi'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     if (classes.isEmpty) {
       return Column(
         children: [
@@ -394,6 +443,7 @@ class _RegisteredClassesSectionState extends State<RegisteredClassesSection> {
               child: RefreshIndicator(
                 onRefresh: () async => widget.controller?.getListKelas(),
                 child: GridView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   padding: responsiveListPadding(
                     width,
                     maxWidth: ResponsiveBreakpoints.wide,

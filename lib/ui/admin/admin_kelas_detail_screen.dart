@@ -60,12 +60,18 @@ class _AdminKelasDetailScreenState extends State<AdminKelasDetailScreen> {
 
     final (materiList, materiErr) = results[0];
     final (tugasList, tugasErr) = results[1];
+    final firstError = materiErr ?? tugasErr;
     setState(() {
       _loadingPosts = false;
-      _postsError = materiErr ?? tugasErr;
+      _postsError = firstError;
       if (materiList != null) _materi = materiList;
       if (tugasList != null) _tugas = tugasList;
     });
+    if (firstError != null && (_materi.isNotEmpty || _tugas.isNotEmpty)) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(firstError)));
+    }
   }
 
   Future<void> _editPengampu() async {
@@ -84,14 +90,16 @@ class _AdminKelasDetailScreenState extends State<AdminKelasDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        BackTitleRow(title: k.nama),
+        BackTitleRow(title: k.displayTitle),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '${k.gradeLabel} • Tahun Ajaran ${k.tahunAjaran} • Kode: ${k.kodeKelas}',
+                k.mapel.trim().isNotEmpty
+                    ? '${k.nama} • ${k.gradeLabel} • Tahun Ajaran ${k.tahunAjaran} • Kode: ${k.kodeKelas}'
+                    : '${k.gradeLabel} • Tahun Ajaran ${k.tahunAjaran} • Kode: ${k.kodeKelas}',
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.secondaryText,
@@ -158,11 +166,21 @@ class _AdminKelasDetailScreenState extends State<AdminKelasDetailScreen> {
         Expanded(
           child: _tabIndex == 1
               ? AnggotaKelasTab(
+                  key: ValueKey('anggota_${k.kodeKelas}_${k.pengampu}'),
                   kodeKelas: k.kodeKelas,
                   horizontalPadding: 16,
+                  baseUrl: widget.kelasRepository?.baseUrl,
+                  currentUserId: widget.kelasRepository?.currentUserId,
+                  isAdmin: true,
                   loadMembers: widget.kelasRepository != null
                       ? () => widget.kelasRepository!.getListAnggota(
                           k.kodeKelas,
+                        )
+                      : null,
+                  onDemoteToMurid: widget.kelasRepository != null
+                      ? (member) => widget.kelasRepository!.demoteToMurid(
+                          k.kodeKelas,
+                          member.penggunaId,
                         )
                       : null,
                 )
@@ -180,10 +198,21 @@ class _AdminKelasDetailScreenState extends State<AdminKelasDetailScreen> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            _postsError!,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppColors.secondaryText),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _postsError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.secondaryText),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                onPressed: _loadPosts,
+                style: AppTheme.softCompactButton,
+                child: const Text('Coba Lagi'),
+              ),
+            ],
           ),
         ),
       );
@@ -195,38 +224,53 @@ class _AdminKelasDetailScreenState extends State<AdminKelasDetailScreen> {
     ]..sort((a, b) => b.post.dibuat.compareTo(a.post.dibuat));
 
     if (combined.isEmpty) {
-      return const Center(
-        child: Text(
-          'Belum ada postingan di kelas ini',
-          style: TextStyle(color: AppColors.secondaryText),
+      return RefreshIndicator(
+        onRefresh: _loadPosts,
+        child: LayoutBuilder(
+          builder: (context, constraints) => SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: const Center(
+                child: Text(
+                  'Belum ada postingan di kelas ini',
+                  style: TextStyle(color: AppColors.secondaryText),
+                ),
+              ),
+            ),
+          ),
         ),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      itemCount: combined.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, i) {
-        final entry = combined[i];
-        return PostCard(
-          icon: entry.isTugas
-              ? Icons.assignment_outlined
-              : Icons.menu_book_outlined,
-          label: entry.isTugas ? 'Tugas' : 'Materi',
-          title: entry.post.judul,
-          date: entry.post.dibuat,
-          onTap: () => openPage(
-            context,
-            breadcrumb: ['Admin', 'Kelas', _kelas.nama, entry.post.judul],
-            page: AdminPostDetailScreen(
-              post: entry.post,
-              isTugas: entry.isTugas,
-              baseUrl: widget.kelasRepository?.baseUrl,
+    return RefreshIndicator(
+      onRefresh: _loadPosts,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        itemCount: combined.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 8),
+        itemBuilder: (context, i) {
+          final entry = combined[i];
+          return PostCard(
+            icon: entry.isTugas
+                ? Icons.assignment_outlined
+                : Icons.menu_book_outlined,
+            label: entry.isTugas ? 'Tugas' : 'Materi',
+            title: entry.post.judul,
+            date: entry.post.dibuat,
+            onTap: () => openPage(
+              context,
+              breadcrumb: ['Admin', 'Kelas', _kelas.nama, entry.post.judul],
+              page: AdminPostDetailScreen(
+                post: entry.post,
+                isTugas: entry.isTugas,
+                baseUrl: widget.kelasRepository?.baseUrl,
+              ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

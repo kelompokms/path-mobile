@@ -225,15 +225,17 @@ Uri? resolveLampiranUri(LampiranItem item, {String? baseUrl}) {
       ? baseUrl.trim()
       : HttpClient.defaultBaseUrl;
 
-  if (trimmed.startsWith('/')) {
-    final base = Uri.tryParse(effectiveBase);
-    if (base == null || !base.hasScheme) return null;
-    return base.resolve(trimmed);
+  if (trimmed.startsWith('//')) {
+    return null;
   }
-  if (trimmed.startsWith('uploads/')) {
+  if (trimmed.startsWith('/') || trimmed.startsWith('uploads/')) {
     final base = Uri.tryParse(effectiveBase);
     if (base == null || !base.hasScheme) return null;
-    return base.resolve('/$trimmed');
+    final cleanBase = effectiveBase.endsWith('/')
+        ? effectiveBase.substring(0, effectiveBase.length - 1)
+        : effectiveBase;
+    final cleanPath = trimmed.startsWith('/') ? trimmed : '/$trimmed';
+    return Uri.tryParse('$cleanBase$cleanPath');
   }
 
   if (item.isLink) {
@@ -247,6 +249,84 @@ Uri? resolveLampiranUri(LampiranItem item, {String? baseUrl}) {
     if (parsed != null && parsed.host.isNotEmpty) {
       return parsed;
     }
+  }
+  return null;
+}
+
+const Set<String> previewableImageExtensions = {
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'webp',
+  'bmp',
+};
+
+const Set<String> previewableTextExtensions = {'txt', 'csv'};
+
+const Set<String> previewableDocumentExtensions = {
+  'pdf',
+  'doc',
+  'docx',
+  'xls',
+  'xlsx',
+  'ppt',
+  'pptx',
+};
+
+bool isPreviewableImageExtension(String ext) =>
+    previewableImageExtensions.contains(ext.trim().toLowerCase());
+
+bool isPreviewableTextExtension(String ext) =>
+    previewableTextExtensions.contains(ext.trim().toLowerCase());
+
+bool isPreviewableDocumentExtension(String ext) =>
+    previewableDocumentExtensions.contains(ext.trim().toLowerCase());
+
+/// Builds an in-app viewer URL for PDF/Office documents using Google Docs Viewer
+/// when the file URL is publicly reachable (non-localhost), avoiding forced downloads.
+Uri buildDocumentPreviewUri(Uri fileUri) {
+  final host = fileUri.host.toLowerCase();
+  final isLocal =
+      host == 'localhost' ||
+      host == '127.0.0.1' ||
+      host == '10.0.2.2' ||
+      host.endsWith('.local');
+  if (isLocal || (fileUri.scheme != 'http' && fileUri.scheme != 'https')) {
+    return fileUri;
+  }
+  return Uri.https('docs.google.com', '/gview', {
+    'embedded': 'true',
+    'url': fileUri.toString(),
+  });
+}
+
+/// Opens a PDF/Office attachment in an in-app browser viewer (no forced download).
+Future<String?> openLampiranDocumentPreview(
+  LampiranItem item, {
+  String? baseUrl,
+}) async {
+  final uri = resolveLampiranUri(item, baseUrl: baseUrl);
+  if (uri == null) {
+    return 'Link lampiran tidak valid';
+  }
+  final previewUri = buildDocumentPreviewUri(uri);
+  final launcher = LampiranHelper.urlLauncherOverride ?? _defaultLaunchUrl;
+  var launched = false;
+  try {
+    launched = await launcher(previewUri, mode: LaunchMode.inAppBrowserView);
+    if (!launched) {
+      launched = await launcher(previewUri, mode: LaunchMode.platformDefault);
+    }
+  } catch (_) {
+    try {
+      launched = await launcher(previewUri, mode: LaunchMode.platformDefault);
+    } catch (_) {
+      launched = false;
+    }
+  }
+  if (!launched) {
+    return 'Tidak dapat membuka preview dokumen';
   }
   return null;
 }
