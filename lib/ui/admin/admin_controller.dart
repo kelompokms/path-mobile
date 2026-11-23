@@ -80,9 +80,7 @@ class AdminController extends ChangeNotifier {
       if (_selectedTingkat != null && k.tingkat != _selectedTingkat) {
         return false;
       }
-      if (query.isNotEmpty &&
-          !k.nama.toLowerCase().contains(query) &&
-          !k.mapel.toLowerCase().contains(query)) {
+      if (query.isNotEmpty && !k.nama.toLowerCase().contains(query)) {
         return false;
       }
       return true;
@@ -268,7 +266,6 @@ class AdminController extends ChangeNotifier {
 
   Future<String?> createKelas({
     required String nama,
-    String mapel = '',
     String deskripsi = '',
     required String gradeInput,
     String? tahunAjaran,
@@ -277,7 +274,6 @@ class AdminController extends ChangeNotifier {
     final normalizedYear = (tahunAjaran ?? '').trim();
     final err = await _repo.createKelas(
       nama: nama.trim(),
-      mapel: mapel.trim(),
       deskripsi: deskripsi.trim(),
       tingkat: parseTingkat(gradeInput),
       tahunAjaran: normalizedYear.isEmpty

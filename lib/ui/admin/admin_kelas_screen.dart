@@ -100,9 +100,9 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
   }
 
   static const String _kelasCsvTemplate =
-      'mapel,nama,tingkat,tahun_ajaran,deskripsi\n'
-      'Pemrograman Web,X PPLG 1,10,2026/2027,Dasar HTML CSS dan JavaScript\n'
-      'Basis Data,XI RPL 1,11,2026/2027,Desain ERD dan SQL\n';
+      'nama,tingkat,tahun_ajaran,deskripsi\n'
+      'X PPLG 1,10,2026/2027,Dasar HTML CSS dan JavaScript\n'
+      'XI RPL 1,11,2026/2027,Desain ERD dan SQL\n';
 
   Future<void> _downloadKelasTemplateCsv() async {
     try {
@@ -148,7 +148,6 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
     try {
       err = await widget.controller.createKelas(
         nama: result.nama,
-        mapel: result.mapel,
         deskripsi: result.deskripsi,
         gradeInput: result.tingkat.toString(),
         tahunAjaran: result.tahunAjaran,
@@ -381,7 +380,7 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
   }
 
   void _openClassDetail(AdminKelasModel kelas) {
-    final trail = ['Admin', 'Kelas', kelas.displayTitle];
+    final trail = ['Admin', 'Kelas', kelas.nama];
     openPage(
       context,
       breadcrumb: trail,
@@ -509,7 +508,7 @@ class _AdminKelasScreenState extends State<AdminKelasScreen> {
                           textInputAction: TextInputAction.search,
                           onSubmitted: ctrl.setNamaKelasFilter,
                           decoration: InputDecoration(
-                            hintText: 'Filter mapel atau kelas...',
+                            hintText: 'Filter nama kelas...',
                             prefixIcon: const Icon(Icons.search, size: 20),
                             suffixIcon: ctrl.searchNamaKelas.isNotEmpty
                                 ? IconButton(

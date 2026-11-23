@@ -8,7 +8,6 @@ export 'package:path_mobile/utils/lampiran_helper.dart'
 class KelasModel {
   final int id;
   final String nama;
-  final String mapel;
   final String deskripsi;
   final int tingkat;
   final String tahunAjaran;
@@ -21,7 +20,6 @@ class KelasModel {
   KelasModel({
     required this.id,
     required this.nama,
-    this.mapel = '',
     this.deskripsi = '',
     required this.tingkat,
     required this.tahunAjaran,
@@ -34,8 +32,6 @@ class KelasModel {
   }) : pengampu = pengampu ?? pembuat ?? 0;
 
   int get pembuat => pengampu;
-
-  String get displayTitle => mapel.trim().isNotEmpty ? mapel.trim() : nama;
 
   String get gradeLabel {
     switch (tingkat) {
@@ -51,18 +47,13 @@ class KelasModel {
   }
 
   ClassItem toClassItem({String? teacher, int? coverIndex}) {
-    final trimmedMapel = mapel.trim();
-    final trimmedNama = nama.trim();
-    final hasMapel = trimmedMapel.isNotEmpty;
     final resolvedTeacher = (teacher != null && teacher.trim().isNotEmpty)
         ? teacher
         : (namaPengampu.trim().isNotEmpty ? namaPengampu.trim() : null);
     return ClassItem(
-      title: hasMapel ? trimmedMapel : trimmedNama,
+      title: nama,
       description: deskripsi,
-      grade: hasMapel
-          ? (trimmedNama.isNotEmpty ? trimmedNama : gradeLabel)
-          : gradeLabel,
+      grade: gradeLabel,
       teacher: resolvedTeacher,
       coverIndex: coverIndex ?? id,
       code: kodeKelas,
@@ -74,7 +65,6 @@ class KelasModel {
     return KelasModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
       nama: json['nama'] as String? ?? '',
-      mapel: json['mapel'] as String? ?? '',
       deskripsi: json['deskripsi'] as String? ?? '',
       tingkat: (json['tingkat'] as num?)?.toInt() ?? 10,
       tahunAjaran: json['tahun_ajaran'] as String? ?? '',
@@ -90,7 +80,6 @@ class KelasModel {
   Map<String, dynamic> toJson() => {
     'id': id,
     'nama': nama,
-    'mapel': mapel,
     'deskripsi': deskripsi,
     'tingkat': tingkat,
     'tahun_ajaran': tahunAjaran,

@@ -84,7 +84,6 @@ class AdminGuruMuridData {
 class AdminKelasModel {
   final int id;
   final String nama;
-  final String mapel;
   final String deskripsi;
   final int tingkat;
   final String tahunAjaran;
@@ -96,7 +95,6 @@ class AdminKelasModel {
   const AdminKelasModel({
     required this.id,
     required this.nama,
-    this.mapel = '',
     this.deskripsi = '',
     required this.tingkat,
     required this.tahunAjaran,
@@ -105,8 +103,6 @@ class AdminKelasModel {
     this.namaPengampu = '',
     this.dibuat = '',
   });
-
-  String get displayTitle => mapel.trim().isNotEmpty ? mapel.trim() : nama;
 
   String get gradeLabel {
     switch (tingkat) {
@@ -122,17 +118,10 @@ class AdminKelasModel {
   }
 
   ClassItem toClassItem({int? coverIndex}) {
-    final trimmedMapel = mapel.trim();
-    final trimmedNama = nama.trim();
-    final hasMapel = trimmedMapel.isNotEmpty;
     return ClassItem(
-      title: hasMapel ? trimmedMapel : trimmedNama,
+      title: nama,
       description: deskripsi,
-      grade: hasMapel
-          ? (trimmedNama.isNotEmpty ? trimmedNama : gradeLabel)
-          : (tahunAjaran.isNotEmpty
-                ? '$gradeLabel • $tahunAjaran'
-                : gradeLabel),
+      grade: tahunAjaran.isNotEmpty ? '$gradeLabel • $tahunAjaran' : gradeLabel,
       teacher: namaPengampu.isNotEmpty
           ? 'Pengampu: $namaPengampu'
           : 'Pengampu: Belum ditentukan',
@@ -146,7 +135,6 @@ class AdminKelasModel {
     return AdminKelasModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
       nama: json['nama'] as String? ?? '',
-      mapel: json['mapel'] as String? ?? '',
       deskripsi: json['deskripsi'] as String? ?? '',
       tingkat: (json['tingkat'] as num?)?.toInt() ?? 10,
       tahunAjaran: json['tahun_ajaran'] as String? ?? '',
@@ -160,7 +148,6 @@ class AdminKelasModel {
   Map<String, dynamic> toJson() => {
     'id': id,
     'nama': nama,
-    'mapel': mapel,
     'deskripsi': deskripsi,
     'tingkat': tingkat,
     'tahun_ajaran': tahunAjaran,

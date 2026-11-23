@@ -165,7 +165,6 @@ class AdminRepository {
 
   Future<String?> createKelas({
     required String nama,
-    String mapel = '',
     String deskripsi = '',
     required int tingkat,
     required String tahunAjaran,
@@ -178,7 +177,6 @@ class AdminRepository {
             headers: _client.JSON,
             body: jsonEncode({
               'nama': nama,
-              if (mapel.isNotEmpty) 'mapel': mapel,
               'deskripsi': deskripsi,
               'tingkat': tingkat,
               'tahun_ajaran': tahunAjaran,

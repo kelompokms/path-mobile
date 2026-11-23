@@ -5,7 +5,6 @@ import 'package:path_mobile/ui/core/app_theme.dart';
 
 class CreateKelasDialogResult {
   final String nama;
-  final String mapel;
   final String deskripsi;
   final int tingkat;
   final String tahunAjaran;
@@ -13,7 +12,6 @@ class CreateKelasDialogResult {
 
   const CreateKelasDialogResult({
     required this.nama,
-    this.mapel = '',
     required this.deskripsi,
     required this.tingkat,
     required this.tahunAjaran,
@@ -32,7 +30,6 @@ class AdminCreateKelasDialog extends StatefulWidget {
 
 class _AdminCreateKelasDialogState extends State<AdminCreateKelasDialog> {
   final _namaController = TextEditingController();
-  final _mapelController = TextEditingController();
   final _deskripsiController = TextEditingController();
   late final TextEditingController _tahunController = TextEditingController(
     text: AdminController.defaultTahunAjaran(),
@@ -42,14 +39,12 @@ class _AdminCreateKelasDialogState extends State<AdminCreateKelasDialog> {
   bool _triedSubmit = false;
 
   bool get _canSubmit =>
-      _mapelController.text.trim().isNotEmpty &&
       _namaController.text.trim().isNotEmpty &&
       _tahunController.text.trim().isNotEmpty;
 
   @override
   void dispose() {
     _namaController.dispose();
-    _mapelController.dispose();
     _deskripsiController.dispose();
     _tahunController.dispose();
     super.dispose();
@@ -64,7 +59,6 @@ class _AdminCreateKelasDialogState extends State<AdminCreateKelasDialog> {
       context,
       CreateKelasDialogResult(
         nama: _namaController.text.trim(),
-        mapel: _mapelController.text.trim(),
         deskripsi: _deskripsiController.text.trim(),
         tingkat: _tingkat,
         tahunAjaran: _tahunController.text.trim(),
@@ -107,34 +101,16 @@ class _AdminCreateKelasDialogState extends State<AdminCreateKelasDialog> {
               ),
               const SizedBox(height: 12),
               TextField(
-                key: const Key('admin_create_kelas_mapel'),
-                controller: _mapelController,
-                onChanged: (_) => setState(() {}),
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _submit(),
-                decoration: InputDecoration(
-                  labelText: 'Mata Pelajaran *',
-                  hintText: 'Contoh: Pemrograman Dasar',
-                  errorText:
-                      _triedSubmit && _mapelController.text.trim().isEmpty
-                      ? 'Mata pelajaran wajib diisi'
-                      : null,
-                  isDense: true,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
                 key: const Key('admin_create_kelas_nama'),
                 controller: _namaController,
                 onChanged: (_) => setState(() {}),
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _submit(),
                 decoration: InputDecoration(
-                  labelText: 'Kelas *',
+                  labelText: 'Nama Kelas',
                   hintText: 'Contoh: X PPLG 1',
                   errorText: _triedSubmit && _namaController.text.trim().isEmpty
-                      ? 'Detail kelas wajib diisi'
+                      ? 'Nama kelas wajib diisi'
                       : null,
                   isDense: true,
                   border: const OutlineInputBorder(),
@@ -321,7 +297,7 @@ class _PilihPengampuDialogState extends State<PilihPengampuDialog> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Ubah Pengampu • ${widget.kelas.displayTitle}',
+                    'Ubah Pengampu • ${widget.kelas.nama}',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,

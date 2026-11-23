@@ -90,16 +90,14 @@ class _AdminKelasDetailScreenState extends State<AdminKelasDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        BackTitleRow(title: k.displayTitle),
+        BackTitleRow(title: k.nama),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                k.mapel.trim().isNotEmpty
-                    ? '${k.nama} • ${k.gradeLabel} • Tahun Ajaran ${k.tahunAjaran} • Kode: ${k.kodeKelas}'
-                    : '${k.gradeLabel} • Tahun Ajaran ${k.tahunAjaran} • Kode: ${k.kodeKelas}',
+                '${k.gradeLabel} • Tahun Ajaran ${k.tahunAjaran} • Kode: ${k.kodeKelas}',
                 style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.secondaryText,
