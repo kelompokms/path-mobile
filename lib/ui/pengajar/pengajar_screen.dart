@@ -65,7 +65,23 @@ class _TeachingClassesSectionState extends State<TeachingClassesSection> {
   void initState() {
     super.initState();
     if (widget.fetchOnInit) {
-      widget.controller.getListKelas();
+      Future<void>.microtask(() {
+        if (mounted) {
+          widget.controller.getListKelas();
+        }
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant TeachingClassesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller && widget.fetchOnInit) {
+      Future<void>.microtask(() {
+        if (mounted) {
+          widget.controller.getListKelas();
+        }
+      });
     }
   }
 
@@ -87,6 +103,29 @@ class _TeachingClassesSectionState extends State<TeachingClassesSection> {
         final classes = _classes;
         if (widget.controller.isLoading && classes.isEmpty) {
           return const Center(child: CircularProgressIndicator());
+        }
+        if (widget.controller.errorMessage != null && classes.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.controller.errorMessage!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: AppColors.secondaryText),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: widget.controller.getListKelas,
+                    style: AppTheme.softCompactButton,
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            ),
+          );
         }
         if (classes.isEmpty) {
           return Center(
@@ -127,6 +166,7 @@ class _TeachingClassesSectionState extends State<TeachingClassesSection> {
                   child: RefreshIndicator(
                     onRefresh: widget.controller.getListKelas,
                     child: GridView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding: responsiveListPadding(
                         width,
                         maxWidth: ResponsiveBreakpoints.wide,

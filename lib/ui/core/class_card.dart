@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
@@ -180,14 +182,8 @@ class ClassCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if ((menuItems == null || menuItems!.isEmpty) &&
-                      onMenuSelected == null)
-                    const Icon(
-                      Icons.more_vert,
-                      size: 20,
-                      color: AppColors.secondaryText,
-                    )
-                  else
+                  if ((menuItems != null && menuItems!.isNotEmpty) ||
+                      onMenuSelected != null)
                     SizedBox(
                       width: 28,
                       height: 28,
@@ -346,7 +342,7 @@ class EmptyClassView extends StatelessWidget {
 
 class JoinClassForm extends StatefulWidget {
   final VoidCallback onCancel;
-  final ValueChanged<String> onJoined;
+  final FutureOr<void> Function(String) onJoined;
 
   const JoinClassForm({
     super.key,
@@ -360,6 +356,7 @@ class JoinClassForm extends StatefulWidget {
 
 class _JoinClassFormState extends State<JoinClassForm> {
   final _codeController = TextEditingController();
+  bool _submitting = false;
 
   @override
   void dispose() {
@@ -367,7 +364,8 @@ class _JoinClassFormState extends State<JoinClassForm> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
+    if (_submitting) return;
     final code = _codeController.text.trim().toUpperCase();
     if (!RegExp(r'^[a-zA-Z0-9]{5,8}$').hasMatch(code)) {
       showInfoDialog(
@@ -377,7 +375,14 @@ class _JoinClassFormState extends State<JoinClassForm> {
       );
       return;
     }
-    widget.onJoined(code);
+    setState(() => _submitting = true);
+    try {
+      await widget.onJoined(code);
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
   }
 
   @override
@@ -429,10 +434,11 @@ class _JoinClassFormState extends State<JoinClassForm> {
                       const SizedBox(height: 16),
                       TextField(
                         controller: _codeController,
+                        enabled: !_submitting,
                         onChanged: (_) => setState(() {}),
                         textInputAction: TextInputAction.done,
                         onSubmitted: (_) {
-                          if (_codeController.text.isNotEmpty) {
+                          if (_codeController.text.isNotEmpty && !_submitting) {
                             _submit();
                           }
                         },
@@ -482,14 +488,24 @@ class _JoinClassFormState extends State<JoinClassForm> {
                   runSpacing: 8,
                   children: [
                     TextButton(
-                      onPressed: widget.onCancel,
+                      onPressed: _submitting ? null : widget.onCancel,
                       child: const Text('Batal'),
                     ),
                     FilledButton(
-                      onPressed: _codeController.text.isNotEmpty
+                      onPressed:
+                          (_codeController.text.isNotEmpty && !_submitting)
                           ? _submit
                           : null,
-                      child: const Text('Gabung Kelas'),
+                      child: _submitting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Gabung Kelas'),
                     ),
                   ],
                 ),

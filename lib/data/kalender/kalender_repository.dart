@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:path_mobile/data/kalender/kalender_model.dart';
 import 'package:path_mobile/data/kelas/kelas_model.dart';
+import 'package:path_mobile/utils/api_error_helper.dart';
 import 'package:path_mobile/utils/date_time_helper.dart';
 import 'package:path_mobile/utils/http_client.dart';
 
@@ -12,15 +13,8 @@ class KalenderRepository {
 
   KalenderRepository(this._client);
 
-  String? _extractMessage(String body, String fallback) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded['message'] as String? ?? fallback;
-      }
-    } catch (_) {}
-    return fallback;
-  }
+  String _extractMessage(String body, String fallback) =>
+      extractApiErrorMessage(body, fallback);
 
   Future<(List<KalenderAkademikModel>?, String?)> getKalenderAkademik() async {
     try {
@@ -49,7 +43,9 @@ class KalenderRepository {
     }
   }
 
-  Future<(List<AgendaItemModel>?, String?)> getAgendas() async {
+  Future<(List<AgendaItemModel>?, String?)> getAgendas({
+    bool includeClassTasks = true,
+  }) async {
     final agendas = <AgendaItemModel>[];
     String? lastError;
 
@@ -66,6 +62,7 @@ class KalenderRepository {
             : '${item.tanggalMulai.day}/${item.tanggalMulai.month} - ${item.tanggalSelesai.day}/${item.tanggalSelesai.month}';
         agendas.add(
           AgendaItemModel(
+            id: item.id,
             date: item.tanggalMulai,
             endDate: item.tanggalSelesai,
             heading: 'Kalender Akademik',
@@ -81,51 +78,60 @@ class KalenderRepository {
     }
 
     // 2. Fetch user's classes (/kelas) and their tugas (/kelas/{kode_kelas}/posts?tipe=1)
-    try {
-      final response = await _client
-          .get(_client.uri('/kelas'))
-          .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        final kelasData = (decoded as List<dynamic>?) ?? <dynamic>[];
-        final kelasList = kelasData
-            .map((x) => KelasModel.fromJson(x as Map<String, dynamic>))
-            .toList();
+    if (includeClassTasks) {
+      try {
+        final response = await _client
+            .get(_client.uri('/kelas'))
+            .timeout(const Duration(seconds: 10));
+        if (response.statusCode == 200) {
+          final decoded = jsonDecode(response.body);
+          final kelasData = (decoded as List<dynamic>?) ?? <dynamic>[];
+          final kelasList = kelasData
+              .map((x) => KelasModel.fromJson(x as Map<String, dynamic>))
+              .toList();
 
-        for (final k in kelasList) {
-          if (k.kodeKelas.isEmpty) continue;
-          final encodedCode = Uri.encodeComponent(k.kodeKelas);
-          final uri = _client
-              .uri('/kelas/$encodedCode/posts')
-              .replace(
-                queryParameters: {'tipe': PostinganModel.tipeTugas.toString()},
-              );
-          final postsRes = await _client
-              .get(uri)
-              .timeout(const Duration(seconds: 10));
-          if (postsRes.statusCode == 200) {
-            final postsDecoded = jsonDecode(postsRes.body);
-            final postsData = (postsDecoded as List<dynamic>?) ?? <dynamic>[];
-            for (final pRaw in postsData) {
-              final post = PostinganModel.fromJson(
-                pRaw as Map<String, dynamic>,
-              );
-              final dibuat = toGmt7(post.dibuat);
-              final h = dibuat.hour.toString().padLeft(2, '0');
-              final m = dibuat.minute.toString().padLeft(2, '0');
-              agendas.add(
-                AgendaItemModel(
-                  date: dibuat,
-                  heading: 'Tugas ${k.nama}',
-                  title: post.judul,
-                  time: '$h.$m',
-                ),
-              );
+          for (final k in kelasList) {
+            if (k.kodeKelas.isEmpty) continue;
+            try {
+              final encodedCode = Uri.encodeComponent(k.kodeKelas);
+              final uri = _client
+                  .uri('/kelas/$encodedCode/posts')
+                  .replace(
+                    queryParameters: {
+                      'tipe': PostinganModel.tipeTugas.toString(),
+                    },
+                  );
+              final postsRes = await _client
+                  .get(uri)
+                  .timeout(const Duration(seconds: 10));
+              if (postsRes.statusCode == 200) {
+                final postsDecoded = jsonDecode(postsRes.body);
+                final postsData =
+                    (postsDecoded as List<dynamic>?) ?? <dynamic>[];
+                for (final pRaw in postsData) {
+                  final post = PostinganModel.fromJson(
+                    pRaw as Map<String, dynamic>,
+                  );
+                  final dibuat = toGmt7(post.dibuat);
+                  final h = dibuat.hour.toString().padLeft(2, '0');
+                  final m = dibuat.minute.toString().padLeft(2, '0');
+                  agendas.add(
+                    AgendaItemModel(
+                      date: dibuat,
+                      heading: 'Tugas ${k.nama}',
+                      title: post.judul,
+                      time: '$h.$m',
+                    ),
+                  );
+                }
+              }
+            } catch (_) {
+              // Isolate per-class failures so remaining classes still load.
             }
           }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     if (agendas.isEmpty && lastError != null) {
       return (null, lastError);
@@ -188,6 +194,54 @@ class KalenderRepository {
       return (null, 'Request timed out. Please try again.');
     } catch (e) {
       return (null, 'Network error: $e');
+    }
+  }
+
+  /// Updates an existing global academic calendar event (admin only).
+  Future<(KalenderAkademikModel?, String?)> updateAgenda(
+    int agendaId,
+    CreateAgendaPayload payload,
+  ) async {
+    try {
+      final response = await _client
+          .patch(
+            _client.uri('/admin/kalender/agenda/$agendaId'),
+            headers: _client.JSON,
+            body: jsonEncode(payload.toJson()),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal memperbarui agenda'),
+        );
+      }
+
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      return (KalenderAkademikModel.fromJson(decoded), null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  /// Deletes a global academic calendar event (admin only).
+  Future<String?> deleteAgenda(int agendaId) async {
+    try {
+      final response = await _client
+          .delete(_client.uri('/admin/kalender/agenda/$agendaId'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200 && response.statusCode != 204) {
+        return _extractMessage(response.body, 'Gagal menghapus agenda');
+      }
+      return null;
+    } on TimeoutException {
+      return 'Request timed out. Please try again.';
+    } catch (e) {
+      return 'Network error: $e';
     }
   }
 }

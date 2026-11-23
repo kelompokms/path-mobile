@@ -16,6 +16,7 @@ class PengajarTugasDetailScreen extends StatefulWidget {
   final PengajarController? controller;
   final String? baseUrl;
   final Future<bool> Function(TugasPengajar draft)? onEdited;
+  final Future<bool> Function()? onDelete;
 
   const PengajarTugasDetailScreen({
     super.key,
@@ -25,6 +26,7 @@ class PengajarTugasDetailScreen extends StatefulWidget {
     this.controller,
     this.baseUrl,
     this.onEdited,
+    this.onDelete,
   });
 
   @override
@@ -56,6 +58,15 @@ class _PengajarTugasDetailScreenState extends State<PengajarTugasDetailScreen> {
     }
   }
 
+  Future<void> _handleDelete() async {
+    final onDelete = widget.onDelete;
+    if (onDelete == null) return;
+    final deleted = await onDelete();
+    if (deleted && mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final classData = widget.classData;
@@ -72,6 +83,7 @@ class _PengajarTugasDetailScreenState extends State<PengajarTugasDetailScreen> {
           maxWidth: 800,
         );
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
               padding: alignedBackTitlePadding(h),
@@ -79,14 +91,23 @@ class _PengajarTugasDetailScreenState extends State<PengajarTugasDetailScreen> {
                 children: [
                   Expanded(child: BackTitleRow(title: tugas.title)),
                   if (isGuru && widget.onEdited != null)
+                    IconButton(
+                      tooltip: 'Edit tugas',
+                      onPressed: _handleEdit,
+                      icon: const Icon(
+                        Icons.edit_outlined,
+                        color: AppColors.text,
+                      ),
+                    ),
+                  if (isGuru && widget.onDelete != null)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: IconButton(
-                        tooltip: 'Edit tugas',
-                        onPressed: _handleEdit,
-                        icon: const Icon(
-                          Icons.edit_outlined,
-                          color: AppColors.text,
+                        tooltip: 'Hapus tugas',
+                        onPressed: _handleDelete,
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Colors.red.shade600,
                         ),
                       ),
                     ),

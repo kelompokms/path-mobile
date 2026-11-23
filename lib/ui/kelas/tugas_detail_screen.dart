@@ -101,7 +101,7 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
   }
 
   Future<void> _addFile() async {
-    if (_isBusy) return;
+    if (_isBusy || _isUploading || _isLoadingPengumpulan) return;
     if (_drafts.length >= maxPostinganFiles) {
       _showMessage('Maksimal $maxPostinganFiles lampiran');
       return;
@@ -139,7 +139,7 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
   }
 
   Future<void> _addLink() async {
-    if (_isBusy) return;
+    if (_isBusy || _isUploading || _isLoadingPengumpulan) return;
     if (_drafts.length >= maxPostinganFiles) {
       _showMessage('Maksimal $maxPostinganFiles lampiran');
       return;
@@ -154,7 +154,7 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
   }
 
   Future<void> _submitPengumpulan({required bool isMarkDone}) async {
-    if (_isBusy || _isUploading) return;
+    if (_isBusy || _isUploading || _isLoadingPengumpulan) return;
     if (!isMarkDone && _drafts.isEmpty) return;
 
     final itemsToSubmit = isMarkDone
@@ -217,7 +217,9 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
   }
 
   Future<void> _tarikPengumpulan() async {
-    if (_isBusy || _isUploading || !_tugas.isSubmitted) return;
+    if (_isBusy || _isUploading || _isLoadingPengumpulan || !_tugas.isSubmitted) {
+      return;
+    }
 
     final confirmed = await showConfirmDialog(
       context,
@@ -287,6 +289,7 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
         final submission = _buildSubmissionCard();
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
               padding: alignedBackTitlePadding(h),
@@ -365,7 +368,9 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
               color: AppColors.secondaryText,
             ),
             Text(
-              'Tenggat: ${formatTanggal(_tugas.dueDate)}',
+              _tugas.dueDate == null
+                  ? 'Tanpa tenggat'
+                  : 'Tenggat: ${formatTanggal(_tugas.dueDate!)}',
               style: const TextStyle(
                 fontSize: 11,
                 color: AppColors.secondaryText,
@@ -437,7 +442,9 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
       );
 
   Widget _buildSubmissionCard() {
-    final actionsDisabled = _isBusy || _isUploading;
+    final submissionsClosed = !_tugas.acceptSubmissions && !_tugas.isSubmitted;
+    final actionsDisabled =
+        _isBusy || _isUploading || _isLoadingPengumpulan || submissionsClosed;
 
     return Card(
       elevation: AppTheme.cardElevation,
@@ -464,14 +471,32 @@ class _TugasDetailScreenState extends State<TugasDetailScreen> {
                   ),
                 ),
                 Text(
-                  _tugas.status,
-                  style: const TextStyle(
+                  submissionsClosed ? 'Ditutup' : _tugas.status,
+                  style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.secondaryText,
+                    color: submissionsClosed
+                        ? AppColors.error
+                        : AppColors.secondaryText,
                   ),
                 ),
               ],
             ),
+            if (submissionsClosed) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                ),
+                child: const Text(
+                  'Pengumpulan tugas sedang ditutup oleh pengajar.',
+                  key: Key('submissions_closed_notice'),
+                  style: TextStyle(fontSize: 11, color: AppColors.error),
+                ),
+              ),
+            ],
             if (_isLoadingPengumpulan) ...[
               const SizedBox(height: 8),
               const LinearProgressIndicator(minHeight: 2),

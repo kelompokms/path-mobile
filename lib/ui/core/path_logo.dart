@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 
 class PathLogo extends StatelessWidget {
@@ -17,7 +18,7 @@ class PathLogo extends StatelessWidget {
         color: Colors.white,
         radius: AppTheme.dialogRadius,
       ),
-      child: Image.asset('assets/images/path_logo.png', fit: BoxFit.contain),
+      child: SvgPicture.asset('assets/images/path.svg', fit: BoxFit.contain),
     );
   }
 }

@@ -19,6 +19,8 @@ class AgendaRow extends StatelessWidget {
   final List<AgendaItemModel> items;
   final bool isToday;
   final double rightPadding;
+  final ValueChanged<AgendaItemModel>? onEditAgenda;
+  final ValueChanged<AgendaItemModel>? onDeleteAgenda;
 
   const AgendaRow({
     super.key,
@@ -26,6 +28,8 @@ class AgendaRow extends StatelessWidget {
     required this.items,
     required this.isToday,
     this.rightPadding = 16,
+    this.onEditAgenda,
+    this.onDeleteAgenda,
   });
 
   @override
@@ -87,7 +91,12 @@ class AgendaRow extends StatelessWidget {
                       runSpacing: 12,
                       children: [
                         for (final item in items)
-                          AgendaCard(item: item, maxWidth: cardMaxWidth),
+                          AgendaCard(
+                            item: item,
+                            maxWidth: cardMaxWidth,
+                            onEdit: onEditAgenda,
+                            onDelete: onDeleteAgenda,
+                          ),
                       ],
                     ),
                   );
@@ -104,7 +113,12 @@ class AgendaRow extends StatelessWidget {
                     children: [
                       for (var i = 0; i < items.length; i++) ...[
                         if (i > 0) const SizedBox(width: 12),
-                        AgendaCard(item: items[i], maxWidth: cardMaxWidth),
+                        AgendaCard(
+                          item: items[i],
+                          maxWidth: cardMaxWidth,
+                          onEdit: onEditAgenda,
+                          onDelete: onDeleteAgenda,
+                        ),
                       ],
                     ],
                   ),
@@ -121,13 +135,27 @@ class AgendaRow extends StatelessWidget {
 class AgendaCard extends StatelessWidget {
   final AgendaItemModel item;
   final double maxWidth;
+  final ValueChanged<AgendaItemModel>? onEdit;
+  final ValueChanged<AgendaItemModel>? onDelete;
 
-  const AgendaCard({super.key, required this.item, this.maxWidth = 200});
+  const AgendaCard({
+    super.key,
+    required this.item,
+    this.maxWidth = 200,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  bool get _canManage =>
+      item.isGlobal &&
+      item.id != null &&
+      item.id! > 0 &&
+      (onEdit != null || onDelete != null);
 
   void _showDetail(BuildContext context) {
     showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: AppColors.background,
         surfaceTintColor: Colors.transparent,
         elevation: AppTheme.cardElevation,
@@ -141,29 +169,48 @@ class AgendaCard extends StatelessWidget {
             color: AppColors.text,
           ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              formatAgendaMeta(item),
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.secondaryText,
-              ),
-            ),
-            if (item.description.isNotEmpty) ...[
-              const SizedBox(height: 10),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                item.description,
-                style: const TextStyle(fontSize: 13, color: AppColors.text),
+                formatAgendaMeta(item),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.secondaryText,
+                ),
               ),
+              if (item.description.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Text(
+                  item.description,
+                  style: const TextStyle(fontSize: 13, color: AppColors.text),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
         actions: [
+          if (_canManage && onDelete != null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                onDelete!(item);
+              },
+              style: TextButton.styleFrom(foregroundColor: AppColors.error),
+              child: const Text('Hapus'),
+            ),
+          if (_canManage && onEdit != null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                onEdit!(item);
+              },
+              child: const Text('Edit'),
+            ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             style: AppTheme.softCompactButton,
             child: const Text('Tutup'),
           ),
@@ -192,29 +239,82 @@ class AgendaCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Wrap(
-                    alignment: WrapAlignment.spaceBetween,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    runSpacing: 2,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text(
-                        item.heading,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.text,
+                      Expanded(
+                        child: Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 2,
+                          children: [
+                            Text(
+                              item.heading,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.text,
+                              ),
+                            ),
+                            Text(
+                              item.time,
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: AppColors.secondaryText,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Text(
-                        item.time,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.secondaryText,
+                      if (_canManage) ...[
+                        const SizedBox(width: 4),
+                        SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: PopupMenuButton<String>(
+                            key: Key('admin_agenda_menu_${item.id}'),
+                            padding: EdgeInsets.zero,
+                            iconSize: 16,
+                            icon: const Icon(
+                              Icons.more_vert,
+                              color: AppColors.text,
+                            ),
+                            tooltip: 'Opsi agenda',
+                            elevation: AppTheme.cardElevation,
+                            shadowColor: AppTheme.shadowColor,
+                            color: AppColors.background,
+                            surfaceTintColor: Colors.transparent,
+                            shape: AppTheme.cardShape(),
+                            onSelected: (value) {
+                              if (value == 'edit') {
+                                onEdit?.call(item);
+                              } else if (value == 'delete') {
+                                onDelete?.call(item);
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              if (onEdit != null)
+                                const PopupMenuItem<String>(
+                                  value: 'edit',
+                                  child: Text('Edit Agenda'),
+                                ),
+                              if (onDelete != null)
+                                PopupMenuItem<String>(
+                                  value: 'delete',
+                                  child: Text(
+                                    'Hapus Agenda',
+                                    style: TextStyle(
+                                      color: Colors.red.shade600,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 6),

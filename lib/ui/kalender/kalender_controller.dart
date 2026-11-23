@@ -34,38 +34,57 @@ class KalenderController extends ChangeNotifier {
     return map;
   }
 
+  bool _disposed = false;
+  int _loadSeq = 0;
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  Future<void> loadAgendas() async {
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  bool _lastIncludeClassTasks = true;
+
+  Future<void> loadAgendas({bool? includeClassTasks}) async {
+    if (_disposed) return;
+    if (includeClassTasks != null) {
+      _lastIncludeClassTasks = includeClassTasks;
+    }
+    final seq = ++_loadSeq;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
-    final (list, err) = await _repo.getAgendas();
+    final (list, err) = await _repo.getAgendas(
+      includeClassTasks: _lastIncludeClassTasks,
+    );
+    if (_disposed || seq != _loadSeq) return;
     _isLoading = false;
     if (err != null) {
       _errorMessage = err;
-      notifyListeners();
+      _safeNotify();
       return;
     }
     _agendas = list ?? [];
-    notifyListeners();
+    _safeNotify();
   }
 
   Future<String?> uploadKalenderAkademik(http.MultipartFile fileCsv) async {
+    if (_disposed) return null;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     final err = await _repo.uploadKalenderAkademik(fileCsv);
+    if (_disposed) return err;
     if (err != null) {
       _isLoading = false;
       _errorMessage = err;
-      notifyListeners();
+      _safeNotify();
       return err;
     }
 
@@ -86,9 +105,10 @@ class KalenderController extends ChangeNotifier {
     required DateTime tanggalMulai,
     DateTime? tanggalSelesai,
   }) async {
+    if (_disposed) return null;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     final payload = CreateAgendaPayload(
       namaKegiatan: namaEvent.trim(),
@@ -98,14 +118,72 @@ class KalenderController extends ChangeNotifier {
     );
 
     final (_, err) = await _repo.createAgenda(payload);
+    if (_disposed) return err;
     if (err != null) {
       _isLoading = false;
       _errorMessage = err;
-      notifyListeners();
+      _safeNotify();
       return err;
     }
 
     await loadAgendas();
     return null;
+  }
+
+  Future<String?> updateAgenda({
+    required int agendaId,
+    required String namaEvent,
+    String keterangan = '',
+    required DateTime tanggalMulai,
+    DateTime? tanggalSelesai,
+  }) async {
+    if (_disposed) return null;
+    _isLoading = true;
+    _errorMessage = null;
+    _safeNotify();
+
+    final payload = CreateAgendaPayload(
+      namaKegiatan: namaEvent.trim(),
+      keterangan: keterangan.trim(),
+      tanggalMulai: formatApiDate(tanggalMulai),
+      tanggalSelesai: formatApiDate(tanggalSelesai ?? tanggalMulai),
+    );
+
+    final (_, err) = await _repo.updateAgenda(agendaId, payload);
+    if (_disposed) return err;
+    if (err != null) {
+      _isLoading = false;
+      _errorMessage = err;
+      _safeNotify();
+      return err;
+    }
+
+    await loadAgendas();
+    return null;
+  }
+
+  Future<String?> deleteAgenda(int agendaId) async {
+    if (_disposed) return null;
+    _isLoading = true;
+    _errorMessage = null;
+    _safeNotify();
+
+    final err = await _repo.deleteAgenda(agendaId);
+    if (_disposed) return err;
+    if (err != null) {
+      _isLoading = false;
+      _errorMessage = err;
+      _safeNotify();
+      return err;
+    }
+
+    await loadAgendas();
+    return null;
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }

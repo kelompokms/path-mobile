@@ -62,11 +62,18 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
     return isAdmin ? 'admin' : 'murid';
   }
 
-  bool get isAdmin =>
-      isAuthenticated &&
-      (_isAdminOverride ?? (_token != null && isJwtAdmin(_token!)));
+  bool get isAdmin {
+    if (!isAuthenticated) return false;
+    if (_isAdminOverride != null) return _isAdminOverride!;
+    if (_roleOverride != null && _roleOverride!.isNotEmpty) {
+      return _roleOverride == 'admin';
+    }
+    return _token != null && isJwtAdmin(_token!);
+  }
 
   bool get isGuru => isAuthenticated && role == 'guru';
+
+  int? get userId => _token != null ? getJwtUserId(_token!) : null;
 
   void setAdmin(bool? value) {
     final prev = isAdmin;
@@ -83,9 +90,7 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
     final prevRole = role;
     final prevAdmin = isAdmin;
     _roleOverride = next;
-    if (next != null) {
-      _isAdminOverride = next == 'admin';
-    }
+    _isAdminOverride = next == null ? null : next == 'admin';
     if ((prevRole != role || prevAdmin != isAdmin) && !_disposed) {
       notifyListeners();
     }
@@ -94,6 +99,19 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
   @visibleForTesting
   Future<void> get pendingPersistence => _storageQueue;
 
+  /// Waits for any queued token persistence/deletion operation to finish.
+  Future<void> flushPersistence() => _storageQueue;
+
+  void _enqueueStorage(Future<void> Function() action) {
+    _storageQueue = _storageQueue.then((_) async {
+      try {
+        await action();
+      } catch (_) {
+        // Keep the persistence queue healthy if a single storage call fails.
+      }
+    });
+  }
+
   /// Loads any persisted session token into memory before routing starts,
   /// clearing it if expired.
   Future<void> restoreToken({DateTime? now}) async {
@@ -101,15 +119,13 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
     if (storage == null || _token != null) return;
 
     final stored = _normalizeToken(await storage.readToken());
-    if (stored == null || _disposed) return;
+    // Do not clobber or clear a token written while storage read was in flight.
+    if (stored == null || _disposed || _token != null) return;
 
     if (isJwtExpired(stored, now: now)) {
-      _storageQueue = _storageQueue.then((_) => storage.deleteToken());
+      _enqueueStorage(() => storage.deleteToken());
       return;
     }
-
-    // Do not clobber a token written while storage read was in flight.
-    if (_token != null) return;
 
     _token = stored;
     notifyListeners();
@@ -124,7 +140,7 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
 
     final storage = _tokenStorage;
     if (storage != null) {
-      _storageQueue = _storageQueue.then((_) async {
+      _enqueueStorage(() async {
         if (normalized == null) {
           await storage.deleteToken();
         } else {
@@ -144,12 +160,13 @@ class HttpClient extends http.BaseClient with ChangeNotifier {
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    final sentAuthToken = _token != null && _token!.isNotEmpty;
+    final sentToken = _token;
+    final sentAuthToken = sentToken != null && sentToken.isNotEmpty;
     if (sentAuthToken) {
-      request.headers['Authorization'] = 'Bearer $_token';
+      request.headers['Authorization'] = 'Bearer $sentToken';
     }
     final response = await _inner.send(request);
-    if (sentAuthToken && response.statusCode == 401) {
+    if (sentAuthToken && response.statusCode == 401 && _token == sentToken) {
       setToken(null);
     }
     return response;

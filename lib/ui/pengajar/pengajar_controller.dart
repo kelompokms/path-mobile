@@ -2,6 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_mobile/data/pengajar/pengajar_model.dart';
 import 'package:path_mobile/data/pengajar/pengajar_repository.dart';
+
+export 'package:path_mobile/data/pengajar/pengajar_repository.dart'
+    show AssessmentCheckAiResult, GeneratedMateriAiResult, KoreksiAiResult;
 import 'package:path_mobile/utils/lampiran_helper.dart';
 
 class PengajarController extends ChangeNotifier {
@@ -11,6 +14,13 @@ class PengajarController extends ChangeNotifier {
 
   String get baseUrl => _repo.baseUrl;
 
+  int? get currentUserId => _repo.currentUserId;
+
+  bool get isAdmin => _repo.isAdmin;
+
+  bool _disposed = false;
+  int _loadSeq = 0;
+
   List<KelasModel> _listKelas = [];
   List<KelasModel> get listKelas => _listKelas;
 
@@ -19,6 +29,10 @@ class PengajarController extends ChangeNotifier {
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
+
+  void _safeNotify() {
+    if (!_disposed) notifyListeners();
+  }
 
   static int parseTingkat(String gradeInput) {
     final cleaned = gradeInput
@@ -33,19 +47,22 @@ class PengajarController extends ChangeNotifier {
   }
 
   Future<void> getListKelas() async {
+    if (_disposed) return;
+    final seq = ++_loadSeq;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     final (list, err) = await _repo.getListKelas();
+    if (_disposed || seq != _loadSeq) return;
     _isLoading = false;
     if (err != null) {
       _errorMessage = err;
-      notifyListeners();
+      _safeNotify();
       return;
     }
     _listKelas = (list ?? []).where((k) => k.guru).toList();
-    notifyListeners();
+    _safeNotify();
   }
 
   Future<(List<AnggotaKelasModel>?, String?)> getListAnggota(String kodeKelas) {
@@ -54,9 +71,10 @@ class PengajarController extends ChangeNotifier {
 
   Future<KelasModel?> getKelas(String kodeKelas) async {
     final (kelas, err) = await _repo.getKelas(kodeKelas);
+    if (_disposed) return err != null ? null : kelas;
     if (err != null) {
       _errorMessage = err;
-      notifyListeners();
+      _safeNotify();
       return null;
     }
     return kelas;
@@ -73,9 +91,10 @@ class PengajarController extends ChangeNotifier {
     required String gradeInput,
     String? tahunAjaran,
   }) async {
+    if (_disposed) return null;
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _safeNotify();
 
     final tingkat = parseTingkat(gradeInput);
     final normalizedTahunAjaran = (tahunAjaran ?? '').trim();
@@ -90,11 +109,12 @@ class PengajarController extends ChangeNotifier {
             : normalizedTahunAjaran,
       ),
     );
+    if (_disposed) return err;
 
     if (err != null) {
       _isLoading = false;
       _errorMessage = err;
-      notifyListeners();
+      _safeNotify();
       return err;
     }
 
@@ -114,17 +134,28 @@ class PengajarController extends ChangeNotifier {
     if (err != null || updated == null) {
       return (null, err ?? 'Gagal memperbarui kelas');
     }
+    if (_disposed) return (updated, null);
 
     final idx = _listKelas.indexWhere((k) => k.kodeKelas == kodeKelas);
     if (idx != -1) {
       _listKelas[idx] = updated;
-      notifyListeners();
+      _safeNotify();
     }
     return (updated, null);
   }
 
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   Future<String?> promoteToGuru(String kodeKelas, int penggunaId) {
     return _repo.promoteToGuru(kodeKelas, penggunaId);
+  }
+
+  Future<String?> demoteToMurid(String kodeKelas, int penggunaId) {
+    return _repo.demoteToMurid(kodeKelas, penggunaId);
   }
 
   List<String> resolveLampiranPaths(List<LampiranItem> items) {
@@ -175,6 +206,7 @@ class PengajarController extends ChangeNotifier {
     required String judul,
     required String deskripsi,
     List<LampiranItem> lampiran = const [],
+    DateTime? tenggatWaktu,
   }) {
     final lampiranPaths = resolveLampiranPaths(lampiran);
     return _repo.createPostingan(
@@ -184,6 +216,7 @@ class PengajarController extends ChangeNotifier {
         deskripsi: deskripsi,
         lampiran: lampiranPaths,
         tipe: PostinganModel.tipeTugas,
+        tenggatWaktu: tenggatWaktu,
       ),
     );
   }
@@ -195,6 +228,9 @@ class PengajarController extends ChangeNotifier {
     required String deskripsi,
     List<LampiranItem>? lampiran,
     required int tipe,
+    bool? menerimaKiriman,
+    DateTime? tenggatWaktu,
+    bool hapusTenggat = false,
   }) {
     final lampiranPaths = lampiran == null
         ? null
@@ -207,8 +243,15 @@ class PengajarController extends ChangeNotifier {
         deskripsi: deskripsi,
         lampiran: lampiranPaths,
         tipe: tipe,
+        menerimaKiriman: menerimaKiriman,
+        tenggatWaktu: tenggatWaktu,
+        hapusTenggat: hapusTenggat,
       ),
     );
+  }
+
+  Future<String?> deletePostingan(String kodeKelas, int postinganId) {
+    return _repo.deletePostingan(kodeKelas, postinganId);
   }
 
   Future<(List<TipePostinganModel>?, String?)> getListTipePostingan() {
@@ -250,5 +293,75 @@ class PengajarController extends ChangeNotifier {
 
   Future<(List<AdminModel>?, String?)> getListAdmin() {
     return _repo.getListAdmin();
+  }
+
+  Future<(GeneratedMateriAiResult?, String?)> generateMateriAi({
+    required String judul,
+    required String deskripsiMateri,
+    String jenjang = '',
+    bool tabel = false,
+    bool diagram = false,
+    bool ilustrasi = false,
+    bool kombinasi = false,
+    bool gunakanModelGratis = false,
+  }) {
+    return _repo.generateMateriAi(
+      judul: judul,
+      deskripsiMateri: deskripsiMateri,
+      jenjang: jenjang,
+      tabel: tabel,
+      diagram: diagram,
+      ilustrasi: ilustrasi,
+      kombinasi: kombinasi,
+      gunakanModelGratis: gunakanModelGratis,
+    );
+  }
+
+  Future<(KoreksiAiResult?, String?)> koreksiTugasAi({
+    required String kodeKelas,
+    required int postinganId,
+    required List<int> penggunaIds,
+    String deskripsiKunci = '',
+    String? keyFileName,
+    Uint8List? keyFileBytes,
+  }) {
+    return _repo.koreksiTugasAi(
+      kodeKelas: kodeKelas,
+      postinganId: postinganId,
+      penggunaIds: penggunaIds,
+      deskripsiKunci: deskripsiKunci,
+      keyFileName: keyFileName,
+      keyFileBytes: keyFileBytes,
+    );
+  }
+
+  Future<(AssessmentCheckAiResult?, String?)> cekKemiripanAi({
+    required String kodeKelas,
+    required int postinganId,
+    List<int> penggunaIds = const [],
+    bool gunakanModelGratis = false,
+  }) {
+    return _repo.cekKemiripanAi(
+      kodeKelas: kodeKelas,
+      postinganId: postinganId,
+      penggunaIds: penggunaIds,
+      gunakanModelGratis: gunakanModelGratis,
+    );
+  }
+
+  Future<(AssessmentCheckAiResult?, String?)> cekIndikasiAi({
+    required String kodeKelas,
+    required int postinganId,
+    List<int> penggunaIds = const [],
+    String jenjang = '',
+    bool gunakanModelGratis = false,
+  }) {
+    return _repo.cekIndikasiAi(
+      kodeKelas: kodeKelas,
+      postinganId: postinganId,
+      penggunaIds: penggunaIds,
+      jenjang: jenjang,
+      gunakanModelGratis: gunakanModelGratis,
+    );
   }
 }

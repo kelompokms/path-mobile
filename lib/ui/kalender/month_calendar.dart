@@ -269,44 +269,49 @@ class MonthCalendar extends StatelessWidget {
         children: [
           if (hasGlobalAgenda && (hasPrevInRow || hasNextInRow))
             Positioned.fill(
-              child: Center(
-                child: SizedBox(
-                  height: circleDiameter,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: ColoredBox(
-                          color: hasPrevInRow
-                              ? _agendaRangeBandColor
-                              : Colors.transparent,
-                          child: const SizedBox.expand(),
-                        ),
-                      ),
-                      Container(
-                        width: circleDiameter,
-                        decoration: BoxDecoration(
-                          color: _agendaRangeBandColor,
-                          borderRadius: BorderRadius.horizontal(
-                            left: hasPrevInRow
-                                ? Radius.zero
-                                : Radius.circular(circleDiameter / 2),
-                            right: hasNextInRow
-                                ? Radius.zero
-                                : Radius.circular(circleDiameter / 2),
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final bandWidth = math.min(circleDiameter, box.maxWidth);
+                  return Center(
+                    child: SizedBox(
+                      height: circleDiameter,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ColoredBox(
+                              color: hasPrevInRow
+                                  ? _agendaRangeBandColor
+                                  : Colors.transparent,
+                              child: const SizedBox.expand(),
+                            ),
                           ),
-                        ),
+                          Container(
+                            width: bandWidth,
+                            decoration: BoxDecoration(
+                              color: _agendaRangeBandColor,
+                              borderRadius: BorderRadius.horizontal(
+                                left: hasPrevInRow
+                                    ? Radius.zero
+                                    : Radius.circular(bandWidth / 2),
+                                right: hasNextInRow
+                                    ? Radius.zero
+                                    : Radius.circular(bandWidth / 2),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: ColoredBox(
+                              color: hasNextInRow
+                                  ? _agendaRangeBandColor
+                                  : Colors.transparent,
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                        ],
                       ),
-                      Expanded(
-                        child: ColoredBox(
-                          color: hasNextInRow
-                              ? _agendaRangeBandColor
-                              : Colors.transparent,
-                          child: const SizedBox.expand(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               ),
             ),
           DecoratedBox(

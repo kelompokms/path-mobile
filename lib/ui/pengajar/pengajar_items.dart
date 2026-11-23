@@ -89,7 +89,7 @@ class TugasPengajar {
   DateTime postedAt;
   DateTime? dueDate;
   final int points = 100;
-  bool acceptSubmissions = true;
+  bool acceptSubmissions;
   List<LampiranItem> lampiran;
   final List<PengumpulanItem> pengumpulan;
 
@@ -99,6 +99,7 @@ class TugasPengajar {
     required this.description,
     required this.postedAt,
     this.dueDate,
+    this.acceptSubmissions = true,
     List<LampiranItem>? lampiran,
     List<PengumpulanItem>? pengumpulan,
   }) : lampiran = lampiran ?? [],
@@ -110,9 +111,39 @@ class TugasPengajar {
       title: model.judul,
       description: model.deskripsi,
       postedAt: model.dibuat,
-      dueDate: model.dibuat.add(const Duration(days: 7)),
+      dueDate: model.tenggatWaktu,
+      acceptSubmissions: model.menerimaKiriman,
       lampiran: List<LampiranItem>.from(model.lampiranItems),
     );
+  }
+}
+
+class PengumpulanStatus {
+  static const diserahkan = 'Diserahkan';
+  static const terlambat = 'Terlambat';
+  static const belumMengumpulkan = 'Belum Mengumpulkan';
+  static const tidakMengumpulkan = 'Tidak Mengumpulkan';
+  static const sudahDinilai = 'Sudah Dinilai';
+
+  static const all = [
+    diserahkan,
+    terlambat,
+    belumMengumpulkan,
+    tidakMengumpulkan,
+    sudahDinilai,
+  ];
+
+  static const filters = ['Semua', ...all];
+
+  static String normalize(String raw) {
+    switch (raw) {
+      case 'Ditugaskan':
+        return belumMengumpulkan;
+      case 'Dinilai':
+        return sudahDinilai;
+      default:
+        return raw;
+    }
   }
 }
 
@@ -120,10 +151,12 @@ class PengumpulanItem {
   final int? penggunaId;
   final String studentName;
   final String email;
+  final String profilePicture;
   final String? fileName;
   final List<LampiranItem> lampiran;
   final DateTime? submittedAt;
   final bool isSubmitted;
+  final bool isLate;
   String status;
   int? score;
 
@@ -131,14 +164,22 @@ class PengumpulanItem {
     this.penggunaId,
     required this.studentName,
     this.email = '',
+    this.profilePicture = '',
     this.fileName,
     List<LampiranItem>? lampiran,
     this.submittedAt,
     bool? isSubmitted,
-    required this.status,
+    bool? isLate,
+    required String status,
     this.score,
   }) : lampiran = lampiran ?? const [],
-       isSubmitted = isSubmitted ?? (status != 'Ditugaskan');
+       status = PengumpulanStatus.normalize(status),
+       isLate = isLate ?? (status == PengumpulanStatus.terlambat),
+       isSubmitted =
+           isSubmitted ??
+           (status != 'Ditugaskan' &&
+               status != PengumpulanStatus.belumMengumpulkan &&
+               status != PengumpulanStatus.tidakMengumpulkan);
 
   String get keyId =>
       penggunaId != null && penggunaId! > 0 ? 'u_$penggunaId' : studentName;

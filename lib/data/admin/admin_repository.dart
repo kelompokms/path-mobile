@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:path_mobile/data/admin/admin_model.dart';
+import 'package:path_mobile/utils/api_error_helper.dart';
 import 'package:path_mobile/utils/http_client.dart';
 
 /// HTTP repository for school admin endpoints (`/admin/pengguna`, `/admin/kelas`).
@@ -13,15 +14,8 @@ class AdminRepository {
 
   String get baseUrl => _client.baseUrl;
 
-  String? _extractMessage(String body, String fallback) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map<String, dynamic>) {
-        return decoded['message'] as String? ?? fallback;
-      }
-    } catch (_) {}
-    return fallback;
-  }
+  String _extractMessage(String body, String fallback) =>
+      extractApiErrorMessage(body, fallback);
 
   Future<(AdminGuruMuridData?, String?)> getGuruDanMurid() async {
     try {
@@ -171,9 +165,11 @@ class AdminRepository {
 
   Future<String?> createKelas({
     required String nama,
+    String mapel = '',
     String deskripsi = '',
     required int tingkat,
     required String tahunAjaran,
+    int? pengampuId,
   }) async {
     try {
       final response = await _client
@@ -182,9 +178,11 @@ class AdminRepository {
             headers: _client.JSON,
             body: jsonEncode({
               'nama': nama,
+              if (mapel.isNotEmpty) 'mapel': mapel,
               'deskripsi': deskripsi,
               'tingkat': tingkat,
               'tahun_ajaran': tahunAjaran,
+              'pengampu_id': ?pengampuId,
             }),
           )
           .timeout(const Duration(seconds: 10));
@@ -253,6 +251,67 @@ class AdminRepository {
       return 'Request timed out. Please try again.';
     } catch (e) {
       return 'Network error: $e';
+    }
+  }
+
+  Future<(Map<int, int>?, String?)> getAiUsage({int? bulan, int? tahun}) async {
+    try {
+      final queryParams = <String, String>{};
+      if (bulan != null) queryParams['bulan'] = bulan.toString();
+      if (tahun != null) queryParams['tahun'] = tahun.toString();
+      final baseUri = _client.uri('/admin/ai/usage');
+      final uri = queryParams.isEmpty
+          ? baseUri
+          : baseUri.replace(queryParameters: queryParams);
+
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 404) {
+        return (const <int, int>{}, null);
+      }
+      if (response.statusCode != 200) {
+        return (
+          null,
+          _extractMessage(response.body, 'Gagal memuat ringkasan AI'),
+        );
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return (const <int, int>{}, null);
+      }
+      final rawUsers = decoded['users'] as List<dynamic>? ?? const <dynamic>[];
+      final result = <int, int>{};
+      for (final item in rawUsers.whereType<Map<String, dynamic>>()) {
+        final uid = (item['pengguna_id'] as num?)?.toInt() ?? 0;
+        final total = (item['total_pakai'] as num?)?.toInt() ?? 0;
+        if (uid > 0) {
+          result[uid] = total;
+        }
+      }
+      return (result, null);
+    } on TimeoutException {
+      return (null, 'Request timed out. Please try again.');
+    } catch (e) {
+      return (null, 'Network error: $e');
+    }
+  }
+
+  Future<(AdminAiOpsUsageModel?, String?)> getAiOpsUsage() async {
+    try {
+      final response = await _client
+          .get(_client.uri('/ai/ops/usage'))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) {
+        return (null, null);
+      }
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return (null, null);
+      }
+      return (AdminAiOpsUsageModel.fromJson(decoded), null);
+    } catch (_) {
+      return (null, null);
     }
   }
 }

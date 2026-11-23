@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:path_mobile/data/login/login_model.dart';
 import 'package:path_mobile/data/login/oauth_state_persistence.dart';
+import 'package:path_mobile/utils/api_error_helper.dart';
 import 'package:path_mobile/utils/http_client.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -15,12 +17,30 @@ class LoginRepository {
 
   final HttpClient _client;
   final OAuthUrlLauncher _launchUrl;
+  final String? _redirectUriOverride;
   String? _pendingOAuthState;
 
-  LoginRepository(this._client, {OAuthUrlLauncher? urlLauncher})
-    : _launchUrl = urlLauncher ?? _defaultLaunchUrl;
+  LoginRepository(
+    this._client, {
+    OAuthUrlLauncher? urlLauncher,
+    String? redirectUri,
+  }) : _launchUrl = urlLauncher ?? _defaultLaunchUrl,
+       _redirectUriOverride = redirectUri;
+
+  String get effectiveOAuthRedirectUri {
+    if (_redirectUriOverride != null && _redirectUriOverride.isNotEmpty) {
+      return _redirectUriOverride;
+    }
+    if (kIsWeb) {
+      return '${Uri.base.origin}/oauth/callback';
+    }
+    return oauthRedirectUri;
+  }
 
   static Future<bool> _defaultLaunchUrl(Uri uri) {
+    if (kIsWeb) {
+      return launchUrl(uri, webOnlyWindowName: '_self');
+    }
     return launchUrl(uri, mode: LaunchMode.inAppBrowserView);
   }
 
@@ -39,12 +59,13 @@ class LoginRepository {
     return diff == 0;
   }
 
-  /// Builds the backend OAuth initiation URL with the mobile deep-link target.
+  /// Builds the backend OAuth initiation URL with the platform-appropriate
+  /// redirect target (web origin callback on Web, deep-link on mobile).
   Uri buildOAuthUri(OAuthProvider provider, {String? clientState}) {
     final endpoint = _client.uri('/auth/oauth/${provider.id}');
     final params = <String, String>{
       ...endpoint.queryParameters,
-      'redirect_uri': oauthRedirectUri,
+      'redirect_uri': effectiveOAuthRedirectUri,
     };
     if (clientState != null && clientState.isNotEmpty) {
       params['client_state'] = clientState;
@@ -120,6 +141,7 @@ class LoginRepository {
       'access_denied' => 'Login OAuth dibatalkan.',
       'email_unverified' =>
         'Email akun OAuth belum terverifikasi atau tidak tersedia.',
+      'account_inactive' => 'Akun Anda tidak aktif. Silakan hubungi admin.',
       'token_exchange_failed' => 'Gagal memverifikasi kode OAuth ke provider.',
       'userinfo_failed' => 'Gagal mengambil profil akun dari provider OAuth.',
       'account_error' => 'Gagal memproses akun OAuth di server.',
@@ -141,12 +163,11 @@ class LoginRepository {
           )
           .timeout(const Duration(seconds: 10));
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-
       if (response.statusCode != 200) {
-        return data['message'] as String? ?? 'Login failed';
+        return extractApiErrorMessage(response.body, 'Login failed');
       }
 
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
       final authRes = AuthSuccessResponse.fromJson(data);
       if (authRes.token.isEmpty) {
         return 'Token not found';

@@ -8,28 +8,34 @@ export 'package:path_mobile/utils/lampiran_helper.dart'
 class KelasModel {
   final int id;
   final String nama;
+  final String mapel;
   final String deskripsi;
   final int tingkat;
   final String tahunAjaran;
   final String kodeKelas;
   final int pengampu;
+  final String namaPengampu;
   final String dibuat;
   final bool guru;
 
   KelasModel({
     required this.id,
     required this.nama,
+    this.mapel = '',
     this.deskripsi = '',
     required this.tingkat,
     required this.tahunAjaran,
     required this.kodeKelas,
     int? pengampu,
     int? pembuat,
+    this.namaPengampu = '',
     required this.dibuat,
     this.guru = false,
   }) : pengampu = pengampu ?? pembuat ?? 0;
 
   int get pembuat => pengampu;
+
+  String get displayTitle => mapel.trim().isNotEmpty ? mapel.trim() : nama;
 
   String get gradeLabel {
     switch (tingkat) {
@@ -45,11 +51,19 @@ class KelasModel {
   }
 
   ClassItem toClassItem({String? teacher, int? coverIndex}) {
+    final trimmedMapel = mapel.trim();
+    final trimmedNama = nama.trim();
+    final hasMapel = trimmedMapel.isNotEmpty;
+    final resolvedTeacher = (teacher != null && teacher.trim().isNotEmpty)
+        ? teacher
+        : (namaPengampu.trim().isNotEmpty ? namaPengampu.trim() : null);
     return ClassItem(
-      title: nama,
+      title: hasMapel ? trimmedMapel : trimmedNama,
       description: deskripsi,
-      grade: gradeLabel,
-      teacher: teacher,
+      grade: hasMapel
+          ? (trimmedNama.isNotEmpty ? trimmedNama : gradeLabel)
+          : gradeLabel,
+      teacher: resolvedTeacher,
       coverIndex: coverIndex ?? id,
       code: kodeKelas,
       isGuru: guru,
@@ -60,12 +74,14 @@ class KelasModel {
     return KelasModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
       nama: json['nama'] as String? ?? '',
+      mapel: json['mapel'] as String? ?? '',
       deskripsi: json['deskripsi'] as String? ?? '',
       tingkat: (json['tingkat'] as num?)?.toInt() ?? 10,
       tahunAjaran: json['tahun_ajaran'] as String? ?? '',
       kodeKelas: json['kode_kelas'] as String? ?? '',
       pengampu:
           (json['pengampu'] as num? ?? json['pembuat'] as num?)?.toInt() ?? 0,
+      namaPengampu: json['nama_pengampu'] as String? ?? '',
       dibuat: json['dibuat']?.toString() ?? '',
       guru: json['guru'] as bool? ?? false,
     );
@@ -74,11 +90,13 @@ class KelasModel {
   Map<String, dynamic> toJson() => {
     'id': id,
     'nama': nama,
+    'mapel': mapel,
     'deskripsi': deskripsi,
     'tingkat': tingkat,
     'tahun_ajaran': tahunAjaran,
     'kode_kelas': kodeKelas,
     'pengampu': pengampu,
+    if (namaPengampu.isNotEmpty) 'nama_pengampu': namaPengampu,
     'dibuat': dibuat,
     'guru': guru,
   };
@@ -90,6 +108,7 @@ class AnggotaKelasModel {
   final String email;
   final String profilePicture;
   final bool guru;
+  final bool utama;
   final String role;
   final DateTime? dibuat;
 
@@ -99,6 +118,7 @@ class AnggotaKelasModel {
     required this.email,
     this.profilePicture = '',
     required this.guru,
+    this.utama = false,
     String? role,
     this.dibuat,
   }) : role = role ?? (guru ? 'guru' : 'murid');
@@ -117,6 +137,7 @@ class AnggotaKelasModel {
       email: json['email'] as String? ?? '',
       profilePicture: json['profile_picture']?.toString() ?? '',
       guru: isGuru,
+      utama: isGuru && (json['utama'] as bool? ?? false),
       role: rawRole ?? (isGuru ? 'guru' : 'murid'),
       dibuat: parseGmt7DateTime(rawDibuat),
     );
@@ -128,6 +149,7 @@ class AnggotaKelasModel {
     'email': email,
     'profile_picture': profilePicture,
     'guru': guru,
+    'utama': utama,
     'role': role,
     if (dibuat != null) 'dibuat': dibuat!.toIso8601String(),
   };
@@ -181,6 +203,8 @@ class PostinganModel {
   final int kelasId;
   final int tipeId;
   final DateTime dibuat;
+  final bool menerimaKiriman;
+  final DateTime? tenggatWaktu;
 
   PostinganModel({
     required this.id,
@@ -191,6 +215,8 @@ class PostinganModel {
     required this.kelasId,
     required this.tipeId,
     required this.dibuat,
+    this.menerimaKiriman = true,
+    this.tenggatWaktu,
   });
 
   List<LampiranItem> get lampiranItems => parseLampiranItems(lampiran);
@@ -203,6 +229,7 @@ class PostinganModel {
 
     final rawDibuat = json['dibuat']?.toString();
     final parsedDibuat = parseGmt7DateTime(rawDibuat) ?? nowGmt7();
+    final parsedTenggat = parseGmt7DateTime(json['tenggat_waktu']?.toString());
 
     return PostinganModel(
       id: (json['id'] as num?)?.toInt() ?? 0,
@@ -213,6 +240,8 @@ class PostinganModel {
       kelasId: (json['kelas_id'] as num?)?.toInt() ?? 0,
       tipeId: (json['tipe_id'] as num?)?.toInt() ?? 1,
       dibuat: parsedDibuat,
+      menerimaKiriman: json['menerima_kiriman'] as bool? ?? true,
+      tenggatWaktu: parsedTenggat,
     );
   }
 
@@ -225,6 +254,8 @@ class PostinganModel {
     'kelas_id': kelasId,
     'tipe_id': tipeId,
     'dibuat': dibuat.toIso8601String(),
+    'menerima_kiriman': menerimaKiriman,
+    if (tenggatWaktu != null) 'tenggat_waktu': formatIsoGmt7(tenggatWaktu!),
   };
 }
 
@@ -233,12 +264,14 @@ class CreatePostinganPayload {
   final String deskripsi;
   final List<String> lampiran;
   final int tipe;
+  final DateTime? tenggatWaktu;
 
   const CreatePostinganPayload({
     required this.judul,
     this.deskripsi = '',
     this.lampiran = const [],
     required this.tipe,
+    this.tenggatWaktu,
   });
 
   Map<String, dynamic> toJson() => {
@@ -246,6 +279,7 @@ class CreatePostinganPayload {
     'deskripsi': deskripsi,
     if (lampiran.isNotEmpty) 'lampiran': lampiran,
     'tipe': tipe,
+    if (tenggatWaktu != null) 'tenggat_waktu': formatIsoGmt7(tenggatWaktu!),
   };
 }
 
@@ -254,12 +288,18 @@ class EditPostinganPayload {
   final String deskripsi;
   final List<String>? lampiran;
   final int tipe;
+  final bool? menerimaKiriman;
+  final DateTime? tenggatWaktu;
+  final bool hapusTenggat;
 
   const EditPostinganPayload({
     required this.judul,
     this.deskripsi = '',
     this.lampiran,
     required this.tipe,
+    this.menerimaKiriman,
+    this.tenggatWaktu,
+    this.hapusTenggat = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -267,6 +307,10 @@ class EditPostinganPayload {
     'deskripsi': deskripsi,
     if (lampiran != null) 'lampiran': lampiran,
     'tipe': tipe,
+    if (menerimaKiriman != null) 'menerima_kiriman': menerimaKiriman,
+    if (tenggatWaktu != null && !hapusTenggat)
+      'tenggat_waktu': formatIsoGmt7(tenggatWaktu!),
+    if (hapusTenggat) 'hapus_tenggat': true,
   };
 }
 

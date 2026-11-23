@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_mobile/data/login/login_repository.dart';
@@ -46,14 +47,22 @@ class _OAuthCallbackScreenState extends State<OAuthCallbackScreen> {
   }
 
   void _processCallback() {
-    final closeFn = widget.closeBrowser ?? closeInAppWebView;
-    unawaited(
-      Future<void>.sync(closeFn).catchError((_) {}),
-    );
+    if (!kIsWeb) {
+      final closeFn = widget.closeBrowser ?? closeInAppWebView;
+      unawaited(
+        Future<void>.sync(closeFn).catchError((_) {}),
+      );
+    }
 
-    final err = widget.loginRepository.completeOAuthCallback(
-      widget.callbackUri,
-    );
+    final effectiveUri =
+        (kIsWeb &&
+            widget.callbackUri.fragment.isEmpty &&
+            widget.callbackUri.queryParameters.isEmpty &&
+            Uri.base.path == '/oauth/callback')
+        ? Uri.base
+        : widget.callbackUri;
+
+    final err = widget.loginRepository.completeOAuthCallback(effectiveUri);
     if (err == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:path_mobile/data/login/login_model.dart';
 import 'package:path_mobile/data/register/register_model.dart';
+import 'package:path_mobile/utils/api_error_helper.dart';
 import 'package:path_mobile/utils/http_client.dart';
 
 class RegisterRepository {
@@ -26,13 +27,14 @@ class RegisterRepository {
           )
           .timeout(const Duration(seconds: 10));
 
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-
       if (response.statusCode != 200 && response.statusCode != 201) {
-        return data['message'] as String? ??
-            'Failed to register. Please try again.';
+        return extractApiErrorMessage(
+          response.body,
+          'Failed to register. Please try again.',
+        );
       }
 
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
       final authRes = AuthSuccessResponse.fromJson(data);
       if (authRes.token.isEmpty) {
         return 'Failed to register. Please try again.';

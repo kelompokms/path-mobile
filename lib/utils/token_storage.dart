@@ -112,3 +112,13 @@ bool isJwtAdmin(String token) {
   }
   return payload['admin'] == true;
 }
+
+/// Returns the numeric JWT `user_id` claim when present.
+int? getJwtUserId(String token) {
+  final payload = _decodeJwtPayload(token);
+  if (payload == null) return null;
+  final raw = payload['user_id'] ?? payload['id'];
+  if (raw is num) return raw.toInt();
+  if (raw is String) return int.tryParse(raw.trim());
+  return null;
+}

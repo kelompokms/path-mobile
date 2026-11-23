@@ -1,15 +1,18 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:path_mobile/data/pengajar/pengajar_model.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
 import 'package:path_mobile/ui/core/class_card.dart';
 import 'package:path_mobile/ui/core/page_frame.dart';
 import 'package:path_mobile/ui/core/post_card.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
+import 'package:path_mobile/ui/core/user_avatar.dart';
 import 'package:path_mobile/ui/pengajar/koreksi_ai_screen.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_controller.dart';
 import 'package:path_mobile/ui/pengajar/pengajar_items.dart';
+import 'package:path_mobile/utils/date_time_helper.dart';
 
 /// Unified teacher screen combining assignment submission monitoring
 /// (`GET /kelas/:kode/postingan/:id/pengumpulan` + class members) with
@@ -39,17 +42,21 @@ class PengumpulanPenilaianScreen extends StatefulWidget {
 
 class _PengumpulanPenilaianScreenState
     extends State<PengumpulanPenilaianScreen> {
-  static const _statuses = ['Diserahkan', 'Ditugaskan', 'Dinilai'];
-  static const _filters = ['Semua', 'Diserahkan', 'Ditugaskan', 'Dinilai'];
+  static const _statuses = PengumpulanStatus.all;
+  static const _filters = PengumpulanStatus.filters;
 
   late final TugasPengajar _tugas;
   String _filter = 'Semua';
   bool _isLoading = false;
   bool _isSaving = false;
+  bool _isTogglingAccept = false;
+  bool _checkingAi = false;
+  bool _gunakanModelGratis = false;
   String? _error;
   List<AnggotaKelasModel> _studentMembers = const [];
   List<PengumpulanItem> _items = const [];
   final Map<String, TextEditingController> _scoreControllers = {};
+  final Set<String> _expandedSubmissions = {};
 
   int? get _postinganId => widget.postinganId ?? widget.tugas?.id;
 
@@ -113,6 +120,9 @@ class _PengumpulanPenilaianScreenState
   ) {
     final merged = <PengumpulanItem>[];
     final seenUserIds = <int>{};
+    final dueDate = _tugas.dueDate;
+    final now = nowGmt7();
+    final isPastDue = dueDate != null && now.isAfter(dueDate);
 
     for (final sub in submissions) {
       if (sub.penggunaId > 0) {
@@ -121,15 +131,24 @@ class _PengumpulanPenilaianScreenState
       final displayName = sub.nama.trim().isNotEmpty
           ? sub.nama.trim()
           : 'Pengguna #${sub.penggunaId}';
+      final isLate =
+          dueDate != null && sub.dibuat != null && sub.dibuat!.isAfter(dueDate);
+      final status = sub.nilai != null
+          ? PengumpulanStatus.sudahDinilai
+          : (isLate
+                ? PengumpulanStatus.terlambat
+                : PengumpulanStatus.diserahkan);
       merged.add(
         PengumpulanItem(
           penggunaId: sub.penggunaId,
           studentName: displayName,
           email: sub.email,
+          profilePicture: sub.profilePicture,
           lampiran: sub.lampiranItems,
           submittedAt: sub.dibuat,
           isSubmitted: true,
-          status: sub.nilai != null ? 'Dinilai' : 'Diserahkan',
+          isLate: isLate,
+          status: status,
           score: sub.nilai,
         ),
       );
@@ -148,8 +167,11 @@ class _PengumpulanPenilaianScreenState
           penggunaId: member.penggunaId,
           studentName: displayName,
           email: member.email,
+          profilePicture: member.profilePicture,
           isSubmitted: false,
-          status: 'Ditugaskan',
+          status: isPastDue
+              ? PengumpulanStatus.tidakMengumpulkan
+              : PengumpulanStatus.belumMengumpulkan,
         ),
       );
     }
@@ -176,7 +198,8 @@ class _PengumpulanPenilaianScreenState
 
     final (submissions, subErr) =
         results[0] as (List<PengumpulanMuridModel>?, String?);
-    final (members, _) = results[1] as (List<AnggotaKelasModel>?, String?);
+    final (members, membersErr) =
+        results[1] as (List<AnggotaKelasModel>?, String?);
 
     setState(() {
       _isLoading = false;
@@ -193,19 +216,21 @@ class _PengumpulanPenilaianScreenState
       }
     });
 
-    if (subErr != null) {
+    final toastErr = subErr ?? membersErr;
+    if (toastErr != null) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(subErr)));
+        ..showSnackBar(SnackBar(content: Text(toastErr)));
     }
   }
 
-  Future<void> _saveScores({Map<String, int>? overrideScores}) async {
+  Future<bool> _saveScores({Map<String, int>? overrideScores}) async {
     FocusScope.of(context).unfocus();
-    if (_isSaving) return;
+    if (_isSaving) return false;
 
     final payload = <int, int?>{};
     final localUpdates = <PengumpulanItem, int?>{};
+    var hasInvalidInput = false;
 
     for (final p in _items) {
       final override = overrideScores?[p.keyId];
@@ -224,12 +249,33 @@ class _PengumpulanPenilaianScreenState
       }
 
       final parsed = int.tryParse(rawText);
-      if (parsed == null) continue;
+      if (parsed == null) {
+        hasInvalidInput = true;
+        continue;
+      }
       final clamped = parsed.clamp(0, _tugas.points);
       localUpdates[p] = clamped;
       if (p.penggunaId != null && p.penggunaId! > 0) {
         payload[p.penggunaId!] = clamped;
       }
+    }
+
+    if (hasInvalidInput && payload.isEmpty && localUpdates.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Masukkan nilai berupa angka bulat')),
+        );
+      return false;
+    }
+
+    if (payload.isEmpty && localUpdates.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Belum ada nilai yang diisi')),
+        );
+      return false;
     }
 
     if (_canFetch && payload.isNotEmpty) {
@@ -239,14 +285,14 @@ class _PengumpulanPenilaianScreenState
         _postinganId!,
         payload,
       );
-      if (!mounted) return;
+      if (!mounted) return false;
 
       if (err != null) {
         setState(() => _isSaving = false);
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text(err)));
-        return;
+        return false;
       }
 
       setState(() {
@@ -265,17 +311,27 @@ class _PengumpulanPenilaianScreenState
         ..showSnackBar(
           const SnackBar(content: Text('Nilai berhasil disimpan')),
         );
-      return;
+      return true;
     }
 
     setState(() {
+      final isPastDue =
+          _tugas.dueDate != null && nowGmt7().isAfter(_tugas.dueDate!);
       for (final entry in localUpdates.entries) {
         final p = entry.key;
         final val = entry.value;
         p.score = val;
-        p.status = val != null
-            ? 'Dinilai'
-            : (p.isSubmitted ? 'Diserahkan' : 'Ditugaskan');
+        if (val != null) {
+          p.status = PengumpulanStatus.sudahDinilai;
+        } else if (p.isSubmitted) {
+          p.status = p.isLate
+              ? PengumpulanStatus.terlambat
+              : PengumpulanStatus.diserahkan;
+        } else {
+          p.status = isPastDue
+              ? PengumpulanStatus.tidakMengumpulkan
+              : PengumpulanStatus.belumMengumpulkan;
+        }
         _controllerFor(p).text = val?.toString() ?? '';
       }
     });
@@ -283,6 +339,51 @@ class _PengumpulanPenilaianScreenState
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(const SnackBar(content: Text('Nilai berhasil disimpan')));
+    return true;
+  }
+
+  Future<void> _toggleAcceptSubmissions(bool nextValue) async {
+    if (_isTogglingAccept) return;
+    final prev = _tugas.acceptSubmissions;
+    setState(() {
+      _tugas.acceptSubmissions = nextValue;
+      _isTogglingAccept = true;
+    });
+
+    if (!_canFetch) {
+      setState(() => _isTogglingAccept = false);
+      return;
+    }
+
+    final (updated, err) = await widget.controller!.editPostingan(
+      widget.classData.code,
+      _postinganId!,
+      judul: _tugas.title,
+      deskripsi: _tugas.description,
+      tipe: PostinganModel.tipeTugas,
+      menerimaKiriman: nextValue,
+    );
+    if (!mounted) return;
+    setState(() {
+      _isTogglingAccept = false;
+      if (err != null) {
+        _tugas.acceptSubmissions = prev;
+      } else if (updated != null) {
+        _tugas.acceptSubmissions = updated.menerimaKiriman;
+      }
+    });
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            err ??
+                (nextValue
+                    ? 'Pengumpulan tugas dibuka'
+                    : 'Pengumpulan tugas ditutup'),
+          ),
+        ),
+      );
   }
 
   String _initialFor(PengumpulanItem item) {
@@ -520,58 +621,260 @@ class _PengumpulanPenilaianScreenState
     );
   }
 
+  Future<void> _runAiAssessmentCheck({required bool isSimilarity}) async {
+    if (!_canFetch || _checkingAi) return;
+    final submittedIds = [
+      for (final p in _items)
+        if (p.isSubmitted && p.penggunaId != null && p.penggunaId! > 0)
+          p.penggunaId!,
+    ];
+    final minRequired = isSimilarity ? 2 : 1;
+    if (submittedIds.length < minRequired) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              isSimilarity
+                  ? 'Minimal 2 siswa yang mengumpulkan tugas untuk cek kemiripan'
+                  : 'Belum ada kiriman siswa untuk diperiksa indikasi AI',
+            ),
+          ),
+        );
+      return;
+    }
+
+    final title = isSimilarity ? 'Cek Kemiripan Jawaban' : 'Cek Indikasi AI';
+    setState(() => _checkingAi = true);
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppColors.card,
+        surfaceTintColor: Colors.transparent,
+        shape: AppTheme.cardShape(),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                isSimilarity
+                    ? 'AI sedang memeriksa kemiripan jawaban siswa...'
+                    : 'AI sedang memeriksa indikasi penggunaan AI...',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.secondaryText,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    final (res, err) = isSimilarity
+        ? await widget.controller!.cekKemiripanAi(
+            kodeKelas: widget.classData.code,
+            postinganId: _postinganId!,
+            penggunaIds: submittedIds,
+            gunakanModelGratis: _gunakanModelGratis,
+          )
+        : await widget.controller!.cekIndikasiAi(
+            kodeKelas: widget.classData.code,
+            postinganId: _postinganId!,
+            penggunaIds: submittedIds,
+            jenjang: widget.classData.grade,
+            gunakanModelGratis: _gunakanModelGratis,
+          );
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop();
+    setState(() => _checkingAi = false);
+
+    if (err != null || res == null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text(err ?? 'Gagal memproses analisis AI')),
+        );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.card,
+        surfaceTintColor: Colors.transparent,
+        shape: AppTheme.cardShape(),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (res.rekapFile != null) ...[
+                FileCard.fromItem(res.rekapFile!, baseUrl: _effectiveBaseUrl),
+                const SizedBox(height: 12),
+              ],
+              if (res.analisa.isNotEmpty) ...[
+                const Text(
+                  'Ringkasan Analisa',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final line in res.analisa)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• $line',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.text,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+              ],
+              if (res.ringkasan.isNotEmpty) ...[
+                const Text(
+                  'Detail Pemeriksaan',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final line in res.ringkasan)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• $line',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.secondaryText,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+              ],
+              if (res.analisa.isEmpty &&
+                  res.ringkasan.isEmpty &&
+                  res.rekapFile == null)
+                const Text(
+                  'Pemeriksaan selesai tanpa catatan tambahan.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.secondaryText,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCounterRow(List<PengumpulanItem> all, List<String> statuses) {
+    return IntrinsicHeight(
+      child: Row(
+        children: [
+          for (var i = 0; i < statuses.length; i++) ...[
+            if (i > 0)
+              const VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: AppColors.secondaryText,
+              ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Column(
+                  children: [
+                    Text(
+                      '${all.where((p) => p.status == statuses[i]).length}',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w500,
+                        color: _statusAccentColor(statuses[i]),
+                      ),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        statuses[i],
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.text,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _statusAccentColor(String status) {
+    switch (status) {
+      case PengumpulanStatus.terlambat:
+        return const Color(0xFFB45309);
+      case PengumpulanStatus.tidakMengumpulkan:
+        return AppColors.error;
+      default:
+        return AppColors.text;
+    }
+  }
+
   Widget _buildControls(List<PengumpulanItem> all) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IntrinsicHeight(
-          child: Row(
-            children: [
-              for (var i = 0; i < _statuses.length; i++) ...[
-                if (i > 0)
-                  const VerticalDivider(
-                    width: 1,
-                    thickness: 1,
-                    color: AppColors.secondaryText,
-                  ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Column(
-                      children: [
-                        Text(
-                          '${all.where((p) => p.status == _statuses[i]).length}',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.text,
-                          ),
-                        ),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            _statuses[i],
-                            maxLines: 1,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.text,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
+        _buildCounterRow(all, const [
+          PengumpulanStatus.diserahkan,
+          PengumpulanStatus.terlambat,
+          PengumpulanStatus.sudahDinilai,
+        ]),
+        const Divider(height: 16, thickness: 1, color: Colors.black12),
+        _buildCounterRow(all, const [
+          PengumpulanStatus.belumMengumpulkan,
+          PengumpulanStatus.tidakMengumpulkan,
+        ]),
         const SizedBox(height: 12),
         Row(
           children: [
             Switch(
+              key: const Key('menerima_kiriman_switch'),
               value: _tugas.acceptSubmissions,
-              onChanged: (v) => setState(() => _tugas.acceptSubmissions = v),
+              onChanged: _isTogglingAccept ? null : _toggleAcceptSubmissions,
             ),
             const SizedBox(width: 8),
             const Flexible(
@@ -583,57 +886,103 @@ class _PengumpulanPenilaianScreenState
           ],
         ),
         const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton(
-            onPressed: () {
-              _tugas.pengumpulan
-                ..clear()
-                ..addAll(_items);
-              openPage(
-                context,
-                breadcrumb: [
-                  'Pengajar',
-                  widget.classData.title,
-                  _tugasTitle,
-                  'Koreksi AI',
-                ],
-                page: KoreksiAiScreen(
-                  classData: widget.classData,
-                  tugas: _tugas,
-                  onAccepted: (scores) {
-                    for (final p in _items) {
-                      final s = scores[p.keyId];
-                      if (s != null) {
-                        _controllerFor(p).text = '$s';
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            FilledButton(
+              onPressed: () {
+                _tugas.pengumpulan
+                  ..clear()
+                  ..addAll(_items);
+                openPage(
+                  context,
+                  breadcrumb: [
+                    'Pengajar',
+                    widget.classData.title,
+                    _tugasTitle,
+                    'Koreksi AI',
+                  ],
+                  page: KoreksiAiScreen(
+                    classData: widget.classData,
+                    tugas: _tugas,
+                    controller: widget.controller,
+                    onAccepted: (scores) async {
+                      for (final p in _items) {
+                        final s = scores[p.keyId];
+                        if (s != null) {
+                          _controllerFor(p).text = '$s';
+                        }
                       }
-                    }
-                    _saveScores(overrideScores: scores);
-                  },
-                ),
-              );
-            },
-            style: FilledButton.styleFrom(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-              ),
-              padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    'Koreksi menggunakan AI',
-                    style: TextStyle(fontSize: 12),
+                      return _saveScores(overrideScores: scores);
+                    },
                   ),
+                );
+              },
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.cardRadius),
                 ),
-                SizedBox(width: 6),
-                Icon(Icons.chevron_right, size: 18),
-              ],
+                padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      'Koreksi menggunakan AI',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Icon(Icons.chevron_right, size: 18),
+                ],
+              ),
             ),
-          ),
+            if (_canFetch) ...[
+              ElevatedButton.icon(
+                key: const Key('cek_kemiripan_ai_button'),
+                style: AppTheme.softCompactButton,
+                onPressed: _checkingAi || _submittedCount < 2
+                    ? null
+                    : () => _runAiAssessmentCheck(isSimilarity: true),
+                icon: const Icon(Icons.compare_arrows, size: 16),
+                label: const Text('Cek Kemiripan'),
+              ),
+              ElevatedButton.icon(
+                key: const Key('cek_indikasi_ai_button'),
+                style: AppTheme.softCompactButton,
+                onPressed: _checkingAi || _submittedCount < 1
+                    ? null
+                    : () => _runAiAssessmentCheck(isSimilarity: false),
+                icon: const Icon(Icons.psychology_outlined, size: 16),
+                label: const Text('Cek Indikasi AI'),
+              ),
+            ],
+          ],
         ),
+        if (_canFetch) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Switch(
+                key: const Key('penilaian_ai_free_model_switch'),
+                value: _gunakanModelGratis,
+                onChanged: _checkingAi
+                    ? null
+                    : (v) => setState(() => _gunakanModelGratis = v),
+              ),
+              const SizedBox(width: 8),
+              const Flexible(
+                child: Text(
+                  'Gunakan model AI gratis',
+                  style: TextStyle(fontSize: 11, color: AppColors.text),
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
@@ -643,16 +992,23 @@ class _PengumpulanPenilaianScreenState
             spacing: 12,
             runSpacing: 8,
             children: [
-              DropdownButton<String>(
-                key: const Key('pengumpulan_status_filter'),
-                value: _filter,
-                isDense: true,
-                style: const TextStyle(fontSize: 11, color: AppColors.text),
-                items: [
-                  for (final f in _filters)
-                    DropdownMenuItem(value: f, child: Text(f)),
-                ],
-                onChanged: (v) => setState(() => _filter = v ?? 'Semua'),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 200),
+                child: DropdownButton<String>(
+                  key: const Key('pengumpulan_status_filter'),
+                  value: _filter,
+                  isDense: true,
+                  isExpanded: true,
+                  style: const TextStyle(fontSize: 11, color: AppColors.text),
+                  items: [
+                    for (final f in _filters)
+                      DropdownMenuItem(
+                        value: f,
+                        child: Text(f, overflow: TextOverflow.ellipsis),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => _filter = v ?? 'Semua'),
+                ),
               ),
               FilledButton(
                 key: const Key('simpan_nilai_button'),
@@ -706,10 +1062,10 @@ class _PengumpulanPenilaianScreenState
                   Expanded(
                     child: Text(
                       status,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.text,
+                        color: _statusAccentColor(status),
                       ),
                     ),
                   ),
@@ -742,9 +1098,15 @@ class _PengumpulanPenilaianScreenState
     final Color badgeBg;
     final Color badgeFg;
     if (!item.isSubmitted) {
-      badgeText = 'Belum Mengumpulkan';
-      badgeBg = AppColors.secondaryText.withValues(alpha: 0.12);
-      badgeFg = AppColors.secondaryText;
+      if (item.status == PengumpulanStatus.tidakMengumpulkan) {
+        badgeText = PengumpulanStatus.tidakMengumpulkan;
+        badgeBg = AppColors.error.withValues(alpha: 0.12);
+        badgeFg = AppColors.error;
+      } else {
+        badgeText = PengumpulanStatus.belumMengumpulkan;
+        badgeBg = AppColors.secondaryText.withValues(alpha: 0.12);
+        badgeFg = AppColors.secondaryText;
+      }
     } else if (item.isMarkAsDone) {
       badgeText = 'Ditandai Selesai';
       badgeBg = AppColors.info.withValues(alpha: 0.12);
@@ -764,10 +1126,12 @@ class _PengumpulanPenilaianScreenState
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              CircleAvatar(
+              UserAvatar(
+                picturePath: item.profilePicture,
+                baseUrl: _effectiveBaseUrl,
                 radius: 16,
                 backgroundColor: AppColors.color1.withValues(alpha: 0.12),
-                child: Text(
+                fallback: Text(
                   _initialFor(item),
                   style: const TextStyle(
                     fontSize: 12,
@@ -812,6 +1176,7 @@ class _PengumpulanPenilaianScreenState
                   controller: _controllerFor(item),
                   textAlign: TextAlign.right,
                   keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   textInputAction: TextInputAction.done,
                   onSubmitted: (_) => _saveScores(),
                   style: const TextStyle(
@@ -854,6 +1219,25 @@ class _PengumpulanPenilaianScreenState
                   ),
                 ),
               ),
+              if (item.isSubmitted && item.isLate)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD97706).withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+                  ),
+                  child: const Text(
+                    'Terlambat',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFB45309),
+                    ),
+                  ),
+                ),
               if (item.submittedAt != null)
                 Text(
                   'Dikumpulkan pada ${formatJam(item.submittedAt!)} • ${formatTanggal(item.submittedAt!)}',
@@ -866,21 +1250,78 @@ class _PengumpulanPenilaianScreenState
           ),
           if (item.isSubmitted) ...[
             const SizedBox(height: 8),
-            if (attachments.isNotEmpty)
-              for (var i = 0; i < attachments.length; i++) ...[
-                FileCard.fromItem(attachments[i], baseUrl: _effectiveBaseUrl),
-                if (i < attachments.length - 1) const SizedBox(height: 8),
-              ]
-            else if (item.fileName != null)
-              Text(
-                item.fileName!,
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.secondaryText,
-                  decoration: TextDecoration.underline,
-                ),
-              )
-            else
+            if (attachments.isNotEmpty || item.fileName != null) ...[
+              Builder(
+                builder: (context) {
+                  final isExpanded = _expandedSubmissions.contains(item.keyId);
+                  final count = attachments.isNotEmpty ? attachments.length : 1;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      OutlinedButton.icon(
+                        key: ValueKey('toggle_lampiran_${item.keyId}'),
+                        onPressed: () {
+                          setState(() {
+                            if (isExpanded) {
+                              _expandedSubmissions.remove(item.keyId);
+                            } else {
+                              _expandedSubmissions.add(item.keyId);
+                            }
+                          });
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.color1,
+                          side: BorderSide(
+                            color: AppColors.color1.withValues(alpha: 0.4),
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.cardRadius,
+                            ),
+                          ),
+                        ),
+                        icon: Icon(
+                          isExpanded ? Icons.expand_less : Icons.expand_more,
+                          size: 16,
+                        ),
+                        label: Text(
+                          isExpanded
+                              ? 'Sembunyikan Lampiran'
+                              : 'Lihat Lampiran ($count)',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ),
+                      if (isExpanded) ...[
+                        const SizedBox(height: 8),
+                        if (attachments.isNotEmpty)
+                          for (var i = 0; i < attachments.length; i++) ...[
+                            FileCard.fromItem(
+                              attachments[i],
+                              baseUrl: _effectiveBaseUrl,
+                            ),
+                            if (i < attachments.length - 1)
+                              const SizedBox(height: 8),
+                          ]
+                        else if (item.fileName != null)
+                          Text(
+                            item.fileName!,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: AppColors.secondaryText,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                      ],
+                    ],
+                  );
+                },
+              ),
+            ] else
               const Text(
                 'Ditandai sebagai selesai tanpa lampiran',
                 style: TextStyle(

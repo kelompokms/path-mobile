@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_mobile/ui/auth/oauth_buttons.dart';
 import 'package:path_mobile/ui/core/responsive.dart';
 import 'package:path_mobile/ui/register/register_controller.dart';
+import 'package:path_mobile/utils/api_error_helper.dart';
 
 class RegisterScreen extends StatefulWidget {
   final RegisterController _controller;
@@ -97,10 +98,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             if (value == null || value.trim().isEmpty) {
                               return 'Email tidak boleh kosong';
                             }
-                            final emailRegex = RegExp(
-                              r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
-                            );
-                            if (!emailRegex.hasMatch(value.trim())) {
+                            if (!isValidEmailAddress(value)) {
                               return 'Format email tidak valid';
                             }
                             return null;

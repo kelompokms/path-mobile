@@ -35,9 +35,10 @@ class TugasData {
   final String title;
   final String author;
   final DateTime postedAt;
-  final DateTime dueDate;
+  final DateTime? dueDate;
   final int points = 100;
   final String description;
+  final bool acceptSubmissions;
   String status = 'Ditugaskan';
   int? score;
   final List<LampiranItem> lampiran;
@@ -49,8 +50,9 @@ class TugasData {
     required this.title,
     required this.author,
     required this.postedAt,
-    required this.dueDate,
+    this.dueDate,
     required this.description,
+    this.acceptSubmissions = true,
     this.score,
     List<LampiranItem>? lampiran,
     List<LampiranItem>? submissionLampiran,
@@ -70,8 +72,9 @@ class TugasData {
       title: model.judul,
       author: author ?? 'Pengajar',
       postedAt: model.dibuat,
-      dueDate: model.dibuat.add(const Duration(days: 7)),
+      dueDate: model.tenggatWaktu,
       description: model.deskripsi,
+      acceptSubmissions: model.menerimaKiriman,
       lampiran: List<LampiranItem>.from(model.lampiranItems),
     );
   }

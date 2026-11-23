@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_mobile/ui/core/app_theme.dart';
+import 'package:path_mobile/ui/core/user_avatar.dart';
 import 'package:path_mobile/utils/date_time_helper.dart';
 
 /// Supplies admin profile & logout actions to [PageFrame] headers when rendered
@@ -8,11 +9,15 @@ import 'package:path_mobile/utils/date_time_helper.dart';
 class AdminActionScope extends InheritedWidget {
   final VoidCallback onOpenProfile;
   final Future<void> Function() onLogout;
+  final String? profilePicture;
+  final String? baseUrl;
 
   const AdminActionScope({
     super.key,
     required this.onOpenProfile,
     required this.onLogout,
+    this.profilePicture,
+    this.baseUrl,
     required super.child,
   });
 
@@ -23,7 +28,9 @@ class AdminActionScope extends InheritedWidget {
   @override
   bool updateShouldNotify(AdminActionScope oldWidget) =>
       onOpenProfile != oldWidget.onOpenProfile ||
-      onLogout != oldWidget.onLogout;
+      onLogout != oldWidget.onLogout ||
+      profilePicture != oldWidget.profilePicture ||
+      baseUrl != oldWidget.baseUrl;
 }
 
 class PageFrame extends StatelessWidget {
@@ -61,11 +68,23 @@ class PageFrame extends StatelessWidget {
                 IconButton(
                   onPressed: adminScope.onOpenProfile,
                   tooltip: 'Profil',
-                  icon: const Icon(
-                    Icons.person_outline,
-                    size: 20,
-                    color: AppColors.text,
-                  ),
+                  icon: (adminScope.profilePicture?.trim().isNotEmpty ?? false)
+                      ? UserAvatar(
+                          picturePath: adminScope.profilePicture,
+                          baseUrl: adminScope.baseUrl,
+                          radius: 12,
+                          backgroundColor: AppColors.color1,
+                          fallback: const Icon(
+                            Icons.person_outline,
+                            size: 16,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.person_outline,
+                          size: 20,
+                          color: AppColors.text,
+                        ),
                   padding: EdgeInsets.zero,
                   visualDensity: VisualDensity.compact,
                   constraints: const BoxConstraints(
