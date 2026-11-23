@@ -16,17 +16,12 @@ typedef KoreksiAcceptedCallback = FutureOr<bool> Function(
   Map<String, int> scores,
 );
 
-/// Document extensions prioritized for AI answer-key upload.
+/// Document extensions supported by ai.pathclass.app & path-api for AI answer-key upload.
 const List<String> allowedAnswerKeyExtensions = [
   'pdf',
-  'txt',
-  'doc',
   'docx',
-  'xls',
-  'xlsx',
+  'txt',
   'csv',
-  'ppt',
-  'pptx',
 ];
 
 class KoreksiAiScreen extends StatefulWidget {
@@ -57,6 +52,8 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
   bool _grading = false;
   Set<String> _selected = {};
   Map<String, int>? _aiScores;
+  Map<String, String> _aiLabels = const {};
+  Map<String, String> _aiFeedback = const {};
   LampiranItem? _rekapFile;
   List<String> _analisa = const [];
   bool _confirmedStep = false;
@@ -110,7 +107,7 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
       final ext = extractLampiranExtension(fileName);
       if (ext.isEmpty || !allowedAnswerKeyExtensions.contains(ext)) {
         _showSnack(
-          'Format kunci jawaban tidak didukung. Gunakan file dokumen (PDF, TXT, DOC/DOCX, XLS/XLSX, CSV, PPT/PPTX).',
+          'Format kunci jawaban tidak didukung. Gunakan file PDF, DOCX, TXT, atau CSV.',
         );
         return;
       }
@@ -187,10 +184,21 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
     }
 
     final mappedScores = <String, int>{};
+    final mappedLabels = <String, String>{};
+    final mappedFeedback = <String, String>{};
     for (final p in selectedItems) {
-      final score = result.scoresByPenggunaId[p.penggunaId!];
+      final uid = p.penggunaId!;
+      final score = result.scoresByPenggunaId[uid];
       if (score != null) {
         mappedScores[p.keyId] = score;
+      }
+      final label = result.labelsByPenggunaId[uid];
+      if (label != null && label.isNotEmpty) {
+        mappedLabels[p.keyId] = label;
+      }
+      final fb = result.feedbackByPenggunaId[uid];
+      if (fb != null && fb.isNotEmpty) {
+        mappedFeedback[p.keyId] = fb;
       }
     }
     if (mappedScores.isEmpty) {
@@ -200,6 +208,8 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
 
     setState(() {
       _aiScores = mappedScores;
+      _aiLabels = mappedLabels;
+      _aiFeedback = mappedFeedback;
       _rekapFile = result.rekapFile;
       _analisa = result.analisa;
       _confirmedStep = true;
@@ -335,6 +345,8 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                       students: tugas.pengumpulan,
                       selected: _selected,
                       scores: generatedScores,
+                      labels: _aiLabels,
+                      feedbacks: _aiFeedback,
                       maxScore: tugas.points,
                       onChanged: (v) => setState(() => _selected = v),
                     ),
@@ -400,7 +412,7 @@ class _KoreksiAiScreenState extends State<KoreksiAiScreen> {
                   ),
                   const SizedBox(height: 6),
                   const Text(
-                    'File (PDF, TXT, DOC/DOCX, XLS/XLSX, CSV, PPT/PPTX • maks. 10 MB)',
+                    'File (PDF, DOCX, TXT, CSV • maks. 10 MB)',
                     style: TextStyle(
                       fontSize: 10,
                       color: AppColors.secondaryText,
@@ -557,6 +569,8 @@ class PengumpulanChecklist extends StatefulWidget {
   final ValueChanged<Set<String>> onChanged;
   final int maxScore;
   final Map<String, int> scores;
+  final Map<String, String> labels;
+  final Map<String, String> feedbacks;
 
   const PengumpulanChecklist({
     super.key,
@@ -565,6 +579,8 @@ class PengumpulanChecklist extends StatefulWidget {
     required this.onChanged,
     this.maxScore = 100,
     this.scores = const {},
+    this.labels = const {},
+    this.feedbacks = const {},
   });
 
   @override
@@ -756,6 +772,24 @@ class _PengumpulanChecklistState extends State<PengumpulanChecklist> {
                                     fontSize: 9,
                                     color: AppColors.secondaryText,
                                     decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            if (widget.labels[rows[i].keyId] != null ||
+                                widget.feedbacks[rows[i].keyId] != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  [
+                                    if (widget.labels[rows[i].keyId] != null)
+                                      '[${widget.labels[rows[i].keyId]}]',
+                                    if (widget.feedbacks[rows[i].keyId] != null)
+                                      widget.feedbacks[rows[i].keyId]!,
+                                  ].join(' '),
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.secondaryText,
+                                    height: 1.35,
                                   ),
                                 ),
                               ),

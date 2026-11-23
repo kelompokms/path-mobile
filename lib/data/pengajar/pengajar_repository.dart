@@ -34,12 +34,14 @@ class GeneratedMateriAiResult {
 
 class KoreksiAiResult {
   final Map<int, int> scoresByPenggunaId;
+  final Map<int, String> labelsByPenggunaId;
   final Map<int, String> feedbackByPenggunaId;
   final LampiranItem? rekapFile;
   final List<String> analisa;
 
   const KoreksiAiResult({
     required this.scoresByPenggunaId,
+    this.labelsByPenggunaId = const {},
     required this.feedbackByPenggunaId,
     this.rekapFile,
     this.analisa = const [],
@@ -242,16 +244,20 @@ class PengajarRepository {
   Future<(GeneratedMateriAiResult?, String?)> generateMateriAi({
     required String judul,
     required String deskripsiMateri,
+    List<String> lampiranPaths = const [],
     String jenjang = '',
     bool tabel = false,
     bool diagram = false,
     bool ilustrasi = false,
     bool kombinasi = false,
+    String formatKeluaran = 'pdf',
     bool gunakanModelGratis = false,
   }) async {
     try {
       // Image generation on ai.pathclass.app cannot use the free model tier.
       final effectiveFree = gunakanModelGratis && !ilustrasi && !kombinasi;
+      final normalizedFormat =
+          formatKeluaran.trim().toLowerCase() == 'pptx' ? 'pptx' : 'pdf';
       final response = await _client
           .post(
             _client.uri('/ai/materi/generate'),
@@ -259,11 +265,13 @@ class PengajarRepository {
             body: jsonEncode({
               'judul': judul,
               'deskripsi_materi': deskripsiMateri,
+              if (lampiranPaths.isNotEmpty) 'lampiran_paths': lampiranPaths,
               'jenjang': jenjang,
               'tabel': tabel,
               'diagram': diagram,
               'ilustrasi': ilustrasi,
               'kombinasi': kombinasi,
+              'format_keluaran': normalizedFormat,
               'gunakan_model_gratis': effectiveFree,
             }),
           )
@@ -347,6 +355,7 @@ class PengajarRepository {
 
       final decoded = jsonDecode(response.body) as Map<String, dynamic>;
       final scores = <int, int>{};
+      final labels = <int, String>{};
       final feedback = <int, String>{};
       final rawHasil = decoded['hasil'];
       if (rawHasil is List) {
@@ -356,6 +365,10 @@ class PengajarRepository {
             final nilai = (entry['nilai'] as num?)?.round();
             if (uid > 0 && nilai != null) {
               scores[uid] = nilai.clamp(0, 100);
+              final label = (entry['label'] ?? '').toString().trim();
+              if (label.isNotEmpty) {
+                labels[uid] = label;
+              }
               final saran = (entry['saran'] ?? '').toString().trim();
               if (saran.isNotEmpty) {
                 feedback[uid] = saran;
@@ -385,6 +398,7 @@ class PengajarRepository {
       return (
         KoreksiAiResult(
           scoresByPenggunaId: scores,
+          labelsByPenggunaId: labels,
           feedbackByPenggunaId: feedback,
           rekapFile: rekapFile,
           analisa: analisa,

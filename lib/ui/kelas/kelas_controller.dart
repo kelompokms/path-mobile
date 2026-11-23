@@ -177,6 +177,7 @@ class KelasController extends ChangeNotifier {
   Future<(String?, String?)> chatAi({
     required String pesan,
     String isiMateri = '',
+    List<String> lampiranPaths = const [],
     String jenjang = '',
     List<String> modes = const [],
     List<Map<String, String>> riwayat = const [],
@@ -185,6 +186,7 @@ class KelasController extends ChangeNotifier {
     return _repo.chatAi(
       pesan: pesan,
       isiMateri: isiMateri,
+      lampiranPaths: lampiranPaths,
       jenjang: jenjang,
       modes: modes,
       riwayat: riwayat,

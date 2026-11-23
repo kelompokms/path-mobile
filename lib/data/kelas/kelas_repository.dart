@@ -604,6 +604,7 @@ class KelasRepository {
   Future<(String?, String?)> chatAi({
     required String pesan,
     String isiMateri = '',
+    List<String> lampiranPaths = const [],
     String jenjang = '',
     List<String> modes = const [],
     List<Map<String, String>> riwayat = const [],
@@ -617,6 +618,7 @@ class KelasRepository {
             body: jsonEncode({
               'pesan': pesan,
               'isi_materi': isiMateri,
+              if (lampiranPaths.isNotEmpty) 'lampiran_paths': lampiranPaths,
               'jenjang': jenjang,
               'modes': modes,
               'riwayat': riwayat,

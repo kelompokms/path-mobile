@@ -17,17 +17,20 @@ class BantuanScreen extends StatefulWidget {
       editable: true,
       isi:
           'Fitur AI di PATH membantu proses belajar dan mengajar secara adaptif:\n\n'
-          '1. Bantuan AI (Murid)\n'
+          '1. Bantuan AI & Ringkas Dokumen (Murid)\n'
           'Buka halaman detail materi di dalam kelas, lalu tekan tombol "Bantuan AI". '
-          'Pilih gaya penjelasan yang diinginkan (Tabel, Diagram, Ilustrasi, atau Kombinasi) '
+          'Pilih gaya penjelasan visual yang diinginkan (Tabel, Diagram, Ilustrasi, atau Kombinasi), '
+          'gunakan "Ringkas Dokumen AI" untuk meringkas lampiran materi (PDF, DOCX, TXT, CSV), '
           'atau ketik pertanyaan langsung terkait materi tersebut.\n\n'
           '2. Buat Materi dengan AI (Guru)\n'
           'Di tab Materi kelas, tekan "Buat Materi" lalu pilih "Buat materi dengan AI". '
-          'Isi judul, topik materi, dan elemen pendukung untuk membuat draf materi yang dapat langsung digunakan atau disesuaikan.\n\n'
-          '3. Koreksi Menggunakan AI (Guru)\n'
+          'Isi judul, topik materi, elemen pendukung, dan format keluaran (PDF atau PowerPoint PPTX) '
+          'untuk membuat draf materi yang dapat langsung digunakan atau disesuaikan.\n\n'
+          '3. Koreksi, Cek Kemiripan & Indikasi AI (Guru)\n'
           'Di halaman "Pengumpulan & Penilaian" pada tugas, tekan "Koreksi menggunakan AI", '
-          'unggah file kunci jawaban (PDF, TXT, DOC/DOCX, XLS/XLSX, CSV) atau tulis deskripsi kunci jawaban, '
-          'pilih kiriman siswa, lalu tinjau hasil penilaian sebelum disimpan.',
+          'unggah file kunci jawaban (PDF, DOCX, TXT, CSV) atau tulis deskripsi kunci jawaban, '
+          'pilih kiriman siswa, lalu tinjau hasil penilaian sebelum disimpan. Guru juga dapat '
+          'menggunakan tombol "Cek Kemiripan" dan "Cek Indikasi AI" untuk menganalisis kiriman siswa.',
     ),
     BantuanKontenModel(
       kunci: 'etika_ai',

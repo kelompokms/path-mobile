@@ -774,5 +774,215 @@ void main() {
       });
       expect(subMurid.dibuat, DateTime(2026, 11, 18, 9, 16));
     });
+
+    test('AI endpoints in KelasController and PengajarController match path-api & ai.pathclass.app contracts', () async {
+      final recorded = <({String method, String path, Map<String, dynamic>? json})>[];
+      final client = HttpClient(
+        token: 'jwt.token',
+        client: MockClient((request) async {
+          final isJson = (request.headers['content-type'] ?? '').contains('application/json');
+          recorded.add((
+            method: request.method,
+            path: request.url.path,
+            json: isJson && request.body.isNotEmpty
+                ? jsonDecode(request.body) as Map<String, dynamic>
+                : null,
+          ));
+          switch (request.url.path) {
+            case '/ai/chat':
+              return http.Response(
+                jsonEncode({
+                  'jawaban': 'Tag <p> digunakan untuk paragraf.',
+                  'model': 'google/gemma-4-26b-a4b-it',
+                  'route': 'paid',
+                  'degraded': false,
+                  'berbasis_materi': true,
+                }),
+                200,
+              );
+            case '/ai/materi/explain':
+              return http.Response(
+                jsonEncode({
+                  'judul': 'Alur HTML',
+                  'jawaban': 'Penjelasan visual dengan tabel.',
+                  'file': {
+                    'nama': 'alur-html.pdf',
+                    'path': '/uploads/2026/11/23/alur.pdf',
+                    'ukuran': 2048,
+                  },
+                }),
+                200,
+              );
+            case '/ai/dokumen/ringkas':
+              return http.Response(
+                jsonEncode({
+                  'judul': 'Ringkasan Modul',
+                  'jawaban': 'Inti pembahasan modul.',
+                  'file': {
+                    'nama': 'ringkasan.pdf',
+                    'path': '/uploads/2026/11/23/ringkasan.pdf',
+                    'ukuran': 3072,
+                  },
+                }),
+                200,
+              );
+            case '/ai/materi/generate':
+              return http.Response(
+                jsonEncode({
+                  'judul': 'Slide HTML Dasar',
+                  'deskripsi': 'Materi pengenalan HTML.',
+                  'lampiran': [
+                    {
+                      'nama': 'slide-html.pptx',
+                      'path': '/uploads/2026/11/23/slide.pptx',
+                      'ukuran': 4096,
+                    },
+                  ],
+                }),
+                200,
+              );
+            case '/ai/koreksi':
+              return http.Response(
+                jsonEncode({
+                  'rekap_file': {
+                    'nama': 'rekap-koreksi.xlsx',
+                    'path': '/uploads/2026/11/23/rekap.xlsx',
+                    'ukuran': 5120,
+                  },
+                  'analisa': ['Rata-rata kelas 95,0'],
+                  'hasil': [
+                    {
+                      'pengguna_id': 5,
+                      'email': 'siswa5@example.com',
+                      'nama': 'Siswa Lima',
+                      'nilai': 95,
+                      'label': 'Sangat Baik',
+                      'saran': 'Jawaban sangat tepat.',
+                    },
+                  ],
+                }),
+                200,
+              );
+            case '/ai/similarity':
+              return http.Response(
+                jsonEncode({
+                  'rekap_file': {
+                    'nama': 'rekap-plagiasi.xlsx',
+                    'path': '/uploads/2026/11/23/sim.xlsx',
+                    'ukuran': 4100,
+                  },
+                  'analisa': ['2 jawaban diperiksa'],
+                  'ringkasan': ['Budi ↔ Siti 80% — Kemiripan tinggi'],
+                }),
+                200,
+                headers: const {
+                  'content-type': 'application/json; charset=utf-8',
+                },
+              );
+            case '/ai/indikasi':
+              return http.Response(
+                jsonEncode({
+                  'rekap_file': {
+                    'nama': 'laporan-indikasi-ai.pdf',
+                    'path': '/uploads/2026/11/23/aiu.pdf',
+                    'ukuran': 2900,
+                  },
+                  'analisa': ['1 jawaban diperiksa'],
+                  'ringkasan': ['Budi: 45% (Sedang) — Kosakata formal'],
+                }),
+                200,
+                headers: const {
+                  'content-type': 'application/json; charset=utf-8',
+                },
+              );
+            default:
+              return http.Response('{}', 404);
+          }
+        }),
+      );
+
+      final kelasCtrl = KelasController(KelasRepository(client));
+      final pengajarCtrl = PengajarController(PengajarRepository(client));
+      addTearDown(kelasCtrl.dispose);
+      addTearDown(pengajarCtrl.dispose);
+
+      // 1. chatAi with lampiranPaths
+      final (chatAns, chatErr) = await kelasCtrl.chatAi(
+        pesan: 'Apa itu tag <p>?',
+        isiMateri: 'HTML Dasar',
+        lampiranPaths: const ['/uploads/2026/11/23/modul.pdf'],
+        jenjang: 'Kelas X',
+        gunakanModelGratis: true,
+      );
+      expect(chatErr, isNull);
+      expect(chatAns, 'Tag <p> digunakan untuk paragraf.');
+      expect(recorded.last.json!['lampiran_paths'], ['/uploads/2026/11/23/modul.pdf']);
+
+      // 2. explainMateriAi forces paid when ilustrasi is true
+      final (expRes, expErr) = await kelasCtrl.explainMateriAi(
+        pertanyaan: 'Jelaskan HTML',
+        ilustrasi: true,
+        gunakanModelGratis: true,
+      );
+      expect(expErr, isNull);
+      expect(expRes!.judul, 'Alur HTML');
+      expect(expRes.file!.name, 'alur-html.pdf');
+      expect(recorded.last.json!['gunakan_model_gratis'], isFalse);
+
+      // 3. ringkasDokumenAi
+      final (sumRes, sumErr) = await kelasCtrl.ringkasDokumenAi(
+        lampiranPaths: const ['/uploads/2026/11/23/modul.pdf'],
+        judul: 'Modul HTML',
+      );
+      expect(sumErr, isNull);
+      expect(sumRes!.judul, 'Ringkasan Modul');
+      expect(sumRes.file!.name, 'ringkasan.pdf');
+
+      // 4. generateMateriAi with formatKeluaran: pptx
+      final (genRes, genErr) = await pengajarCtrl.generateMateriAi(
+        judul: 'Slide HTML Dasar',
+        deskripsiMateri: 'Pengenalan HTML',
+        formatKeluaran: 'pptx',
+        kombinasi: true,
+        gunakanModelGratis: true,
+      );
+      expect(genErr, isNull);
+      expect(genRes!.judul, 'Slide HTML Dasar');
+      expect(genRes.lampiran.single.detail, 'PPTX');
+      expect(recorded.last.json!['format_keluaran'], 'pptx');
+      expect(recorded.last.json!['gunakan_model_gratis'], isFalse);
+
+      // 5. koreksiTugasAi parses scores, labels, feedback, rekapFile, and analisa
+      final (korRes, korErr) = await pengajarCtrl.koreksiTugasAi(
+        kodeKelas: 'PPLG10',
+        postinganId: 10,
+        penggunaIds: const [5],
+        deskripsiKunci: 'HTML adalah HyperText Markup Language',
+      );
+      expect(korErr, isNull);
+      expect(korRes!.scoresByPenggunaId[5], 95);
+      expect(korRes.labelsByPenggunaId[5], 'Sangat Baik');
+      expect(korRes.feedbackByPenggunaId[5], 'Jawaban sangat tepat.');
+      expect(korRes.rekapFile!.name, 'rekap-koreksi.xlsx');
+      expect(korRes.analisa, ['Rata-rata kelas 95,0']);
+
+      // 6. cekKemiripanAi & cekIndikasiAi
+      final (simRes, simErr) = await pengajarCtrl.cekKemiripanAi(
+        kodeKelas: 'PPLG10',
+        postinganId: 10,
+        penggunaIds: const [5, 6],
+      );
+      expect(simErr, isNull);
+      expect(simRes!.ringkasan.single, contains('80%'));
+
+      final (indRes, indErr) = await pengajarCtrl.cekIndikasiAi(
+        kodeKelas: 'PPLG10',
+        postinganId: 10,
+        penggunaIds: const [5],
+      );
+      expect(indErr, isNull);
+      expect(indRes!.rekapFile!.detail, 'PDF');
+      expect(indRes.ringkasan.single, contains('45% (Sedang)'));
+    });
   });
 }

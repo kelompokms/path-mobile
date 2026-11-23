@@ -274,10 +274,15 @@ class BuatMateriAiScreen extends StatefulWidget {
 class _BuatMateriAiScreenState extends State<BuatMateriAiScreen> {
   static const _baseModes = ['Tabel', 'Diagram', 'Ilustrasi'];
   static const _modes = ['Tabel', 'Diagram', 'Ilustrasi', 'Kombinasi'];
+  static const _outputFormats = [
+    (value: 'pdf', label: 'PDF'),
+    (value: 'pptx', label: 'PowerPoint (PPTX)'),
+  ];
 
   final _titleController = TextEditingController();
   final _promptController = TextEditingController();
   final Set<String> _selectedModes = {};
+  String _formatKeluaran = 'pdf';
   bool _generating = false;
   bool _gunakanModelGratis = false;
 
@@ -332,12 +337,16 @@ class _BuatMateriAiScreenState extends State<BuatMateriAiScreen> {
 
     MateriPengajar generated;
     if (ctrl == null) {
+      final ext = _formatKeluaran == 'pptx' ? 'pptx' : 'pdf';
       generated = MateriPengajar(
         title: title,
         description: 'Materi hasil AI untuk topik "$prompt".',
         postedAt: nowGmt7(),
         lampiran: [
-          LampiranItem(name: 'Materi_AI_$title.pdf', detail: 'PDF'),
+          LampiranItem(
+            name: 'Materi_AI_$title.$ext',
+            detail: ext.toUpperCase(),
+          ),
         ],
       );
     } else {
@@ -351,6 +360,7 @@ class _BuatMateriAiScreenState extends State<BuatMateriAiScreen> {
         diagram: _selectedModes.contains('Diagram'),
         ilustrasi: _selectedModes.contains('Ilustrasi'),
         kombinasi: _selectedModes.contains('Kombinasi'),
+        formatKeluaran: _formatKeluaran,
         gunakanModelGratis: _effectiveFreeModel,
       );
       if (!mounted) return;
@@ -488,6 +498,53 @@ class _BuatMateriAiScreenState extends State<BuatMateriAiScreen> {
                               textStyle: const TextStyle(fontSize: 11),
                             ),
                             child: Text(label),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Format keluaran dokumen',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final fmt in _outputFormats)
+                          ElevatedButton(
+                            key: Key('buat_materi_ai_format_${fmt.value}'),
+                            onPressed: _generating
+                                ? null
+                                : () => setState(
+                                    () => _formatKeluaran = fmt.value,
+                                  ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _formatKeluaran == fmt.value
+                                  ? AppColors.color1
+                                  : AppColors.card,
+                              foregroundColor: _formatKeluaran == fmt.value
+                                  ? Colors.white
+                                  : AppColors.text,
+                              elevation: AppTheme.cardElevation,
+                              shadowColor: AppTheme.shadowColor,
+                              side: AppTheme.thinBorderSide,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.cardRadius,
+                                ),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                              ),
+                              minimumSize: const Size(0, 32),
+                              textStyle: const TextStyle(fontSize: 11),
+                            ),
+                            child: Text(fmt.label),
                           ),
                       ],
                     ),

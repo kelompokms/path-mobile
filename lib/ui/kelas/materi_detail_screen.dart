@@ -220,12 +220,12 @@ class _MateriDetailScreenState extends State<MateriDetailScreen> {
       widget.materi.title.trim(),
       widget.materi.description.trim(),
     ].where((s) => s.isNotEmpty).join('\n\n');
+    final lampiranPaths = [
+      for (final item in widget.materi.lampiran)
+        if (!item.isLink && item.targetUrl != null) item.targetUrl!,
+    ];
 
     if (useVisualExplain) {
-      final lampiranPaths = [
-        for (final item in widget.materi.lampiran)
-          if (item.targetUrl != null) item.targetUrl!,
-      ];
       final (res, err) = await ctrl.explainMateriAi(
         pertanyaan: q,
         deskripsiMateri: widget.materi.description.trim(),
@@ -276,6 +276,7 @@ class _MateriDetailScreenState extends State<MateriDetailScreen> {
     final (jawaban, err) = await ctrl.chatAi(
       pesan: q,
       isiMateri: isiMateri,
+      lampiranPaths: lampiranPaths,
       jenjang: widget.jenjang,
       modes: active,
       riwayat: riwayat,

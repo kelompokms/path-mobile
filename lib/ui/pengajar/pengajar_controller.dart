@@ -298,21 +298,25 @@ class PengajarController extends ChangeNotifier {
   Future<(GeneratedMateriAiResult?, String?)> generateMateriAi({
     required String judul,
     required String deskripsiMateri,
+    List<String> lampiranPaths = const [],
     String jenjang = '',
     bool tabel = false,
     bool diagram = false,
     bool ilustrasi = false,
     bool kombinasi = false,
+    String formatKeluaran = 'pdf',
     bool gunakanModelGratis = false,
   }) {
     return _repo.generateMateriAi(
       judul: judul,
       deskripsiMateri: deskripsiMateri,
+      lampiranPaths: lampiranPaths,
       jenjang: jenjang,
       tabel: tabel,
       diagram: diagram,
       ilustrasi: ilustrasi,
       kombinasi: kombinasi,
+      formatKeluaran: formatKeluaran,
       gunakanModelGratis: gunakanModelGratis,
     );
   }
